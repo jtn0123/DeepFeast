@@ -12,11 +12,13 @@ namespace DeepFeast
         {
             public Mesh body, fins, nearFin, farFin, nearEye, farEye, mouth;
             public float height, depth;
-            public Vector4 head;
+            public Vector4 head, profile;
             public Vector3 nearNormal, farNormal;
             public Vector3 nearEyeCenter, farEyeCenter;
+            public Vector3 nearFinRoot, farFinRoot;
         }
         static readonly Dictionary<string, Model> cache = new Dictionary<string, Model>();
+        static readonly Color reefReflection = U.Hex("#c5af8a"), kelpReflection = U.Hex("#648b65"), abyssReflection = U.Hex("#546581");
         static Material material;
         static Material Material => material ??= new Material(Resources.Load<Shader>("Shaders/FishVolume"));
         readonly MeshRenderer[] parts = new MeshRenderer[7];
@@ -75,6 +77,9 @@ namespace DeepFeast
             var rect = sprite.rect;
             var bounds = sprite.bounds;
             float sin = Mathf.Sin(Yaw * Mathf.Deg2Rad);
+            var habitat = Habitat.At(f.y);
+            var waterReflection = Color.Lerp(World.WaterAt(Mathf.Max(0, f.y - 700)), habitat.light, 0.45f);
+            var groundReflection = Color.Lerp(Color.Lerp(reefReflection, kelpReflection, habitat.kelp), abyssReflection, habitat.abyss);
             for (int i = 0; i < parts.Length; i++)
             {
                 block.Clear();
@@ -85,6 +90,7 @@ namespace DeepFeast
                 block.SetColor("_Base", species.c0); block.SetColor("_Dark", species.c1); block.SetColor("_Belly", species.c2);
                 block.SetColor("_Accent", species.fin);
                 block.SetVector("_Head", model.head);
+                block.SetVector("_Profile", model.profile);
                 block.SetFloat("_Pattern", Pattern(species.pat));
                 block.SetFloat("_Style", Style == Look.Sculpted ? 1 : 0);
                 block.SetFloat("_FrontView", Mathf.Pow(sin, 8));
@@ -96,11 +102,15 @@ namespace DeepFeast
                 block.SetFloat("_Energy", Mathf.Clamp(0.6f + new Vector2(f.vx, f.vy).magnitude / Mathf.Max(1, f.r) * 0.02f, 0.6f, 1.25f));
                 block.SetFloat("_TurnBend", angularVelocity / 240 * 0.22f);
                 block.SetFloat("_Flutter", i == 2 || i == 3 ? motion.z * 5 : 0.035f);
-                block.SetVector("_FinRoot", new Vector4(0.39f, -model.height * 0.18f, (i == 2 ? -1 : 1) * model.depth * 0.94f, i == 2 || i == 3 ? 1 : 0));
+                var finRoot = i == 2 ? model.nearFinRoot : model.farFinRoot;
+                block.SetVector("_FinRoot", new Vector4(finRoot.x, finRoot.y, finRoot.z, i == 2 || i == 3 ? 1 : 0));
                 block.SetFloat("_Mouth", f.mouth);
                 block.SetFloat("_Height", model.height);
                 block.SetFloat("_Fog", species == Data.Player ? 0.025f : 0.035f + Mathf.Clamp01((f.y - 900) / 3500) * 0.045f);
                 block.SetColor("_FogColor", World.WaterAt(f.y));
+                block.SetColor("_WaterReflection", waterReflection);
+                block.SetColor("_GroundReflection", groundReflection);
+                block.SetFloat("_ReflectionStrength", Mathf.Lerp(0.11f, 0.055f, habitat.abyss));
                 float visibility = 1;
                 if (i == 4 || i == 5)
                 {
@@ -121,22 +131,41 @@ namespace DeepFeast
 
         static int Pattern(string pattern) => pattern switch { "bands" => 1, "stripes" => 2, "tang" => 3, "spots" => 4, "scales" => 5, "bars" => 6, "player" => 7, "shark" => 8, "line" => 9, "finlets" => 10, _ => 0 };
 
+        static Model Anatomy(Species sp, FishArt.Art art)
+        {
+            Model Form(float height, float depth, float shoulder, float nose, float rear, float front, float peduncle, float lift = 0)
+                => new Model { height = art.hh * height, depth = depth, head = new Vector4(shoulder, nose, art.hh * height, depth), profile = new Vector4(rear, front, peduncle, lift) };
+            // Species have authored proportions rather than inheriting the same oval body.
+            return sp.key switch
+            {
+                "shark" => Form(0.97f, 0.24f, -0.12f, 1.67f, 1.35f, 0.90f, 0.15f, 0.025f),
+                "minnow" => Form(0.86f, 0.13f, -0.02f, 1.36f, 1.50f, 0.65f, 0.13f),
+                "clown" => Form(0.84f, 0.28f, 0.02f, 1.16f, 0.95f, 0.48f, 0.21f),
+                "tang" => Form(0.98f, 0.19f, 0.03f, 1.07f, 0.90f, 0.55f, 0.15f),
+                "angel" => Form(1.01f, 0.18f, 0.03f, 1.03f, 0.90f, 0.52f, 0.11f),
+                "puffer" => Form(0.95f, 0.64f, 0.13f, 1.10f, 0.90f, 0.50f, 0.20f),
+                "parrot" => Form(0.90f, 0.38f, 0.15f, 1.03f, 1.10f, 0.38f, 0.19f),
+                "snapper" => Form(0.88f, 0.25f, -0.05f, 1.42f, 1.45f, 0.65f, 0.15f),
+                "barracuda" => Form(0.85f, 0.12f, -0.10f, 1.65f, 0.75f, 0.85f, 0.22f),
+                "grouper" => Form(0.97f, 0.46f, 0.20f, 1.12f, 0.85f, 0.45f, 0.19f),
+                "tuna" => Form(0.99f, 0.30f, -0.10f, 1.50f, 1.65f, 0.68f, 0.10f),
+                _ => Form(0.88f, 0.33f, 0.08f, 1.22f, 1.20f, 0.50f, 0.16f),
+            };
+        }
+
         static Model Build(Species sp, FishArt.Art art)
         {
-            float h = art.hh * (sp.shape == "round" ? 0.95f : sp.shape == "disc" || sp.shape == "tall" ? 0.94f : 0.88f);
-            float depth = sp.shape switch { "round" => 0.64f, "fat" => 0.40f, "disc" => 0.22f, "tall" => 0.21f, "long" => 0.14f, "slim" => 0.16f, "shark" => 0.28f, "torpedo" => 0.30f, _ => 0.33f };
-            float headCenter = sp.shape == "round" ? 0.13f : sp.shape == "long" || sp.shape == "shark" ? 0.20f : 0.08f;
-            float headLength = sp.shape == "round" ? 1.10f : sp.shape == "long" || sp.shape == "shark" ? 1.14f : 1.22f;
-            var model = new Model { height = h, depth = depth, head = new Vector4(headCenter, headLength, h, depth) };
+            var model = Anatomy(sp, art);
+            float h = model.height, depth = model.depth, headCenter = model.head.x, headLength = model.head.y;
             var b = new Builder();
             const int rings = 44, sides = 32;
             for (int ring = 0; ring <= rings; ring++)
             {
-                float u = ring / (float)rings, x = Mathf.Lerp(-1.04f, headCenter + headLength, u), profile = Profile(x, model.head);
+                float u = ring / (float)rings, x = Mathf.Lerp(-1.04f, headCenter + headLength, u), profile = Profile(x, model);
                 for (int side = 0; side <= sides; side++)
                 {
                     float angle = side / (float)sides * U.TAU;
-                    b.Vertex(new Vector3(x, Mathf.Cos(angle) * h * profile, Mathf.Sin(angle) * depth * profile), Color.white, Vector2.zero, new Vector2(x, side / (float)sides));
+                    b.Vertex(new Vector3(x, CenterY(x, model) + Mathf.Cos(angle) * h * profile, Mathf.Sin(angle) * depth * profile), Color.white, Vector2.zero, new Vector2(x, side / (float)sides));
                     if (ring < rings && side < sides)
                     {
                         int a = ring * (sides + 1) + side, c = a + sides + 1;
@@ -145,40 +174,55 @@ namespace DeepFeast
                 }
             }
             int rearCap = b.Vertex(new Vector3(-1.04f, 0, 0), Color.white, Vector2.zero);
-            int noseCap = b.Vertex(new Vector3(headCenter + headLength, 0, 0), Color.white, Vector2.zero);
+            int noseCap = b.Vertex(new Vector3(headCenter + headLength, model.profile.w, 0), Color.white, Vector2.zero);
             for (int side = 0; side < sides; side++)
             {
                 b.Tri(rearCap, side + 1, side);
                 b.Tri(noseCap, rings * (sides + 1) + side, rings * (sides + 1) + side + 1);
             }
-            model.body = b.Mesh(sp.key + " rounded body");
+            if (sp == Data.Shark)
+                foreach (int side in new[] { -1, 1 })
+                    b.Ellipsoid(new Vector3(-0.88f, CenterY(-0.88f, model), side * depth * Profile(-0.88f, model)), new Vector3(0.16f, 0.022f, 0.055f), Quaternion.identity, Color.white, 8, 12);
+            model.body = b.Mesh(sp.key + " sculpted species body");
             b = new Builder();
             Caudal(b, sp, model);
             SpineFin(b, sp, model, 1);
             SpineFin(b, sp, model, -1);
+            if (sp == Data.Shark)
+            {
+                SweptSpine(b, sp, model, 1, -0.69f, -0.95f, 0.13f, 0.38f);
+                foreach (int side in new[] { -1, 1 }) PelvicFin(b, sp, model, side);
+            }
+            if (sp.key == "tuna")
+                for (int i = 0; i < 4; i++)
+                    foreach (int side in new[] { -1, 1 }) SweptSpine(b, sp, model, side, -0.58f - i * 0.10f, -0.69f - i * 0.10f, 0.065f - i * 0.006f, 0.32f);
             model.fins = b.Mesh(sp.key + " rooted caudal dorsal ventral membranes");
             model.nearFin = Pectoral(sp, model, -1); model.farFin = Pectoral(sp, model, 1);
-            float ex = Mathf.Clamp(art.eyePos.x, 0.5f, 0.83f), ey = Mathf.Clamp(art.eyePos.y, 0.08f, h * 0.58f);
-            float profileEye = Profile(ex, model.head);
+            model.nearFinRoot = PectoralRoot(sp, model, -1, 0.5f); model.farFinRoot = PectoralRoot(sp, model, 1, 0.5f);
+            float ex = sp == Data.Shark ? 0.79f : Mathf.Clamp(art.eyePos.x, 0.5f, 0.83f), ey = sp == Data.Shark ? h * 0.29f : Mathf.Clamp(art.eyePos.y, 0.08f, h * 0.58f);
+            float profileEye = Profile(ex, model);
             float ez = depth * profileEye * Mathf.Sqrt(Mathf.Max(0.1f, 1 - Mathf.Pow(ey / (h * profileEye), 2))) + 0.015f;
-            model.nearNormal = new Vector3(0.57f, 0.12f, -0.82f).normalized;
-            model.farNormal = new Vector3(0.57f, 0.12f, 0.82f).normalized;
-            model.nearEyeCenter = new Vector3(ex, ey, -ez); model.farEyeCenter = new Vector3(ex, ey, ez);
+            model.nearNormal = (sp == Data.Shark ? new Vector3(0.25f, 0.13f, -0.96f) : new Vector3(0.57f, 0.12f, -0.82f)).normalized;
+            model.farNormal = new Vector3(model.nearNormal.x, model.nearNormal.y, -model.nearNormal.z);
+            model.nearEyeCenter = new Vector3(ex, ey + CenterY(ex, model), -ez); model.farEyeCenter = new Vector3(ex, ey + CenterY(ex, model), ez);
             model.nearEye = Eye(sp, art, model.nearEyeCenter, model.nearNormal);
             model.farEye = Eye(sp, art, model.farEyeCenter, model.farNormal);
             model.mouth = Mouth(sp, model);
             return model;
         }
 
-        static float Profile(float x, Vector4 head)
+        static float CenterY(float x, Model model) => model.profile.w * Mathf.InverseLerp(-1.04f, model.head.x, x);
+
+        static float Profile(float x, Model model)
         {
-            if (x >= head.x) return Mathf.Sqrt(Mathf.Max(0.000016f, 1 - Mathf.Pow((x - head.x) / head.y, 2)));
-            float t = Mathf.InverseLerp(-1.04f, head.x, x);
-            return Mathf.Lerp(0.16f, 1, Mathf.Pow(Mathf.Sin(t * Mathf.PI * 0.5f), 1.2f));
+            if (x >= model.head.x) return Mathf.Pow(Mathf.Max(0.000016f, 1 - Mathf.Pow((x - model.head.x) / model.head.y, 2)), model.profile.y);
+            float t = Mathf.InverseLerp(-1.04f, model.head.x, x);
+            return Mathf.Lerp(model.profile.z, 1, Mathf.Pow(Mathf.Max(0, Mathf.Sin(t * Mathf.PI * 0.5f)), model.profile.x));
         }
 
-        static Color FinColor(Color color, float weight)
+        static Color FinColor(Color color, float weight, bool cartilage = false)
         {
+            if (cartilage) { var solid = Color.Lerp(color, U.Hex("#a4b4ba"), weight * 0.10f); solid.a = 1; return solid; }
             var root = Color.Lerp(color, U.Hex("#48362e"), 0.24f);
             var tip = Color.Lerp(color, U.Hex("#fff1cc"), 0.23f);
             var result = Color.Lerp(root, tip, Mathf.SmoothStep(0, 1, weight));
@@ -199,54 +243,89 @@ namespace DeepFeast
                 {
                     TailKind.Fan => -1.70f + 0.17f * edge * edge,
                     TailKind.Lunate => -1.28f - 0.50f * Mathf.Pow(edge, 1.35f),
-                    TailKind.Shark => -1.34f - (s > 0 ? 0.48f : 0.32f) * Mathf.Pow(edge, 0.9f),
+                    TailKind.Shark => -1.18f - (s > 0 ? 0.75f : 0.62f) * Mathf.Pow(edge, 1.15f),
                     _ => -1.38f - 0.38f * Mathf.Pow(edge, 1.15f),
                 };
-                float y = s * height * (kind == TailKind.Shark ? s > 0 ? 1.18f : 0.82f : 1);
-                var root = new Vector3(-1.04f, s * model.height * 0.16f, 0);
+                float y = s * height * (kind == TailKind.Shark ? s > 0 ? 1.10f : 0.95f : 1);
+                var root = new Vector3(-1.04f, s * model.height * model.profile.z, 0);
                 var end = new Vector3(x, y, 0);
                 var p = Vector3.Lerp(root, end, weight);
                 p.y += s * height * 0.09f * Mathf.Sin(weight * Mathf.PI);
                 p.z = Mathf.Sin(weight * Mathf.PI) * (0.035f + 0.025f * s) + Mathf.Sin(across * Mathf.PI * 24) * 0.003f * weight;
                 return p;
-            });
+            }, sp == Data.Shark);
         }
 
         static void SpineFin(Builder b, Species sp, Model model, int side)
         {
             float height = (side > 0 ? sp.Sh.dH : sp.Sh.aH) * FishArt.HL;
             bool shark = sp.shape == "shark";
+            if (shark)
+            {
+                if (side > 0) SweptSpine(b, sp, model, side, 0.15f, -0.62f, 0.67f, 0.34f);
+                else SweptSpine(b, sp, model, side, -0.65f, -0.94f, 0.14f, 0.40f);
+                return;
+            }
             b.Membrane(sp.fin, 8, 26, side > 0 ? 2 : 3, (weight, along) =>
             {
                 float x = Mathf.Lerp(side > 0 ? 0.43f : 0.22f, side > 0 ? -0.83f : -0.72f, along);
                 // sin(PI) can round below zero; fractional powers require a nonnegative base.
-                float outline = Mathf.Pow(Mathf.Max(0, Mathf.Sin(along * Mathf.PI)), shark ? 1.8f : sp.shape == "tall" ? 0.65f : 1.1f);
-                if (shark) outline *= 1.2f - along * 0.65f;
-                float rootY = model.height * Profile(x, model.head) * 0.96f;
-                var p = new Vector3(x - weight * outline * 0.18f, side * (rootY + height * outline * weight), 0);
+                float outline = Mathf.Pow(Mathf.Max(0, Mathf.Sin(along * Mathf.PI)), sp.shape == "tall" ? 0.65f : 1.1f);
+                float rootY = model.height * Profile(x, model) * 0.96f;
+                var p = new Vector3(x - weight * outline * 0.18f, CenterY(x, model) + side * (rootY + height * outline * weight), 0);
                 p.z = Mathf.Sin(weight * Mathf.PI) * Mathf.Sin(along * Mathf.PI) * 0.06f;
                 return p;
             });
         }
 
+        static void SweptSpine(Builder b, Species sp, Model model, int side, float start, float end, float height, float apex)
+        {
+            b.Membrane(sp.fin, 10, 30, side > 0 ? 2 : 3, (weight, along) =>
+            {
+                float x = Mathf.Lerp(start, end, along);
+                float outline = along < apex ? along / apex : Mathf.Pow(Mathf.Max(0, (1 - along) / (1 - apex)), 1.35f);
+                float rootY = CenterY(x, model) + side * model.height * Profile(x, model) * 0.98f;
+                return new Vector3(x - weight * outline * 0.16f, rootY + side * height * outline * weight, Mathf.Sin(weight * Mathf.PI) * outline * 0.025f);
+            }, sp == Data.Shark);
+        }
+
+        static Vector3 PectoralRoot(Species sp, Model model, int side, float along)
+        {
+            bool shark = sp == Data.Shark;
+            float x = Mathf.Lerp(shark ? 0.16f : 0.48f, shark ? -0.18f : 0.30f, along);
+            float profile = Profile(x, model), y = -model.height * Mathf.Lerp(shark ? 0.20f : 0.01f, shark ? 0.55f : 0.37f, along);
+            float z = model.depth * profile * Mathf.Sqrt(Mathf.Max(0.01f, 1 - Mathf.Pow(y / (model.height * profile), 2)));
+            return new Vector3(x, CenterY(x, model) + y, side * (z + 0.002f));
+        }
+
+        static void PelvicFin(Builder b, Species sp, Model model, int side)
+        {
+            b.Membrane(sp.fin, 6, 16, 3, (weight, along) =>
+            {
+                float x = Mathf.Lerp(-0.42f, -0.66f, along), profile = Profile(x, model);
+                var root = new Vector3(x, CenterY(x, model) - model.height * profile * 0.85f, side * model.depth * profile * 0.5f);
+                float outline = along < 0.3f ? along / 0.3f : Mathf.Max(0, (1 - along) / 0.7f);
+                return root + new Vector3(-0.18f, -0.12f, side * 0.24f) * outline * weight;
+            }, true);
+        }
+
         static Mesh Pectoral(Species sp, Model model, int side)
         {
             var b = new Builder();
-            float h = model.height, depth = model.depth;
-            float span = sp.shape == "shark" ? 0.45f : 0.30f;
+            float h = model.height;
+            bool shark = sp == Data.Shark;
+            float span = shark ? 0.82f : sp.key == "tuna" ? 0.46f : 0.30f;
             const int radial = 10, across = 24;
             for (int layer = 0; layer < 2; layer++)
                 for (int u = 0; u <= radial; u++)
                     for (int t = 0; t <= across; t++)
                     {
                         float weight = u / (float)radial, angle = t / (float)across;
-                        var root = Vector3.Lerp(new Vector3(0.48f, -h * 0.01f, 0), new Vector3(0.30f, -h * 0.37f, 0), angle);
-                        float profile = Profile(root.x, model.head);
-                        root.z = side * (depth * profile * Mathf.Sqrt(Mathf.Max(0.01f, 1 - Mathf.Pow(root.y / (h * profile), 2))) + 0.002f);
-                        float spread = Mathf.Pow(Mathf.Max(0, Mathf.Sin(angle * Mathf.PI)), 0.8f);
-                        var p = root + new Vector3(-0.46f, -h * 0.35f, side * span) * spread * weight;
+                        var root = PectoralRoot(sp, model, side, angle);
+                        float spread = shark ? angle < 0.30f ? angle / 0.30f : Mathf.Pow(Mathf.Max(0, (1 - angle) / 0.70f), 1.3f) : Mathf.Pow(Mathf.Max(0, Mathf.Sin(angle * Mathf.PI)), 0.8f);
+                        var p = root + new Vector3(shark ? -0.67f : -0.46f, -h * (shark ? 0.85f : 0.35f), side * span) * spread * weight;
                         p.y += Mathf.Sin(weight * Mathf.PI) * spread * 0.055f + (layer == 0 ? 1 : -1) * Mathf.Lerp(0.009f, 0.002f, weight);
-                        b.Vertex(p, FinColor(sp.fin, weight), new Vector2(weight, side), new Vector2(weight, angle));
+                        b.Vertex(p, FinColor(sp.fin, weight, shark), new Vector2(weight, side), new Vector2(weight, angle));
                     }
             int count = (radial + 1) * (across + 1);
             for (int layer = 0; layer < 2; layer++)
@@ -268,9 +347,10 @@ namespace DeepFeast
             var b = new Builder();
             var q = Quaternion.FromToRotation(Vector3.forward, normal);
             float rx = Mathf.Clamp(art.eyeSize.x * 0.8f, 0.045f, 0.165f), ry = Mathf.Clamp(art.eyeSize.y * 0.8f, 0.05f, 0.17f);
+            if (sp == Data.Shark) { rx = 0.037f; ry = 0.033f; }
             b.Ellipsoid(center, new Vector3(rx * 1.10f, ry * 1.10f, 0.035f), q, Color.Lerp(sp.c1, sp.c0, 0.65f), 10, 14);
-            b.Ellipsoid(center + normal * 0.018f, new Vector3(rx, ry, 0.038f), q, U.Hex("#f6f8e9"), 10, 14);
-            Color iris = sp == Data.Shark ? U.Hex("#866c3c") : Color.Lerp(sp.c1, U.Hex("#327c82"), 0.65f);
+            b.Ellipsoid(center + normal * 0.018f, new Vector3(rx, ry, sp == Data.Shark ? 0.018f : 0.038f), q, U.Hex(sp == Data.Shark ? "#14202a" : "#f6f8e9"), 10, 14);
+            Color iris = sp == Data.Shark ? U.Hex("#252f33") : Color.Lerp(sp.c1, U.Hex("#327c82"), 0.65f);
             b.Ellipsoid(center + normal * 0.053f, new Vector3(rx * 0.60f, ry * 0.64f, 0.014f), q, iris, 10, 14);
             b.Ellipsoid(center + normal * 0.065f, new Vector3(rx * 0.38f, ry * 0.48f, 0.016f), q, U.Hex("#071d2d"), 8, 12);
             b.Ellipsoid(center + normal * 0.082f + q * new Vector3(-rx * 0.15f, ry * 0.20f, 0), new Vector3(rx * 0.12f, ry * 0.11f, 0.006f), q, Color.white, 6, 10);
@@ -284,8 +364,10 @@ namespace DeepFeast
             int Vertex(Vector2 surface, Color color)
             {
                 float z = surface.x * model.depth * 0.74f;
-                float y = model.height * (-0.20f + 0.13f * surface.x * surface.x + 0.018f * surface.y);
-                float x = model.head.x + model.head.y * Mathf.Sqrt(Mathf.Max(0.02f, 1 - Mathf.Pow(y / model.height, 2) - Mathf.Pow(z / model.depth, 2))) + 0.008f;
+                float y = model.height * ((sp == Data.Shark ? -0.48f : -0.20f) + 0.13f * surface.x * surface.x + 0.018f * surface.y);
+                float radial = Mathf.Pow(y / model.height, 2) + Mathf.Pow(z / model.depth, 2);
+                float x = model.head.x + model.head.y * Mathf.Sqrt(Mathf.Max(0.02f, 1 - Mathf.Pow(radial, 1 / (2 * model.profile.y)))) + 0.008f;
+                y += model.profile.w;
                 return b.Vertex(new Vector3(x, y, z), color, Vector2.zero, surface);
             }
             int center = Vertex(Vector2.zero, U.Hex("#102533"));
@@ -310,6 +392,15 @@ namespace DeepFeast
                     int c = Vertex(new Vector2(z, 0.20f), Color.white);
                     int d = Vertex(new Vector2(z + 0.08f, 0.65f), Color.white);
                     b.Tri(a, d, c);
+                }
+            if (sp == Data.Shark)
+                for (int tooth = 0; tooth < 5; tooth++)
+                {
+                    float z = Mathf.Lerp(-0.52f, 0.52f, tooth / 4f);
+                    int a = Vertex(new Vector2(z - 0.065f, -0.65f), Color.white);
+                    int c = Vertex(new Vector2(z, -0.28f), Color.white);
+                    int d = Vertex(new Vector2(z + 0.065f, -0.65f), Color.white);
+                    b.Tri(a, c, d);
                 }
             return b.Mesh(sp.key + " fitted lip cavity and teeth");
         }
@@ -352,7 +443,7 @@ namespace DeepFeast
                 var bounds = mesh.bounds; bounds.Expand(new Vector3(0.15f, 0.5f, 2.5f)); mesh.bounds = bounds;
                 mesh.UploadMeshData(true); return mesh;
             }
-            public void Membrane(Color color, int radial, int across, float kind, System.Func<float, float, Vector3> point)
+            public void Membrane(Color color, int radial, int across, float kind, System.Func<float, float, Vector3> point, bool cartilage = false)
             {
                 int start = vertices.Count, count = (radial + 1) * (across + 1);
                 for (int layer = 0; layer < 2; layer++)
@@ -361,8 +452,8 @@ namespace DeepFeast
                         {
                             float weight = u / (float)radial, along = t / (float)across;
                             var p = point(weight, along);
-                            p.z += (layer == 0 ? -1 : 1) * Mathf.Lerp(0.018f, 0.002f, Mathf.Sqrt(weight));
-                            Vertex(p, FinColor(color, weight), new Vector2(weight, kind), new Vector2(weight, along));
+                            p.z += (layer == 0 ? -1 : 1) * Mathf.Lerp(cartilage ? 0.035f : 0.018f, cartilage ? 0.004f : 0.002f, Mathf.Sqrt(weight));
+                            Vertex(p, FinColor(color, weight, cartilage), new Vector2(weight, kind), new Vector2(weight, along));
                         }
                 void Face(int a, int c, int d, int layer)
                 {

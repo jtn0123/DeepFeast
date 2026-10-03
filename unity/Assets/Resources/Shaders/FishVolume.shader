@@ -15,16 +15,29 @@ Shader "DeepFeast/FishVolume"
             struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; fixed4 color : COLOR; float2 surface : TEXCOORD0; float2 flex : TEXCOORD1; };
             struct v2f { float4 position : SV_POSITION; float3 local : TEXCOORD0; float3 normal : TEXCOORD1; fixed4 color : COLOR; float3 view : TEXCOORD2; float2 surface : TEXCOORD3; float front : TEXCOORD4; float3 skin : TEXCOORD5; float finKind : TEXCOORD6; };
             sampler2D _MainTex;
-            float4 _Frame, _SpriteBounds, _Eye, _EyeCenter, _Head, _FinRoot;
-            fixed4 _Base, _Dark, _Belly, _FogColor, _Accent;
-            float _Phase, _Energy, _TailFlex, _TurnBend, _Flutter, _Mouth, _Height, _Fog, _Visibility, _Style, _Pattern, _Part, _Expression, _FrontView, _Facing;
+            float4 _Frame, _SpriteBounds, _Eye, _EyeCenter, _Head, _Profile, _FinRoot;
+            fixed4 _Base, _Dark, _Belly, _FogColor, _Accent, _WaterReflection, _GroundReflection;
+            float _Phase, _Energy, _TailFlex, _TurnBend, _Flutter, _Mouth, _Height, _Fog, _Visibility, _Style, _Pattern, _Part, _Expression, _FrontView, _Facing, _ReflectionStrength;
+
+            float bodyProfile(float x)
+            {
+                if(x>=_Head.x) return pow(max(.000016,1-pow((x-_Head.x)/_Head.y,2)),_Profile.y);
+                return lerp(_Profile.z,1,pow(max(0,sin(saturate((x+1.04)/(_Head.x+1.04))*UNITY_PI*.5)),_Profile.x));
+            }
+            float mouthCenter(float across)
+            {
+                return (_Pattern==8?-.48:-.20)-_Mouth*.08+(.13+(_Expression==3&&_Pattern!=8?.04:0))*across*across;
+            }
+            float mouthRadius() { return lerp(.018,_Pattern==8?.27:.25,_Mouth); }
 
             void jaw(inout float3 p, inout float3 normal)
             {
-                float weight=smoothstep(.45,.95,p.x)*(1-smoothstep(-_Height*.45,-_Height*.15,p.y));
-                float angle=-_Mouth*.25*weight, s=sin(angle), c=cos(angle);
-                float2 offset=p.xy-float2(.58,-_Height*.18);
-                p.xy=float2(c*offset.x-s*offset.y,s*offset.x+c*offset.y)+float2(.58,-_Height*.18);
+                bool shark=_Pattern==8;
+                float weight=smoothstep(shark?.24:.45,shark?.80:.95,p.x)*(1-smoothstep(-_Height*.45+_Profile.w,-_Height*.15+_Profile.w,p.y));
+                float angle=-_Mouth*(shark?.26:.34)*weight, s=sin(angle), c=cos(angle);
+                float2 hinge=float2(shark?.40:.58,-_Height*.18+_Profile.w);
+                float2 offset=p.xy-hinge;
+                p.xy=float2(c*offset.x-s*offset.y,s*offset.x+c*offset.y)+hinge;
                 normal.xy=float2(c*normal.x-s*normal.y,s*normal.x+c*normal.y);
             }
             v2f vert(appdata v)
@@ -35,11 +48,13 @@ Shader "DeepFeast/FishVolume"
                 if (_Part > 2.5)
                 {
                     float z=v.surface.x*_Head.w*.74;
-                    float smile=.13+(_Expression==3?.04:0);
-                    float y=_Head.z*(-.20-_Mouth*.08+smile*v.surface.x*v.surface.x+lerp(.018,.25,_Mouth)*v.surface.y);
-                    float front=sqrt(max(.02,1-pow(y/_Head.z,2)-pow(z/_Head.w,2)));
-                    v.vertex.xyz=float3(_Head.x+_Head.y*front+.008,y,z);
-                    v.normal=normalize(float3(front/_Head.y,y/(_Head.z*_Head.z),z/(_Head.w*_Head.w)));
+                    float y=_Head.z*(mouthCenter(v.surface.x)+mouthRadius()*v.surface.y);
+                    float radial=pow(y/_Head.z,2)+pow(z/_Head.w,2);
+                    float front=sqrt(max(.02,1-pow(radial,1/(2*_Profile.y))));
+                    float inset=_Mouth*.15*(1-smoothstep(.78,1,length(v.surface)));
+                    v.vertex.xyz=float3(_Head.x+_Head.y*front+.008-inset,y+_Profile.w,z);
+                    float slope=2*_Profile.y*front/_Head.y*pow(max(.02,1-front*front),2*_Profile.y-1);
+                    v.normal=normalize(float3(slope,y/(_Head.z*_Head.z),z/(_Head.w*_Head.w)));
                 }
                 if (_Part < .5 || _Part > 2.5) jaw(v.vertex.xyz,v.normal);
                 // A travelling wave reaches the tail after the shoulder. The fin root receives exactly
@@ -52,7 +67,7 @@ Shader "DeepFeast/FishVolume"
                 v.normal.x -= v.normal.z * slope;
                 if (_Part > .5 && _Part < 1.5 && _FinRoot.w > .5)
                 {
-                    float angle=sin(_Phase+v.flex.y*.3-v.flex.x*.8)*v.flex.x*_Flutter;
+                    float angle=sin(_Phase+v.flex.y*.3-v.flex.x*.8)*v.flex.x*_Flutter*(_Pattern==8?.25:1);
                     float s=sin(angle),c=cos(angle);float2 offset=v.vertex.yz-_FinRoot.yz;
                     v.vertex.yz=float2(c*offset.x-s*offset.y,s*offset.x+c*offset.y)+_FinRoot.yz;
                     v.normal.yz=float2(c*v.normal.y-s*v.normal.z,s*v.normal.y+c*v.normal.z);
@@ -60,9 +75,10 @@ Shader "DeepFeast/FishVolume"
                 else if (_Part > .5 && _Part < 1.5)
                 {
                     float weight=v.flex.x, lag=wave-weight*.9+v.surface.y*.25;
-                    float flutter=sin(lag)*weight*weight*_Flutter;
+                    float stiffness=_Pattern==8?.25:1;
+                    float flutter=sin(lag)*weight*weight*_Flutter*stiffness;
                     v.vertex.z+=flutter;
-                    float bend=(2*weight*sin(lag)-.9*weight*weight*cos(lag))*_Flutter;
+                    float bend=(2*weight*sin(lag)-.9*weight*weight*cos(lag))*_Flutter*stiffness;
                     if (v.flex.y>3.5) v.normal.x+=v.normal.z*bend/.65;
                     else v.normal.y-=v.normal.z*bend*sign(2.5-v.flex.y)/max(.1,_Height*.5);
                 }
@@ -80,6 +96,11 @@ Shader "DeepFeast/FishVolume"
                 fixed3 skin = lerp(_Base.rgb, _Belly.rgb, smoothstep(0.1, -0.65, y) * 0.78);
                 skin = lerp(skin, _Dark.rgb, smoothstep(0.35, 0.98, y) * 0.40);
                 skin += _Base.rgb * exp(-pow((y-.18)*3,2)) * .07;
+                if (_Pattern == 8)
+                {
+                    float belly=1-smoothstep(-.27,-.10,y+.035*sin(p.x*8));
+                    skin=lerp(lerp(_Base.rgb,_Dark.rgb,smoothstep(.18,.90,y)*.42),_Belly.rgb,belly*.96);
+                }
                 if (_Pattern == 1)
                 {
                     float x=p.x+y*.035+y*y*.065;
@@ -113,9 +134,16 @@ Shader "DeepFeast/FishVolume"
                 if (_Pattern == 9) skin=lerp(skin,_Dark.rgb,(1-smoothstep(.035,.06,abs(y-.06)))*.45);
                 // Small recessed gill crease follows the curved skin on both sides.
                 float gill = exp(-pow((p.x-.48+y*.13)*38,2)) * (1-smoothstep(.30,.65,abs(y)));
-                if (_Pattern == 8 || _Pattern == 10)
-                    for (int j=1;j<4;j++) gill+=exp(-pow((p.x-(.48-j*.105)+y*.14)*46,2))*(1-smoothstep(.25,.6,abs(y)))*.7;
-                return skin * (1-gill*.14);
+                if (_Pattern == 8)
+                {
+                    gill=0;
+                    for (int j=0;j<5;j++) gill+=exp(-pow((p.x-(.66-j*.095)+y*y*.11)*85,2))*(1-smoothstep(.32,.65,abs(y+.04)));
+                    skin*=1-gill*.48;
+                    float nostril=exp(-pow((p.x-1.24)*38,2)-pow((y+.12)*30,2));
+                    skin*=1-nostril*.45;
+                    return skin;
+                }
+                return skin * (1-gill*.20);
             }
             fixed4 frag(v2f i) : SV_Target
             {
@@ -123,6 +151,11 @@ Shader "DeepFeast/FishVolume"
                 fixed3 rgb = i.color.rgb;
                 if (_Part < .5)
                 {
+                    // Open a real aperture in the skin so the inset mouth bowl has visible depth.
+                    // The test uses rest coordinates, before the shared jaw bend on skin and lip.
+                    float across=i.skin.z/max(.001,_Head.w*.74);
+                    float vertical=((i.skin.y-_Profile.w)/_Height-mouthCenter(across))/mouthRadius();
+                    if (_Mouth>.08 && i.skin.x>_Head.x+_Head.y*.20 && across*across+vertical*vertical<.82*.82) discard;
                     // Keep projected skin inside the illustration's body. Its outer black contour and
                     // baked dorsal/ventral fins belong to the flat silhouette, not the rounded surface.
                     float2 skin=float2(i.skin.x,i.skin.y*.78);
@@ -139,8 +172,9 @@ Shader "DeepFeast/FishVolume"
                     // Composite the illustration before blending the front: its transparent outline must
                     // not punch patches of flat base color into the curved, head-on skin.
                     fixed3 paintedSkin=lerp(_Base.rgb,painted.rgb,painted.a);
-                    float profile=i.skin.x>=_Head.x?sqrt(max(.000016,1-pow((i.skin.x-_Head.x)/_Head.y,2))):lerp(.16,1,pow(sin(saturate((i.skin.x+1.04)/(_Head.x+1.04))*UNITY_PI*.5),1.2));
-                    float contour=smoothstep(.35,.68,abs(i.skin.y)/max(.001,_Height*profile));
+                    float profile=bodyProfile(i.skin.x);
+                    float center=_Profile.w*saturate((i.skin.x+1.04)/(_Head.x+1.04));
+                    float contour=smoothstep(.35,.68,abs(i.skin.y-center)/max(.001,_Height*profile));
                     paintedSkin=lerp(paintedSkin,cleanSkin,max(contour,max(i.front,_FrontView)));
                     rgb=lerp(paintedSkin,cleanSkin,_Style);
                 }
@@ -148,7 +182,8 @@ Shader "DeepFeast/FishVolume"
                 {
                     float rays=i.finKind>3.5?14:12;
                     float ray=pow(saturate(.5+.5*cos(i.surface.y*UNITY_PI*2*rays+i.surface.x*.25)),10);
-                    rgb*=.96+ray*.09*smoothstep(.12,.4,i.surface.x);
+                    rgb*=.96+ray*(_Pattern==8?0:.09)*smoothstep(.12,.4,i.surface.x);
+                    rgb*=lerp(.83,1,smoothstep(0,.18,i.surface.x));
                     rgb=lerp(rgb,rgb*.88,smoothstep(.95,1,i.surface.x)*.4);
                 }
                 else if (_Part < 2.5)
@@ -162,7 +197,8 @@ Shader "DeepFeast/FishVolume"
                     float lip=smoothstep(.82,.99,length(i.surface));
                     rgb=lerp(fixed3(.035,.055,.075),lerp(_Base.rgb,_Dark.rgb,.4),lip);
                     float tongue=(1-smoothstep(.8,1,length((i.surface-float2(0,-.45))/float2(.62,.35))))*smoothstep(.2,.6,_Mouth)*(1-lip);
-                    rgb=lerp(rgb,fixed3(.78,.25,.34),tongue);
+                    rgb=lerp(rgb,_Pattern==8?fixed3(.42,.31,.29):fixed3(.78,.25,.34),tongue);
+                    rgb*=lerp(.55,1,smoothstep(.15,.90,length(i.surface)));
                     if (dot(i.color.rgb,1)>2.8) rgb=fixed3(.94,.95,.84);
                 }
                 float diffuse=saturate(dot(normal,normalize(float3(-.3,.65,-.7))));
@@ -176,12 +212,19 @@ Shader "DeepFeast/FishVolume"
                     // Tiny staggered scale arcs wrap around the body rather than lying on a flat side.
                     float row=floor(i.surface.y*44), x=frac(i.surface.x*20+row*.5);
                     float scale=1-smoothstep(.018,.065,abs(length(float2((x-.5)*1.15,frac(i.surface.y*44)-.58))-.43));
-                    rgb+=scale*.018*(.4+.6*diffuse);
+                    rgb+=scale*(_Pattern==8?0:.018)*(.4+.6*diffuse);
                     rgb=lerp(rgb,rgb*fixed3(.86,1.035,1.06),pow(1-ndv,3)*.30);
                 }
                 rgb=PaintedLighting(rgb, i.local.y / max(_Height*2,.1)+.5)*lighting;
                 if (_Part>.5 && _Part<1.5) rgb+=i.color.rgb*(1-diffuse)*.10;
                 rgb+=specular*fixed3(.65,.85,.9);
+                if (_Style>.5 && _Part<1.5)
+                {
+                    float3 reflection=reflect(-view,normal);
+                    fixed3 environment=lerp(_GroundReflection.rgb,_WaterReflection.rgb,smoothstep(-.3,.5,reflection.y));
+                    float fresnel=.15+.85*pow(1-ndv,4);
+                    rgb+=environment*_ReflectionStrength*fresnel;
+                }
                 rgb*=lerp(.88,1,smoothstep(.02,.30,ndv));
                 float visibility=_Visibility;
                 if (_Part>.5 && _Part<1.5) visibility*=i.color.a;
