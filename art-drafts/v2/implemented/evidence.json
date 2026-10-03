@@ -1,0 +1,306 @@
+{
+  "baselineCommit": "5f75e027ddcdf16a3524690ab2bdecf716ecfbd7",
+  "unityVersion": "6000.3.25f1",
+  "afterCaptureMode": "native macOS player -batchmode; real GPU RenderTexture plus capture-camera uGUI HUD",
+  "activeDisplaysAtVerification": 0,
+  "resolution": [
+    1280,
+    720
+  ],
+  "productionAssets": [
+    {
+      "path": "unity/Assets/Resources/Concept/atlas-original-v2.png",
+      "bytes": 2142005,
+      "sha256": "fd3210763a7293880fd84c06a8a524668e67c40887a6b7f480f1e3ddc7c3b7a8"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/atlas-props-v2.png",
+      "bytes": 2151792,
+      "sha256": "90dd65bd900c0b4dcb2bfd55b7b914b4c4ff0173395ae6cf69ff6314153aacba"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/atlas-remaining-v2.png",
+      "bytes": 2301837,
+      "sha256": "32716a19192f5800d2f53a2783db8e7cb945593231c4909b969a93f462da8901"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/painted-atlas.json",
+      "bytes": 7644,
+      "sha256": "97457389cec4b0c0206e5df7401430458fe7430d56d75ec3029e50b2f5554e98"
+    },
+    {
+      "path": "unity/Assets/Resources/Shaders/FishSwim.shader",
+      "bytes": 1948,
+      "sha256": "8284a1ce01f6045880a08753c497e838f23f01afaa0d0277121d347f36e91c9f"
+    }
+  ],
+  "nativeCaptures": [
+    {
+      "path": "art-drafts/v2/implemented/gallery/gallery.png",
+      "bytes": 572624,
+      "sha256": "a4da270ed64970b3a35c5b41bdb8180300bc32969eca290d58bc632d2495b31b"
+    },
+    {
+      "path": "art-drafts/v2/implemented/gallery/gallery_bite.png",
+      "bytes": 575728,
+      "sha256": "7c37808dd734c6e8205aa10868ee5b404d147c4031a4ade14217a16d50b575d8"
+    },
+    {
+      "path": "art-drafts/v2/implemented/reef/gameplay.png",
+      "bytes": 855487,
+      "sha256": "56ecadd4a354db4cb25cb763a31048db244299d0665a33c7b0a695b7206a1d7a"
+    },
+    {
+      "path": "art-drafts/v2/implemented/abyss/gameplay.png",
+      "bytes": 686161,
+      "sha256": "8f535096a48ec652c87ad3dc638866b8fa59c0ceffe07b25eed74dec2a8dc53e"
+    },
+    {
+      "path": "art-drafts/v2/implemented/fry/play_00_t4_r12.png",
+      "bytes": 398170,
+      "sha256": "f5b36c91159dca38b0f90e9447cc2276fd22c806a9cf08de9a0a772da16350f1"
+    },
+    {
+      "path": "art-drafts/v2/implemented/feedback/play_03_t5_r19.png",
+      "bytes": 689472,
+      "sha256": "9fc7276d0cdcbc92c5c5fac212aa17b417dd0fdab977ed00877492ddda7f7b90"
+    },
+    {
+      "path": "art-drafts/v2/implemented/animation.mp4",
+      "bytes": 957693,
+      "sha256": "ebd583ce164024dc15e083c25d1867998fffbd7993bf0e6762c5599a3c5a8049"
+    }
+  ],
+  "beforeCaptures": [
+    {
+      "path": "art-drafts/v2/references/unity-gallery/gallery.png",
+      "bytes": 551350,
+      "sha256": "48b2677a4d96bfa986386bb597e29729e0bd10959533b1dc4c5ac99a43d99c7b"
+    },
+    {
+      "path": "art-drafts/v2/references/unity-gallery/gallery_bite.png",
+      "bytes": 539060,
+      "sha256": "bf1d7e0a2e5da3fcc1c37954fe8b416ef24506dff9a16977f722cda81f141019"
+    },
+    {
+      "path": "art-drafts/v2/references/unity-reef/play_00_t4_r30.png",
+      "bytes": 760602,
+      "sha256": "4db26de8239cdc2ab162ae30bf5c24133af23205f6c21989f40e338d4943ada2"
+    },
+    {
+      "path": "art-drafts/v2/references/unity-abyss/play_00_t4_r47.png",
+      "bytes": 576961,
+      "sha256": "fd04a260ea15362d19793208818e5a69e258f7e1d1e25b29d8eeda879e355511"
+    }
+  ],
+  "runs": [
+    {
+      "run": "gallery",
+      "requestedSeconds": 6,
+      "exitCode": 0,
+      "captureCount": 2,
+      "captureNames": [
+        "gallery",
+        "gallery_bite"
+      ],
+      "log": {
+        "path": "art-drafts/v2/implemented/logs/gallery.log",
+        "bytes": 1878,
+        "sha256": "938c37b07103c1df3e807bce1fb711fc287297f77d1b6fa4a97d9ee8a731a558"
+      }
+    },
+    {
+      "run": "animation-frames",
+      "requestedSeconds": 4.2,
+      "exitCode": 0,
+      "captureCount": 51,
+      "captureNames": [
+        "pose_000",
+        "pose_001",
+        "pose_002",
+        "pose_003",
+        "pose_004",
+        "pose_005",
+        "pose_006",
+        "pose_007",
+        "pose_008",
+        "pose_009",
+        "pose_010",
+        "pose_011",
+        "pose_012",
+        "pose_013",
+        "pose_014",
+        "pose_015",
+        "pose_016",
+        "pose_017",
+        "pose_018",
+        "pose_019",
+        "pose_020",
+        "pose_021",
+        "pose_022",
+        "pose_023",
+        "pose_024",
+        "pose_025",
+        "pose_026",
+        "pose_027",
+        "pose_028",
+        "pose_029",
+        "pose_030",
+        "pose_031",
+        "pose_032",
+        "pose_033",
+        "pose_034",
+        "pose_035",
+        "pose_036",
+        "pose_037",
+        "pose_038",
+        "pose_039",
+        "pose_040",
+        "pose_041",
+        "pose_042",
+        "pose_043",
+        "pose_044",
+        "pose_045",
+        "pose_046",
+        "pose_047",
+        "pose_048",
+        "pose_049",
+        "pose_050"
+      ],
+      "log": {
+        "path": "art-drafts/v2/implemented/logs/animation-frames.log",
+        "bytes": 4374,
+        "sha256": "2ddf5e9511b72b28f73e5e6c75f8c008e32c1c8d5bf961f0ca5011d12d646c6e"
+      }
+    },
+    {
+      "run": "reef",
+      "requestedSeconds": 23,
+      "exitCode": 0,
+      "captureCount": 5,
+      "captureNames": [
+        "menu",
+        "play_00_t4_r31",
+        "play_01_t8_r31",
+        "play_02_t12_r33",
+        "play_03_t16_r34"
+      ],
+      "log": {
+        "path": "art-drafts/v2/implemented/logs/reef.log",
+        "bytes": 2236,
+        "sha256": "9e3cbef1ec57eda6178155ac9ee29104f3d3680520410cb57e265ef84227051b"
+      }
+    },
+    {
+      "run": "abyss",
+      "requestedSeconds": 16,
+      "exitCode": 0,
+      "captureCount": 3,
+      "captureNames": [
+        "menu",
+        "play_00_t4_r47",
+        "play_01_t9_r49"
+      ],
+      "log": {
+        "path": "art-drafts/v2/implemented/logs/abyss.log",
+        "bytes": 2125,
+        "sha256": "3aa0bb4a4fda70c4239cad43b6bd17b7e7cdb647349b993d6365aa92d7693812"
+      }
+    },
+    {
+      "run": "fry",
+      "requestedSeconds": 45,
+      "exitCode": 0,
+      "captureCount": 11,
+      "captureNames": [
+        "menu",
+        "play_00_t4_r12",
+        "play_01_t8_r14",
+        "play_02_t12_r14",
+        "play_03_t16_r14",
+        "play_04_t20_r14",
+        "play_05_t24_r14",
+        "play_06_t28_r15",
+        "play_07_t32_r16",
+        "play_08_t36_r16",
+        "play_09_t40_r17"
+      ],
+      "log": {
+        "path": "art-drafts/v2/implemented/logs/fry.log",
+        "bytes": 2819,
+        "sha256": "499b889ca586a1704c318f0d124beec45616f569cf0bd640b722f526d30b8c15"
+      }
+    },
+    {
+      "run": "feedback",
+      "requestedSeconds": 22,
+      "exitCode": 0,
+      "captureCount": 31,
+      "captureNames": [
+        "menu",
+        "play_00_t4_r18",
+        "play_01_t4_r18",
+        "play_02_t5_r19",
+        "play_03_t5_r19",
+        "play_04_t6_r20",
+        "play_05_t6_r20",
+        "play_06_t7_r20",
+        "play_07_t7_r20",
+        "play_08_t8_r20",
+        "play_09_t8_r20",
+        "play_10_t9_r20",
+        "play_11_t9_r20",
+        "play_12_t10_r20",
+        "play_13_t10_r20",
+        "play_14_t11_r20",
+        "play_15_t11_r20",
+        "play_16_t12_r20",
+        "play_17_t12_r21",
+        "play_18_t13_r21",
+        "play_19_t13_r21",
+        "play_20_t14_r21",
+        "play_21_t14_r21",
+        "play_22_t15_r21",
+        "play_23_t15_r21",
+        "play_24_t16_r21",
+        "play_25_t16_r21",
+        "play_26_t17_r21",
+        "play_27_t17_r21",
+        "play_28_t18_r21",
+        "play_29_t18_r21"
+      ],
+      "log": {
+        "path": "art-drafts/v2/implemented/logs/feedback.log",
+        "bytes": 3732,
+        "sha256": "9c0c815f09927fdbda038d60fababd578d1a3365cf2b4b064f559d8d43fbfa14"
+      }
+    }
+  ],
+  "reviewBoards": [
+    {
+      "path": "art-drafts/v2/implemented/comparisons/abyss.png",
+      "bytes": 503320,
+      "sha256": "3777b0ba0a99f7a246624b3f9fe0c80f5c189fb72c6a3330664b595ac7e5f74f"
+    },
+    {
+      "path": "art-drafts/v2/implemented/comparisons/bites.png",
+      "bytes": 291753,
+      "sha256": "290a09eb99c1284f73ffc83fe6dc56904d8ff0312dbc254cac321a2151a0531a"
+    },
+    {
+      "path": "art-drafts/v2/implemented/comparisons/original.png",
+      "bytes": 445077,
+      "sha256": "e35445e13531edd45d915dfaaf795cfd6525e4e17a3b1fb13058f7920be3d60a"
+    },
+    {
+      "path": "art-drafts/v2/implemented/comparisons/reef.png",
+      "bytes": 642006,
+      "sha256": "a0ccdbc275ab5ba5ccf372b05c7f97e0f1e75d8ea878cc281264cafc5c1b73a3"
+    },
+    {
+      "path": "art-drafts/v2/implemented/comparisons/remaining.png",
+      "bytes": 475577,
+      "sha256": "8419598f58f30fb243678f1b2a9541febb98b32f64a5d94522d0d89971ffc4de"
+    }
+  ]
+}

@@ -56,6 +56,7 @@ namespace DeepFeast.EditorTools
         static void Run(BuildTarget target, string path)
         {
             Setup();
+            ArtValidation.Check();
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { ScenePath },
@@ -77,7 +78,7 @@ namespace DeepFeast.EditorTools
     {
         void OnPreprocessTexture()
         {
-            if (!assetPath.Contains("/Resources/Concept/")) return;
+            if (!assetPath.Contains("/Resources/Concept/") || assetPath.Contains("/Concept/atlas-")) return;
             var ti = (TextureImporter)assetImporter;
             ti.textureType = TextureImporterType.Default;
             ti.alphaIsTransparency = true;

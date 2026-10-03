@@ -121,7 +121,7 @@ namespace DeepFeast
             public bool shark;
             public Color fin;
             // concept art has its eyes and fins painted in; every fish shows expressions as skin-tinted lids over the eye
-            public bool painted, lids;
+            public bool painted, lids, whole;
             public Vector2 eyeSize;
             public Color lid;
         }
@@ -132,7 +132,7 @@ namespace DeepFeast
         public static Art Get(Species sp)
         {
             if (cache.TryGetValue(sp.key, out var a)) return a;
-            a = LoadConcept(sp) ?? Bake(sp);
+            a = PaintedArt.Fish(sp) ?? LoadConcept(sp) ?? Bake(sp);
             cache[sp.key] = a;
             return a;
         }
@@ -551,6 +551,8 @@ namespace DeepFeast
         public readonly SpriteRenderer halo;
         FishArt.Art art;
         Species sp;
+        readonly MaterialPropertyBlock swimProperties = new MaterialPropertyBlock();
+        static readonly int PhaseId = Shader.PropertyToID("_Phase"), EnergyId = Shader.PropertyToID("_Energy"), MouthId = Shader.PropertyToID("_Mouth");
 
         public FishView(Transform parent, Transform haloParent)
         {
@@ -577,7 +579,10 @@ namespace DeepFeast
             sp = s;
             art = FishArt.Get(s);
             body.sprite = art.body;
+            body.sharedMaterial = art.whole ? PaintedArt.SwimMaterial : Gfx.Alpha;
+            body.SetPropertyBlock(null);
             tail.sprite = art.tail;
+            tail.enabled = !art.whole;
             tailT.localPosition = new Vector3(-FishArt.HL * 0.84f, 0, 0);
             fin.enabled = HasFin;
             fin.color = art.fin * new Color(1, 1, 1, 0.85f);
@@ -601,7 +606,10 @@ namespace DeepFeast
             t.localPosition = U.V3(f.x, f.y);
             t.localScale = new Vector3(fs, 1, 1);
             pivot.localRotation = Quaternion.Euler(0, 0, -f.tilt * Mathf.Rad2Deg);
-            pivot.localScale = new Vector3(f.r, f.r, 1);
+            // Anticipation, open jaw and a short recovery squash use the aligned authored keys.
+            float anticipation = Mathf.Sin(Mathf.Clamp01(f.mouth) * Mathf.PI) * 0.025f;
+            float recovery = Mathf.Clamp01(f.chomp / 0.22f) * 0.035f;
+            pivot.localScale = new Vector3(f.r * (1 - anticipation + recovery), f.r * (1 + anticipation - recovery), 1);
             group.sortingOrder = order;
 
             float w = Mathf.Sin(f.wag) * 0.3f;
@@ -609,6 +617,13 @@ namespace DeepFeast
             tailT.localPosition = new Vector3(-FishArt.HL * 0.84f, -w * hh * 0.45f, 0);
             tailT.localRotation = Quaternion.Euler(0, 0, -w * 1.3f * Mathf.Rad2Deg);
             body.sprite = f.mouth > 0.4f ? art.bodyOpen : art.body;
+            if (art.whole)
+            {
+                swimProperties.SetFloat(PhaseId, f.wag);
+                swimProperties.SetFloat(EnergyId, Mathf.Clamp(0.6f + new Vector2(f.vx, f.vy).magnitude / Mathf.Max(1, f.r) * 0.02f, 0.6f, 1.25f));
+                swimProperties.SetFloat(MouthId, f.mouth);
+                body.SetPropertyBlock(swimProperties);
+            }
             if (HasFin)
             {
                 finT.localPosition = new Vector3(FishArt.HL * 0.22f, -hh * 0.25f, 0);
@@ -627,7 +642,8 @@ namespace DeepFeast
 
         public void SetVisible(bool v)
         {
-            body.enabled = tail.enabled = eye.enabled = lid.enabled = v;
+            body.enabled = eye.enabled = lid.enabled = v;
+            tail.enabled = v && !art.whole;
             fin.enabled = v && HasFin;
         }
     }

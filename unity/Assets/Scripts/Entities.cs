@@ -37,7 +37,7 @@ namespace DeepFeast
         public SpriteRenderer body, star, glow, ring;
     }
 
-    public enum PType { Bubble, Bit, Spark, Ring }
+    public enum PType { Bubble, Bit, Spark, Ring, Wake }
 
     public struct Particle
     {
@@ -104,17 +104,20 @@ namespace DeepFeast
                 bool add = p.type == PType.Spark;
                 if (additive[i] != add) { additive[i] = add; sr.sharedMaterial = add ? Gfx.Additive : Gfx.Alpha; }
                 sr.enabled = true;
+                sr.sortingOrder = p.type == PType.Wake ? Layer.FishBase - 1 : Layer.Particles;
                 float d;
                 switch (p.type)
                 {
                     case PType.Bubble: sr.sprite = Gfx.Bubble; d = p.size / 0.46f; sr.color = new Color(1, 1, 1, a); break;
-                    case PType.Bit: sr.sprite = Gfx.Disc; d = p.size * 2; sr.color = U.WithA(p.col, a); break;
+                    case PType.Bit: sr.sprite = Gfx.Spark; d = p.size * 2.4f; sr.color = U.WithA(p.col, a * 0.8f); break;
                     case PType.Spark: sr.sprite = Gfx.Spark; d = p.size * (0.5f + a) * 3.2f; sr.color = U.WithA(p.col, a); break;
+                    case PType.Wake: sr.sprite = Gfx.Glow; d = p.size * (1.8f + (1 - a)); sr.color = U.WithA(p.col, a * 0.32f); break;
                     default: sr.sprite = Gfx.Ring; d = p.size * (0.3f + (1 - a)) * 2 / 0.9f; sr.color = U.WithA(p.col, 0.6f * a); break;
                 }
                 var t = sr.transform;
                 t.localPosition = U.V3(p.x, p.y, -i * 0.0001f);
-                t.localScale = new Vector3(d, d, 1);
+                t.localScale = p.type == PType.Wake ? new Vector3(d * 2.4f, d * 0.32f, 1) : new Vector3(d, d, 1);
+                t.localRotation = p.type == PType.Wake ? Quaternion.Euler(0, 0, -Mathf.Atan2(p.vy, p.vx) * Mathf.Rad2Deg) : Quaternion.identity;
             }
         }
     }

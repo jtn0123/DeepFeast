@@ -350,7 +350,8 @@ namespace DeepFeast
                         float u = x / (float)S, v = y / (float)S;
                         float mottle = Noise2.Fbm(u * 6, v * 6, 4, 7, 6);
                         float grain = Noise2.At(x * 0.5f, y * 0.5f, 9, S / 2);
-                        float k = 0.84f + mottle * 0.2f + (grain - 0.5f) * 0.1f;
+                        float ripple = Mathf.Sin(v * U.TAU * 8 + Mathf.Sin(u * U.TAU * 2) * 0.7f);
+                        float k = 0.86f + mottle * 0.15f + (grain - 0.5f) * 0.065f + ripple * 0.024f;
                         float sp = r.Next();
                         if (sp < 0.012f) k *= 0.72f;
                         else if (sp < 0.024f) k = 1.06f;
@@ -391,7 +392,9 @@ namespace DeepFeast
                                 float d = (p - new Vector2(u, v)).magnitude;
                                 if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) f2 = d;
                             }
-                        float a = Mathf.Pow(Mathf.Clamp01(1 - (f2 - f1) / 0.032f), 2.2f);
+                        float edge = Mathf.Pow(Mathf.Clamp01(1 - (f2 - f1) / 0.045f), 1.6f);
+                        float patch = Mathf.SmoothStep(0, 1, Mathf.Clamp01((Noise2.At(u * 4, v * 4, 81, 4) - 0.35f) / 0.45f));
+                        float a = edge * patch * 0.65f;
                         px[y * S + x] = new Color(1, 1, 1, a);
                     }
                 return caustics = Tiled(px, S);

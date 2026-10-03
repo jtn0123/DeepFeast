@@ -1,0 +1,27 @@
+{
+  "tool": "built-in image_gen",
+  "assets": [
+    {
+      "key": "remaining",
+      "refs": [
+        "~/.t3/worktrees/DeepFeast/t3code-ec3d5863/art-drafts/v2/concepts/remaining-six-fish-v2.png"
+      ],
+      "prompt": "Use case: stylized-concept. Asset type: production 2D Unity fish sprite atlas, actual transparent RGBA background. Reference image defines the six fish identities, shading and palettes. Make a tall atlas with exactly 2 columns and 6 evenly spaced rows, all fish facing RIGHT, no text or labels, no backdrop, no cast shadow, no aura. Row order top to bottom: silver-blue minnow, jade/pink parrotfish, coral-red snapper, long silver barred barracuda, spotted brown heavy-lipped grouper, blue/silver tuna with yellow finlets and crescent tail. LEFT column: relaxed CLOSED MOUTH full fish. RIGHT column: SAME fish and exact matching body/tail/eye position, full fish with anatomically articulated OPEN JAW bite; upper and lower lips separated, visible mouth interior, cheek/jaw silhouette changes, no red circle painted on intact snout. Keep species differences; barracuda has a narrow toothed jaw, grouper has heavy fleshy lips. Match the approved reference artwork closely. Align each pair along same spine and same tail root, identical body scale; only mouth/jaw should change. All fins and entire tails in each cell, with generous transparent padding; no inter-cell overlap. Use crisp soft painted shading, subtle scale detail, navy contours, eye highlights readable at tiny game size; no white sticker border. Friendly eager faces except focused barracuda; no angry brows on friendly fish. IMPORTANT transparent background, no navy boxes, no grids/checkerboard drawn into image. 2 columns by 6 rows, exactly twelve isolated full-fish sprites."
+    },
+    {
+      "key": "original",
+      "refs": [
+        "~/.t3/worktrees/DeepFeast/t3code-ec3d5863/art-drafts/concepts/fish-polished-v1.png",
+        "~/.t3/worktrees/DeepFeast/t3code-ec3d5863/art-drafts/v2/concepts/player-clown-bite-poses-v2.png"
+      ],
+      "prompt": "Use case: stylized-concept. Asset type: production 2D Unity transparent RGBA fish sprite atlas. Reference 1 defines the six existing fish identities, preserve exact recognizable colors, stripes, spots, shapes. Reference 2 demonstrates actual articulated bite anatomy. Create a tall atlas EXACTLY 2 columns by 6 evenly spaced rows, 12 full fish facing RIGHT with entire tail and fins inside cells. Row order: turquoise/gold player, orange/white/black clownfish, blue tang with yellow tail, round golden spotted puffer, tall gold/black-striped angelfish, blue-grey shark. LEFT column each row: relaxed CLOSED mouth. RIGHT column: SAME fish at identical body scale, same tail-root and spine position, anatomically OPEN bite jaw. Keep body's identity and aligned eye positions between each closed/open pair. Upper snout lifts slightly and lower jaw drops, lips form mouth rim with dark interior; cheeks deform, head silhouette actually changes. Shark must have a pronounced open toothed jaw, not a smile with teeth. Puffer uses small round open lips. Angelfish retains long dorsal/anal fins. Player has eager friendly feeding eye, no angry eyebrow; clown/tang/puffer friendly focused eye, shark may be predatory. Preserve approved painted style and navy contour, NO white sticker borders, no glow. All fish isolated on actual transparency with generous padding, no background, no navy rectangle, no labels, no grid, no cast shadows. Exactly two columns and six rows."
+    },
+    {
+      "key": "props",
+      "refs": [
+        "~/.t3/worktrees/DeepFeast/t3code-ec3d5863/art-drafts/concepts/items-polished-v1.png"
+      ],
+      "prompt": "Use case: stylized-concept. Asset type: Unity underwater decoration sprite atlas on genuine transparent RGBA background. Match the softly painted coral/reef shading in the reference, top-left illumination, crisp navy contours, soft material depth, restrained highlights. Landscape sheet exactly THREE columns and TWO rows with large transparent spacing; each object complete and isolated with an aligned flat grounding base. Top row left to right: warm pink branching coral with rounded branch tips; orange rounded brain coral with winding soft ridges; group of three violet tube sponges with dark open rims. Bottom row left to right: delicate broad rose/magenta sea fan coral; smooth slate-blue grey boulder cluster with organic rounded forms and a little teal algae; low deep-water reef cluster of cool blue/purple boulders and three softly luminous cyan/violet tube corals, restrained small bioluminescent tips, no large glow aura. Objects only, no fish, no jellyfish, no pearl, no kelp, no sand, no text, no grid, no shadows outside object, no backdrop. Exactly six decorative sprites, 3 columns by 2 rows. Preserve transparency and full object bounds."
+    }
+  ]
+}

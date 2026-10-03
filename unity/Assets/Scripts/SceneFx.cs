@@ -67,9 +67,9 @@ namespace DeepFeast
 
             far = new[]
             {
-                new FarLayer { p = 0.18f, s = 0.3f, n = new Noise1D(3), baseY = 1500, amp = 520, alpha = 0.15f, seed = 1, off = 5200 },
-                new FarLayer { p = 0.32f, s = 0.46f, n = new Noise1D(5), baseY = 1850, amp = 650, alpha = 0.21f, seed = 2, off = 3100 },
-                new FarLayer { p = 0.55f, s = 0.68f, n = new Noise1D(9), baseY = 2300, amp = 780, alpha = 0.28f, seed = 3, off = 900 },
+                new FarLayer { p = 0.18f, s = 0.3f, n = new Noise1D(3), baseY = 1360, amp = 400, alpha = 0.17f, seed = 1, off = 5200 },
+                new FarLayer { p = 0.32f, s = 0.46f, n = new Noise1D(5), baseY = 1610, amp = 480, alpha = 0.23f, seed = 2, off = 3100 },
+                new FarLayer { p = 0.55f, s = 0.68f, n = new Noise1D(9), baseY = 1930, amp = 520, alpha = 0.29f, seed = 3, off = 900 },
             };
             for (int i = 0; i < far.Length; i++) BuildFar(far[i], worldRoot, Layer.Far + i * 10);
 
@@ -111,17 +111,17 @@ namespace DeepFeast
             {
                 if (U.Hash(b * 3.1f + L.seed * 17) < 0.35f) continue;
                 float sx = b * B + U.Hash(b * 7.7f + L.seed) * B;
-                bool pinnacle = U.Hash(b * 4.3f + L.seed * 3) < 0.18f;
-                float wid = pinnacle ? 70 + U.Hash(b * 2.9f + L.seed) * 90 : 150 + U.Hash(b * 2.9f + L.seed) * 260;
-                float hgt = pinnacle ? 500 + U.Hash(b * 1.3f + L.seed * 5) * 700 : 120 + U.Hash(b * 1.3f + L.seed * 5) * 360;
-                float pw = pinnacle ? 1.6f : 2.6f;
+                bool pinnacle = U.Hash(b * 4.3f + L.seed * 3) < 0.24f;
+                float wid = pinnacle ? 120 + U.Hash(b * 2.9f + L.seed) * 120 : 200 + U.Hash(b * 2.9f + L.seed) * 300;
+                float hgt = pinnacle ? 350 + U.Hash(b * 1.3f + L.seed * 5) * 500 : 150 + U.Hash(b * 1.3f + L.seed * 5) * 320;
                 pts.Clear();
-                const int N = 24;
+                const int N = 40;
                 for (int i = 0; i <= N; i++)
                 {
                     float t = i / (float)N * 2 - 1;
-                    float prof = Mathf.Pow(Mathf.Max(0, 1 - Mathf.Pow(Mathf.Abs(t), pw)), 1 / pw);
-                    float bump = 1 + (U.Hash(b * 11.1f + i * 0.73f) - 0.5f) * 0.12f;
+                    float prof = Mathf.Pow(Mathf.Max(0, Mathf.Cos(t * Mathf.PI * 0.5f)), 0.8f);
+                    // Continuous contour variations avoid the jagged polygon tops of independent per-vertex noise.
+                    float bump = 1 + Mathf.Sin(t * 7 + b * 1.7f) * 0.035f + Mathf.Sin(t * 13 + b) * 0.015f;
                     pts.Add(new Vector2(sx + t * wid, L.Ridge(sx + t * wid) + 40 - hgt * prof * bump));
                 }
                 int prev = -1;
@@ -196,21 +196,32 @@ namespace DeepFeast
             // parallax layers
             foreach (var L in far)
             {
-                float cx = cam.x * L.p + L.off, cy = cam.y;
+                float cx = cam.x * L.p + L.off;
+                // Carry the distant reef horizon into the abyss instead of filling it with a flat solid silhouette.
+                float deep = Mathf.SmoothStep(0, 1, Mathf.Clamp01((cam.y - 2400) / 1200));
+                float cy = Mathf.Lerp(cam.y, 1750, deep);
                 L.t.localPosition = new Vector3(camUnity.x - cx * L.s, camUnity.y + cy * L.s, 0);
                 L.t.localScale = new Vector3(L.s, L.s, 1);
                 float z = zoom * L.s;
                 float fx0 = cx - hw / z - 60, fx1 = cx + hw / z + 60;
                 mb.Clear();
-                var kc = U.WithA(FarCol, L.alpha * 0.8f);
+                var kc = U.WithA(FarCol, L.alpha * 0.65f);
                 const float K = 140;
                 for (int b = Mathf.FloorToInt(fx0 / K); b <= Mathf.FloorToInt(fx1 / K) + 1; b++)
                 {
-                    if (U.Hash(b * 5.3f + L.seed * 9) < 0.72f) continue;
-                    float kx = b * K + U.Hash(b + L.seed) * K, gy = L.Ridge(kx) + 30, kh = 300 + U.Hash(b * 9.1f) * 700;
+                    if (U.Hash(b * 5.3f + L.seed * 9) < 0.82f) continue;
+                    float kx = b * K + U.Hash(b + L.seed) * K, gy = L.Ridge(kx) + 30, kh = 240 + U.Hash(b * 9.1f) * 580;
                     float sw = Mathf.Sin(time * 0.6f + b) * 60;
-                    var pts = Draw.CubicPts(kx, gy, kx + sw * 0.3f, gy - kh * 0.35f, kx - sw * 0.4f, gy - kh * 0.7f, kx + sw, gy - kh, 12);
+                    var pts = new List<Vector2>(Draw.CubicPts(kx, gy, kx + sw * 0.3f, gy - kh * 0.35f, kx - sw * 0.4f, gy - kh * 0.7f, kx + sw, gy - kh, 12));
                     Draw.Stroke(mb, pts, 12, 6, kc, U.WithA(kc, L.alpha * 0.45f), true);
+                    for (int leaf = 2; leaf < pts.Count; leaf += 2)
+                    {
+                        var a = pts[leaf];
+                        float side = leaf % 4 == 0 ? 1 : -1, length = 75 + kh * 0.06f;
+                        Draw.Leaf(mb, a, a + new Vector2(side * length * 0.55f, -length * 0.55f),
+                            a + new Vector2(side * length, -length * 0.18f), length * 0.48f,
+                            U.WithA(kc, kc.a * 0.8f), kc, U.WithA(kc, kc.a * 0.45f), 0.7f, 6);
+                    }
                 }
                 mb.Apply(L.kelp);
             }
@@ -232,7 +243,7 @@ namespace DeepFeast
                     if (h < 0.35f) continue;
                     float cx = i * spacing - shift + h * 80 + Mathf.Sin(time * 0.25f + i) * 30 - hw;
                     float w = 50 + h * 120, slant = len * 0.2f, spread = len * (0.05f + h * 0.1f);
-                    float a = (0.065f + 0.085f * h) * (0.65f + 0.35f * Mathf.Sin(time * 0.6f + i * 2.1f));
+                    float a = (0.045f + 0.07f * h) * (0.8f + 0.2f * Mathf.Sin(time * 0.35f + i * 2.1f));
                     var c0 = new Color(0.82f, 0.98f, 1, a); var c1 = new Color(0.7f, 0.94f, 1, a * 0.4f); var z0 = new Color(0.7f, 0.94f, 1, 0);
                     int b0 = mb.v.Count;
                     for (int row = 0; row < 3; row++)

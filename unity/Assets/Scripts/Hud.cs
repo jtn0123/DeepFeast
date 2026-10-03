@@ -10,6 +10,7 @@ namespace DeepFeast
     public sealed class VertexGradient : BaseMeshEffect
     {
         public Color a = Color.white, b = Color.white, c = Color.white;
+        public Color tint = Color.white;
         public float mid = 0.5f;
         public bool horizontal;
         readonly List<UIVertex> verts = new List<UIVertex>();
@@ -28,6 +29,7 @@ namespace DeepFeast
                 float t = ((horizontal ? v.position.x : v.position.y) - min) / span;
                 if (!horizontal) t = 1 - t; // a = top
                 Color col = t < mid ? Color.Lerp(a, b, t / mid) : Color.Lerp(b, c, (t - mid) / (1 - mid));
+                col *= tint;
                 Color orig = v.color;
                 col.a *= orig.a;
                 v.color = col;
@@ -60,10 +62,10 @@ namespace DeepFeast
         readonly Font font, display;
         readonly RectTransform rootRT, worldLayer;
         readonly CanvasGroup hudGroup, bannerGroup;
-        readonly Text score, combo, tierName, tierNext, depth, bannerTitle, bannerSub;
+        readonly Text score, combo, tierName, tierNext, depth, bannerTitle, bannerSub, dashLabel;
         readonly Image growth, dash, bannerGlow, comboPill, livesBg;
         readonly RectTransform growthRT, dashRT, bannerRT, livesRT, comboRT;
-        readonly VertexGradient bannerGrad;
+        readonly VertexGradient bannerGrad, growthGrad;
         readonly List<Image> lifeIcons = new List<Image>();
         readonly GameObject menu, pause, over, dashBtn;
         readonly Text bestMenu, bestOver, overTitle, newBest, sScore, sTier, sEaten, sTime;
@@ -73,6 +75,8 @@ namespace DeepFeast
         readonly HoldButton dashHold;
         float bannerT = 99;
         float hudAlpha, hudTarget;
+        float targetGrowth, shownGrowth, growthPulse, scorePulse;
+        bool growthInitialized;
         const float BAR_W = 440, DASH_W = 178, LIFE_STEP = 38;
 
         static readonly Color PanelCol = new Color(0.02f, 0.11f, 0.2f, 0.6f);
@@ -141,7 +145,7 @@ namespace DeepFeast
             growth = Panel(bar.rectTransform, Color.white, 8);
             growthRT = growth.rectTransform;
             Place(growthRT, new Vector2(0, 0.5f), new Vector2(0, 0.5f), Vector2.zero, new Vector2(0, 16), new Vector2(0, 0.5f));
-            var gg = growth.gameObject.AddComponent<VertexGradient>();
+            var gg = growthGrad = growth.gameObject.AddComponent<VertexGradient>();
             gg.horizontal = true; gg.a = U.Hex("#2ef2c8"); gg.b = U.Hex("#4fd1ff"); gg.c = U.Hex("#ffd447"); gg.mid = 0.6f;
             Shine(growthRT, 8);
 
@@ -165,7 +169,7 @@ namespace DeepFeast
             Place(dp.rectTransform, Vector2.zero, Vector2.zero, new Vector2(14, 14), new Vector2(DASH_W + 28, 62), Vector2.zero);
             AddOutline(dp, EdgeCol, 1.5f);
             depth = Label(dp.rectTransform, "DEPTH 0 m", 18, new Color(1, 1, 1, 0.95f), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(14, -7), display);
-            Label(dp.rectTransform, "DASH", 13, new Color(1, 0.86f, 0.5f, 0.85f), TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-14, -11), display);
+            dashLabel = Label(dp.rectTransform, "DASH", 13, new Color(1, 0.86f, 0.5f, 0.85f), TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-14, -11), display);
             var dbar = Panel(dp.rectTransform, TrackCol, 6);
             Place(dbar.rectTransform, Vector2.zero, Vector2.zero, new Vector2(14, 12), new Vector2(DASH_W, 12), Vector2.zero);
             dash = Panel(dbar.rectTransform, Color.white, 6);
@@ -258,6 +262,13 @@ namespace DeepFeast
             // narrow screens: drop the lives below the tier panel so they don't collide
             livesRT.anchoredPosition = refW < 960 ? new Vector2(-16, -86) : new Vector2(-16, -12);
         }
+        public void UseCaptureCamera(Camera camera)
+        {
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.worldCamera = camera;
+            canvas.planeDistance = 1;
+            canvas.sortingOrder = 30000;
+        }
         public Vector2 RefSize => rootRT.rect.size;
 
         public void ShowTouch(bool on) { if (dashBtn.activeSelf != on) dashBtn.SetActive(on); }
@@ -275,6 +286,8 @@ namespace DeepFeast
         {
             menu.SetActive(false); over.SetActive(false); pause.SetActive(false);
             hudTarget = 1;
+            growthInitialized = false;
+            growthPulse = scorePulse = 0;
         }
 
         public void ShowPause(bool on) => pause.SetActive(on);
@@ -301,7 +314,9 @@ namespace DeepFeast
             if (showCombo && SetText(combo, $"COMBO x{comboV}")) comboRT.sizeDelta = new Vector2(combo.preferredWidth + 30, 30);
             SetText(tierName, tier.ToUpperInvariant());
             SetActive(growth.gameObject, prog > 0.005f);
-            growthRT.sizeDelta = new Vector2(Mathf.Max(16, prog * BAR_W), 16);
+            targetGrowth = prog;
+            if (!growthInitialized) { growthInitialized = true; shownGrowth = prog; }
+            growthRT.sizeDelta = new Vector2(Mathf.Max(16, shownGrowth * BAR_W), 16);
             SetText(tierNext, next);
             int shown = Mathf.Min(lives, lifeIcons.Count);
             for (int i = 0; i < lifeIcons.Count; i++) lifeIcons[i].enabled = i < shown;
@@ -311,7 +326,14 @@ namespace DeepFeast
             dashRT.sizeDelta = new Vector2(Mathf.Max(12, stamina * DASH_W), 12);
             dash.color = tired ? new Color(0.42f, 0.49f, 0.53f) : Color.white;
             dash.GetComponent<VertexGradient>().enabled = !tired;
+            SetText(dashLabel, tired ? "RECOVER" : "DASH");
             SetText(depth, $"DEPTH {depthM} m");
+        }
+
+        public void PulseGrowth(bool tierUp)
+        {
+            scorePulse = 0.18f;
+            growthPulse = tierUp ? 0.75f : 0.22f;
         }
 
         public void Banner(string title, string sub, Color glow)
@@ -350,6 +372,13 @@ namespace DeepFeast
         {
             hudAlpha = Mathf.MoveTowards(hudAlpha, hudTarget, rdt * 2);
             hudGroup.alpha = hudAlpha;
+            shownGrowth = Mathf.Lerp(shownGrowth, targetGrowth, 1 - Mathf.Exp(-rdt * 10));
+            growthRT.sizeDelta = new Vector2(Mathf.Max(16, shownGrowth * BAR_W), 16);
+            growthPulse = Mathf.Max(0, growthPulse - rdt);
+            scorePulse = Mathf.Max(0, scorePulse - rdt);
+            var tint = Color.Lerp(Color.white, U.Hex("#fff3be"), Mathf.Clamp01(growthPulse * 1.4f));
+            if (growthGrad.tint != tint) { growthGrad.tint = tint; growth.SetVerticesDirty(); }
+            score.rectTransform.localScale = Vector3.one * (1 + Mathf.Sin(scorePulse / 0.18f * Mathf.PI) * 0.07f);
 
             // title bob
             if (menu.activeSelf)

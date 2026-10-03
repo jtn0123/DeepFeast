@@ -1,0 +1,384 @@
+{
+  "fish": [
+    {
+      "key": "player",
+      "atlas": "atlas-original-v2",
+      "ppu": 123.95029,
+      "closed": {
+        "x": 87,
+        "y": 16,
+        "width": 373,
+        "height": 210,
+        "pivotX": 0.56264,
+        "pivotY": 0.401905
+      },
+      "open": {
+        "x": 566,
+        "y": 16,
+        "width": 377,
+        "height": 210,
+        "pivotX": 0.55667,
+        "pivotY": 0.401905
+      },
+      "eyeX": 0.8981,
+      "eyeY": 0.21605,
+      "eyeRX": 0.19943,
+      "eyeRY": 0.20941
+    },
+    {
+      "key": "clown",
+      "atlas": "atlas-original-v2",
+      "ppu": 123.27847,
+      "closed": {
+        "x": 94,
+        "y": 236,
+        "width": 371,
+        "height": 202,
+        "pivotX": 0.562636,
+        "pivotY": 0.40198
+      },
+      "open": {
+        "x": 575,
+        "y": 237,
+        "width": 370,
+        "height": 201,
+        "pivotX": 0.564157,
+        "pivotY": 0.399005
+      },
+      "eyeX": 0.91299,
+      "eyeY": 0.27304,
+      "eyeRX": 0.19273,
+      "eyeRY": 0.20237
+    },
+    {
+      "key": "tang",
+      "atlas": "atlas-original-v2",
+      "ppu": 134.61538,
+      "closed": {
+        "x": 85,
+        "y": 458,
+        "width": 389,
+        "height": 226,
+        "pivotX": 0.544987,
+        "pivotY": 0.40177
+      },
+      "open": {
+        "x": 569,
+        "y": 456,
+        "width": 397,
+        "height": 228,
+        "pivotX": 0.534005,
+        "pivotY": 0.407018
+      },
+      "eyeX": 0.8996,
+      "eyeY": 0.21439,
+      "eyeRX": 0.18141,
+      "eyeRY": 0.19048
+    },
+    {
+      "key": "puffer",
+      "atlas": "atlas-original-v2",
+      "ppu": 118.6197,
+      "closed": {
+        "x": 106,
+        "y": 693,
+        "width": 334,
+        "height": 237,
+        "pivotX": 0.532319,
+        "pivotY": 0.5
+      },
+      "open": {
+        "x": 596,
+        "y": 692,
+        "width": 330,
+        "height": 238,
+        "pivotX": 0.538771,
+        "pivotY": 0.502101
+      },
+      "eyeX": 0.79924,
+      "eyeY": 0.29464,
+      "eyeRX": 0.23571,
+      "eyeRY": 0.2475
+    },
+    {
+      "key": "angel",
+      "atlas": "atlas-original-v2",
+      "ppu": 103.9501,
+      "closed": {
+        "x": 140,
+        "y": 931,
+        "width": 304,
+        "height": 321,
+        "pivotX": 0.548898,
+        "pivotY": 0.480249
+      },
+      "open": {
+        "x": 626,
+        "y": 929,
+        "width": 307,
+        "height": 323,
+        "pivotX": 0.543534,
+        "pivotY": 0.483467
+      },
+      "eyeX": 0.83824,
+      "eyeY": 0.15248,
+      "eyeRX": 0.19822,
+      "eyeRY": 0.20813
+    },
+    {
+      "key": "shark",
+      "atlas": "atlas-original-v2",
+      "ppu": 144.3884,
+      "closed": {
+        "x": 55,
+        "y": 1255,
+        "width": 462,
+        "height": 249,
+        "pivotX": 0.589383,
+        "pivotY": 0.539357
+      },
+      "open": {
+        "x": 551,
+        "y": 1255,
+        "width": 440,
+        "height": 249,
+        "pivotX": 0.618852,
+        "pivotY": 0.539357
+      },
+      "eyeX": 0.84006,
+      "eyeY": 0.0509,
+      "eyeRX": 0.11029,
+      "eyeRY": 0.11581
+    },
+    {
+      "key": "minnow",
+      "atlas": "atlas-remaining-v2",
+      "ppu": 139.58886,
+      "closed": {
+        "x": 59,
+        "y": 49,
+        "width": 425,
+        "height": 169,
+        "pivotX": 0.568316,
+        "pivotY": 0.431657
+      },
+      "open": {
+        "x": 553,
+        "y": 49,
+        "width": 421,
+        "height": 169,
+        "pivotX": 0.573716,
+        "pivotY": 0.431657
+      },
+      "eyeX": 0.80236,
+      "eyeY": 0.10638,
+      "eyeRX": 0.16549,
+      "eyeRY": 0.17376
+    },
+    {
+      "key": "parrot",
+      "atlas": "atlas-remaining-v2",
+      "ppu": 141.08163,
+      "closed": {
+        "x": 59,
+        "y": 234,
+        "width": 424,
+        "height": 231,
+        "pivotX": 0.562721,
+        "pivotY": 0.426299
+      },
+      "open": {
+        "x": 559,
+        "y": 233,
+        "width": 419,
+        "height": 231,
+        "pivotX": 0.569436,
+        "pivotY": 0.426299
+      },
+      "eyeX": 0.77903,
+      "eyeY": 0.20112,
+      "eyeRX": 0.19308,
+      "eyeRY": 0.20273
+    },
+    {
+      "key": "snapper",
+      "atlas": "atlas-remaining-v2",
+      "ppu": 143.43299,
+      "closed": {
+        "x": 56,
+        "y": 469,
+        "width": 431,
+        "height": 224,
+        "pivotX": 0.562731,
+        "pivotY": 0.450893
+      },
+      "open": {
+        "x": 549,
+        "y": 468,
+        "width": 428,
+        "height": 225,
+        "pivotX": 0.566676,
+        "pivotY": 0.453333
+      },
+      "eyeX": 0.77902,
+      "eyeY": 0.15338,
+      "eyeRX": 0.18406,
+      "eyeRY": 0.19326
+    },
+    {
+      "key": "barracuda",
+      "atlas": "atlas-remaining-v2",
+      "ppu": 157.96703,
+      "closed": {
+        "x": 38,
+        "y": 739,
+        "width": 464,
+        "height": 160,
+        "pivotX": 0.55311,
+        "pivotY": 0.5195
+      },
+      "open": {
+        "x": 539,
+        "y": 738,
+        "width": 452,
+        "height": 161,
+        "pivotX": 0.567794,
+        "pivotY": 0.522484
+      },
+      "eyeX": 0.70304,
+      "eyeY": -0.01975,
+      "eyeRX": 0.11851,
+      "eyeRY": 0.12443
+    },
+    {
+      "key": "grouper",
+      "atlas": "atlas-remaining-v2",
+      "ppu": 156.96466,
+      "closed": {
+        "x": 42,
+        "y": 914,
+        "width": 457,
+        "height": 278,
+        "pivotX": 0.549116,
+        "pivotY": 0.401439
+      },
+      "open": {
+        "x": 534,
+        "y": 914,
+        "width": 459,
+        "height": 278,
+        "pivotX": 0.546723,
+        "pivotY": 0.401439
+      },
+      "eyeX": 0.76609,
+      "eyeY": 0.2793,
+      "eyeRX": 0.17456,
+      "eyeRY": 0.18329
+    },
+    {
+      "key": "tuna",
+      "atlas": "atlas-remaining-v2",
+      "ppu": 150.48707,
+      "closed": {
+        "x": 42,
+        "y": 1219,
+        "width": 452,
+        "height": 225,
+        "pivotX": 0.562758,
+        "pivotY": 0.460711
+      },
+      "open": {
+        "x": 534,
+        "y": 1218,
+        "width": 451,
+        "height": 229,
+        "pivotX": 0.564006,
+        "pivotY": 0.470131
+      },
+      "eyeX": 0.79391,
+      "eyeY": 0.1028,
+      "eyeRX": 0.17623,
+      "eyeRY": 0.18504
+    }
+  ],
+  "props": [
+    {
+      "key": "branch",
+      "atlas": "atlas-props-v2",
+      "ppu": 440.95238,
+      "frame": {
+        "x": 56,
+        "y": 57,
+        "width": 467,
+        "height": 445,
+        "pivotX": 0.5,
+        "pivotY": 0.008989
+      }
+    },
+    {
+      "key": "brain",
+      "atlas": "atlas-props-v2",
+      "ppu": 365.83333,
+      "frame": {
+        "x": 566,
+        "y": 213,
+        "width": 443,
+        "height": 289,
+        "pivotX": 0.5,
+        "pivotY": 0.013841
+      }
+    },
+    {
+      "key": "tube",
+      "atlas": "atlas-props-v2",
+      "ppu": 290.83333,
+      "frame": {
+        "x": 1123,
+        "y": 92,
+        "width": 353,
+        "height": 411,
+        "pivotX": 0.5,
+        "pivotY": 0.009732
+      }
+    },
+    {
+      "key": "fan",
+      "atlas": "atlas-props-v2",
+      "ppu": 295.0,
+      "frame": {
+        "x": 47,
+        "y": 528,
+        "width": 476,
+        "height": 447,
+        "pivotX": 0.5,
+        "pivotY": 0.008949
+      }
+    },
+    {
+      "key": "rock",
+      "atlas": "atlas-props-v2",
+      "ppu": 197.08333,
+      "frame": {
+        "x": 542,
+        "y": 618,
+        "width": 477,
+        "height": 348,
+        "pivotX": 0.5,
+        "pivotY": 0.011494
+      }
+    },
+    {
+      "key": "deep",
+      "atlas": "atlas-props-v2",
+      "ppu": 191.81818,
+      "frame": {
+        "x": 1068,
+        "y": 591,
+        "width": 426,
+        "height": 381,
+        "pivotX": 0.5,
+        "pivotY": 0.010499
+      }
+    }
+  ]
+}

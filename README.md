@@ -4,7 +4,7 @@ A Feeding Frenzy–style fish game: start as a tiny fry, eat anything smaller, d
 
 | Folder | What it is |
 | --- | --- |
-| [`unity/`](unity/) | The real game — Unity 6.3 LTS (6000.3.25f1). All art and audio are generated in code at startup, so there are no asset files to manage. |
+| [`unity/`](unity/) | The real game — Unity 6.3 LTS (6000.3.25f1), with painted fish/reef atlases, procedural scenery and synthesized audio. |
 | [`web-prototype/`](web-prototype/) | The original single-file HTML5 canvas prototype. Open `index.html` in a browser. Kept as the reference for gameplay feel. |
 
 ## Unity quick start
@@ -31,6 +31,8 @@ Headless build:
 | `-startx <x>` | Start near the seabed at world x (e.g. `11000` for the deep trench) |
 | `-dumpart <dir>` | Write every baked sprite texture to `dir` as a PNG |
 | `-gallery` | Art review: every species, two jellies and a pearl in a grid; with `-shots` saves `gallery` and `gallery_bite` |
+| `-gallery -animate-gallery` | Capture swimming and a repeating anticipation/open/recovery cycle; `-shotevery` sets the frame interval |
+| `-batchmode -shots <dir>` | Render native camera/HUD captures offscreen when no active display is available; omit `-nographics` |
 | `-shark <s>` | First shark arrives after N seconds |
 | `-timescale <x>` / `-mute` / `-nopause` | Speed up, silence, don't pause on focus loss |
 
@@ -38,6 +40,7 @@ Headless build:
 
 - `Game.cs` — state machine, player, fish AI, spawning, camera, render glue, bot
 - `FishArt.cs` — species/shape data and the baked fish sprites + fish rig
+- `PaintedArt.cs` / `Resources/Concept/painted-atlas.json` — twelve painted species, aligned pose keys, deformable meshes and reef props
 - `World.cs` — seabed, kelp, rocks, coral, anemones
 - `SceneFx.cs` — water gradient, parallax ridges, god rays, surface, depth darkness, snow
 - `Hud.cs` — uGUI HUD, banners and menus built in code
@@ -45,3 +48,5 @@ Headless build:
 - `Raster.cs` / `Draw.cs` / `Util.cs` — software rasteriser (with blur / pseudo-3D lighting), mesh drawing helpers, noise, procedural textures
 
 The display font is [Lilita One](https://fonts.google.com/specimen/Lilita+One) by Juan Montoreano, used under the SIL Open Font License (`unity/Assets/Resources/Fonts/OFL.txt`).
+
+The [visual implementation handover](art-drafts/v2/implemented/HANDOVER.md) contains native before/after captures, artwork provenance, validation and reproduction commands. `Deep Feast → Validate Production Art` checks all twelve species, both poses, transparency and import settings before builds. Re-run `python3 tools/catalog_atlases.py` after changing an atlas layout (requires Pillow); it updates metadata without modifying the PNGs.

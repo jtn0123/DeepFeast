@@ -70,6 +70,7 @@ namespace DeepFeast
         readonly List<Grass> grasses = new List<Grass>();
         public readonly List<Anemone> anemones = new List<Anemone>();
         public readonly List<Anemone> glowAnemones = new List<Anemone>();
+        public readonly List<Hole> reefLights = new List<Hole>();
         /// Seabed vents that trickle bubble columns (x, floor y).
         public readonly List<Vector2> vents = new List<Vector2>();
         readonly List<Swayer> swayers = new List<Swayer>();
@@ -135,16 +136,20 @@ namespace DeepFeast
             // rocks: a handful of baked variants, scaled & flipped per placement, sometimes in little clusters
             var rockSprites = new List<Sprite>();
             var rr = new Mulberry(77);
-            for (int i = 0; i < 10; i++) rockSprites.Add(DecorArt.Rock(rr, i % 2 == 0 ? 0.2f : 0.8f));
+            var paintedRock = PaintedArt.Prop("rock");
+            if (paintedRock == null)
+                for (int i = 0; i < 10; i++) rockSprites.Add(DecorArt.Rock(rr, i % 2 == 0 ? 0.2f : 0.8f));
             var rocksT = new GameObject("Rocks").transform;
             rocksT.SetParent(root, false);
             int ri = 0;
             void PlaceRock(float x, float s)
             {
-                var sr = Gfx.SpriteObject("Rock", rocksT, R.Pick(rockSprites), Layer.Rocks + ri++);
+                var sr = Gfx.SpriteObject("Rock", rocksT, paintedRock ?? R.Pick(rockSprites), Layer.Rocks + ri++);
                 float y = Mathf.Max(FloorY(x), (FloorY(x - s) + FloorY(x + s)) * 0.5f);
-                sr.transform.localPosition = U.V3(x, y + s * 0.3f);
+                sr.transform.localPosition = U.V3(x, y + (paintedRock == null ? s * 0.3f : 3));
                 sr.transform.localScale = new Vector3(R.Next() < 0.5f ? -s : s, s, 1);
+                sr.color = Color.Lerp(Color.white, WaterAt(y), Mathf.Clamp01((y - 1200) / 3500) * 0.38f);
+                ContactShadow(rocksT, x, y + 2, s * 1.2f, s * 0.17f);
             }
             for (float x = 80; x < W; x += 150 + R.Next() * 460)
             {
@@ -158,10 +163,16 @@ namespace DeepFeast
             coralT.SetParent(root, false);
             var cr = new Mulberry(99);
             var branch = new List<Sprite>(); var fan = new List<Sprite>(); var brain = new List<Sprite>(); var tube = new List<Sprite>();
-            for (int i = 0; i < 8; i++) branch.Add(DecorArt.Branch(cr, U.Hex(cr.Pick(CORAL)), U.Hex(cr.Pick(new[] { "#fff2b3", "#ffffff", "#ffd6e8" }))));
-            for (int i = 0; i < 6; i++) fan.Add(DecorArt.Fan(cr, U.Hex(cr.Pick(CORAL))));
-            for (int i = 0; i < 6; i++) brain.Add(DecorArt.Brain(cr, U.Hex(cr.Pick(CORAL))));
-            for (int i = 0; i < 6; i++) tube.Add(DecorArt.Tube(cr, U.Hex(cr.Pick(CORAL))));
+            // Bake the procedural variants only when their painted replacement is absent.
+            if (PaintedArt.Prop("branch") == null)
+                for (int i = 0; i < 8; i++) branch.Add(DecorArt.Branch(cr, U.Hex(cr.Pick(CORAL)), U.Hex(cr.Pick(new[] { "#fff2b3", "#ffffff", "#ffd6e8" }))));
+            if (PaintedArt.Prop("fan") == null)
+                for (int i = 0; i < 6; i++) fan.Add(DecorArt.Fan(cr, U.Hex(cr.Pick(CORAL))));
+            if (PaintedArt.Prop("brain") == null)
+                for (int i = 0; i < 6; i++) brain.Add(DecorArt.Brain(cr, U.Hex(cr.Pick(CORAL))));
+            if (PaintedArt.Prop("tube") == null)
+                for (int i = 0; i < 6; i++) tube.Add(DecorArt.Tube(cr, U.Hex(cr.Pick(CORAL))));
+            Sprite Painted(string key, List<Sprite> fallback) => PaintedArt.Prop(key) ?? R.Pick(fallback);
             // the concept-art coral group stands in now and then as a hero piece
             var reef = ConceptArt.Reef();
             float lastReef = -1e4f;
@@ -177,20 +188,42 @@ namespace DeepFeast
                     var hero = Gfx.SpriteObject("Reef", coralT, reef, Layer.Coral + ci++);
                     hero.transform.localPosition = U.V3(x, Mathf.Max(fy, Mathf.Max(FloorY(x - rs), FloorY(x + rs))) + 4);
                     hero.transform.localScale = new Vector3(R.Next() < 0.5f ? -rs : rs, rs, 1);
+                    ContactShadow(coralT, x, fy + 3, rs * 1.1f, rs * 0.13f);
                     lastReef = x;
                     x += rs;
                     continue;
                 }
                 Sprite spr; float amp = 0, speed = 0;
-                if (k < 0.38f) { spr = R.Pick(branch); amp = 0.02f; speed = 0.7f; }
-                else if (k < 0.58f) { spr = R.Pick(fan); amp = 0.05f; speed = 0.6f; s *= 0.62f; }
-                else if (k < 0.8f) { spr = R.Pick(brain); y += 4; s *= 0.9f; }
-                else spr = R.Pick(tube);
+                if (k < 0.38f) { spr = Painted("branch", branch); amp = 0.018f; speed = 0.6f; }
+                else if (k < 0.58f) { spr = Painted("fan", fan); amp = 0.035f; speed = 0.5f; s *= 0.62f; }
+                else if (k < 0.8f) { spr = Painted("brain", brain); y += 4; s *= 0.75f; }
+                else spr = Painted("tube", tube);
                 var sr = Gfx.SpriteObject("Coral", coralT, spr, Layer.Coral + ci++);
                 sr.transform.localPosition = U.V3(x, y);
                 sr.transform.localScale = new Vector3(R.Next() < 0.5f ? -s : s, s, 1);
+                sr.color = Color.Lerp(Color.white, WaterAt(fy), Mathf.Clamp01((fy - 1100) / 2500) * 0.28f);
+                ContactShadow(coralT, x, fy + 3, s * 0.7f, s * 0.12f);
                 if (amp > 0) swayers.Add(new Swayer { t = sr.transform, amp = amp, speed = speed, phase = R.Next() * U.TAU + x * 0.01f });
             }
+
+            // Low cool reef groups give the abyss a habitat while keeping the swimming corridor open.
+            var deepReef = PaintedArt.Prop("deep");
+            if (deepReef != null)
+                for (float x = 280; x < W - 200; x += 360 + R.Next() * 300)
+                {
+                    float fy = FloorY(x);
+                    if (fy < 3050) continue;
+                    float s = 75 + R.Next() * 50;
+                    var sr = Gfx.SpriteObject("AbyssReef", coralT, deepReef, Layer.Coral + ci++);
+                    sr.transform.localPosition = U.V3(x, fy + 4);
+                    sr.transform.localScale = new Vector3(R.Next() < 0.5f ? -s : s, s, 1);
+                    ContactShadow(coralT, x, fy + 3, s, s * 0.14f);
+                    reefLights.Add(new Hole(x, fy - s * 0.45f, s * 1.9f, 0.26f));
+                    var glow = Gfx.SpriteObject("ReefBioluminescence", root, Gfx.Glow, Layer.Glow, true);
+                    glow.transform.localPosition = U.V3(x, fy - s * 0.5f);
+                    glow.transform.localScale = new Vector3(s * 2.6f, s * 1.7f, 1);
+                    glow.color = new Color(0.2f, 0.75f, 0.9f, 0.07f);
+                }
 
             for (float x = 150; x < W - 150; x += 160 + R.Next() * 480)
             {
@@ -220,6 +253,14 @@ namespace DeepFeast
             }
 
             for (float x = 400; x < W - 400; x += 500 + R.Next() * 900) vents.Add(new Vector2(x, FloorY(x) + 4));
+        }
+
+        static void ContactShadow(Transform parent, float x, float y, float rx, float ry)
+        {
+            var shadow = Gfx.SpriteObject("ContactShadow", parent, Gfx.Glow, Layer.Rocks - 1);
+            shadow.transform.localPosition = U.V3(x, y);
+            shadow.transform.localScale = new Vector3(rx * 2, ry * 2, 1);
+            shadow.color = new Color(0.04f, 0.12f, 0.17f, 0.3f);
         }
 
         static readonly Color[] FLOOR_C = { new Color32(0xf0, 0xdc, 0xa4, 255), new Color32(0xc9, 0xae, 0x74, 255), new Color32(0x7d, 0x68, 0x44, 255), new Color32(0x3a, 0x31, 0x28, 255) };
@@ -300,7 +341,7 @@ namespace DeepFeast
             foreach (var d in kelps)
             {
                 if (d.x < x0 - 120 || d.x > x1 + 120) continue;
-                const int segs = 16;
+                const int segs = 12;
                 float sl = d.h / segs, x = d.x, y = d.y;
                 pts.Clear();
                 pts.Add(new Vector2(x, y));
@@ -326,7 +367,7 @@ namespace DeepFeast
                 {
                     float s = i % 2 == 0 ? 1 : -1, t = i / (float)last;
                     if (i == last) s = d.phase > Mathf.PI ? 1 : -1;
-                    float L = (d.w * 2.2f + sl * 0.75f) * (1.1f - t * 0.35f), lw = L * 0.4f;
+                    float L = (d.w * 3f + sl * 1.05f) * (1.1f - t * 0.35f), lw = L * 0.5f;
                     float rot = s * Mathf.Sin(time * 1.2f + d.phase + i) * 0.2f, cs = Mathf.Cos(rot), sn = Mathf.Sin(rot);
                     // the crown leaf curls up off the top of the stem; the rest reach out
                     float cx = i == last ? 0.15f : 0.4f, cy = i == last ? -0.75f : -0.6f;
@@ -373,19 +414,19 @@ namespace DeepFeast
             }
             mb.Apply(frontMesh);
 
-            // dancing caustic light on the sand (two drifting layers of the caustic net)
+            // One low-contrast, broken caustic layer; the sand remains a material rather than a bright wire net.
             mb.Clear();
             const float CS = 40;
             float s0 = Mathf.Floor(x0 / CS) * CS - CS;
-            for (int layer = 0; layer < 2; layer++)
+            for (int layer = 0; layer < 1; layer++)
             {
-                float sc = layer == 0 ? 1 / 300f : 1 / 210f;
-                float ox = layer == 0 ? time * 0.02f : -time * 0.015f, oy = layer == 0 ? time * 0.012f : time * 0.017f;
+                float sc = 1 / 520f;
+                float ox = time * 0.012f, oy = time * 0.008f;
                 int prev = -1;
                 for (float x = s0; x <= x1 + CS; x += CS)
                 {
                     float y = FloorY(x);
-                    float k = Mathf.Clamp01(1 - (y - 900) / 2300) * (layer == 0 ? 0.24f : 0.17f);
+                    float k = Mathf.Clamp01(1 - (y - 900) / 2300) * 0.13f;
                     float wob = Mathf.Sin(time * 0.9f + x * 0.004f) * 0.02f;
                     int a = mb.Vert(x, -(y - 1), new Color(0.9f, 1, 0.95f, k), x * sc + ox + wob, y * sc * 2.4f + oy);
                     mb.Vert(x, -(y + 170), new Color(0.9f, 1, 0.95f, 0), x * sc + ox - wob, (y + 170) * sc * 2.4f + oy);

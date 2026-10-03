@@ -42,8 +42,10 @@ namespace DeepFeast
 
         readonly Fish player = new Fish { sp = null };
         bool pActive, pAlive, pTired, pDashing;
-        float pInvuln, pStamina = 1, pBlink, pBlinkT = 3, pShield, pStun, pStungCool;
+        float pInvuln, pStamina = 1, pBlink, pBlinkT = 3, pShield, pStun, pStungCool, wakeT;
         FishView playerView;
+        RenderTexture captureTarget;
+        string captureName;
         SpriteRenderer playerGlow, shieldRing, shieldFill, shieldShine;
         readonly SpriteRenderer[] stunStars = new SpriteRenderer[3];
 
@@ -64,7 +66,7 @@ namespace DeepFeast
         Vector3 lastMouse;
 
         // ------------------------------------------------------------------ test harness (command line)
-        bool autoplay, noPause, gallery;
+        bool autoplay, noPause, gallery, animateGallery;
         string shotDir;
         float shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, realTime, statT, botWanderDir = 1, restartT = -1;
         int shotN;
@@ -107,6 +109,13 @@ namespace DeepFeast
 
             sfx = new Sfx(gameObject, autoplay || Has("-mute"));
             hud = new Hud();
+            if (Application.isBatchMode && shotDir != null)
+            {
+                captureTarget = new RenderTexture((int)ArgF("-screen-width", 1280), (int)ArgF("-screen-height", 720), 24);
+                captureTarget.Create();
+                cam3.targetTexture = captureTarget;
+                hud.UseCaptureCamera(cam3);
+            }
             hud.OnPlay = StartGame;
             hud.OnResume = () => TogglePause(false);
             hud.OnMute = ToggleMute;
@@ -221,6 +230,7 @@ namespace DeepFeast
             args = Environment.GetCommandLineArgs();
             autoplay = Has("-autoplay");
             gallery = Has("-gallery");
+            animateGallery = Has("-animate-gallery");
             noPause = autoplay || Has("-nopause");
             shotDir = Arg("-shots");
             shotEvery = ArgF("-shotevery", 15);
@@ -238,8 +248,35 @@ namespace DeepFeast
         void Shot(string name)
         {
             if (shotDir == null) return;
+            if (captureTarget != null) { captureName = name; return; }
             ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(shotDir, name + ".png"));
             Debug.Log($"[DeepFeast] shot {name}");
+        }
+
+        // A real native-player camera capture when no display/backbuffer is available, including the same uGUI HUD.
+        void LateUpdate()
+        {
+            if (captureName == null) return;
+            Canvas.ForceUpdateCanvases();
+            cam3.Render();
+            var old = RenderTexture.active;
+            var image = new Texture2D(captureTarget.width, captureTarget.height, TextureFormat.RGB24, false);
+            try
+            {
+                RenderTexture.active = captureTarget;
+                image.ReadPixels(new Rect(0, 0, image.width, image.height), 0, 0);
+                image.Apply();
+                System.IO.File.WriteAllBytes(System.IO.Path.Combine(shotDir, captureName + ".png"), image.EncodeToPNG());
+                Debug.Log($"[DeepFeast] native camera shot {captureName} ({image.width}x{image.height})");
+            }
+            finally { RenderTexture.active = old; Destroy(image); captureName = null; }
+        }
+
+        void OnDestroy()
+        {
+            if (captureTarget == null) return;
+            captureTarget.Release();
+            Destroy(captureTarget);
         }
 
         void Harness(float rdt)
@@ -309,8 +346,23 @@ namespace DeepFeast
             realTime += rdt; time += rdt;
             foreach (var f in fish) f.wag += rdt * 5;
             foreach (var j in jellies) j.phase += rdt * j.pf;
+            if (animateGallery)
+            {
+                float poseTime = time % 2.1f;
+                float mouth = poseTime < 0.55f ? 0 : poseTime < 0.75f ? Mathf.InverseLerp(0.55f, 0.75f, poseTime) :
+                    poseTime < 0.98f ? 1 : poseTime < 1.17f ? 1 - Mathf.InverseLerp(0.98f, 1.17f, poseTime) : 0;
+                foreach (var f in fish)
+                {
+                    f.mouth = mouth;
+                    f.chomp = poseTime >= 0.98f && poseTime < 1.2f ? 1.2f - poseTime : 0;
+                    f.state = mouth > 0.4f && f.sp != Data.Player ? FState.Chase : FState.Wander;
+                }
+                if (realTime >= nextShot) { Shot($"pose_{shotN++:000}"); nextShot += Mathf.Max(1 / 30f, shotEvery); }
+                if (quitAfter > 0 && realTime >= quitAfter) Application.Quit();
+                return;
+            }
             if (shotN == 0 && realTime > 2.5f) { Shot("gallery"); shotN = 1; }
-            if (shotN == 1 && realTime > 3.5f) { foreach (var f in fish) { f.state = FState.Chase; f.mouth = 1; } shotN = 2; }
+            if (shotN == 1 && realTime > 3.5f) { foreach (var f in fish) { f.state = f.sp == Data.Player ? FState.Wander : FState.Chase; f.mouth = 1; } shotN = 2; }
             if (shotN == 2 && realTime > 4.5f) { Shot("gallery_bite"); shotN = 3; }
             if (quitAfter > 0 && realTime >= quitAfter) Application.Quit();
         }
@@ -387,8 +439,9 @@ namespace DeepFeast
             if (extra) lives++;
             Banner(Data.Tiers[t].name.ToUpperInvariant() + "!", Data.Tiers[t].blurb + (extra ? "  +1 life" : ""), new Color(1, 212 / 255f, 71 / 255f));
             sfx.TierUp();
-            parts.Add(new Particle { type = PType.Ring, x = player.x, y = player.y, life = 0.8f, max = 0.8f, size = player.r * 5, col = new Color(1, 220 / 255f, 120 / 255f) });
-            Sparkle(player.x, player.y, player.r, 26, U.Hex("#ffe38a"));
+            hud.PulseGrowth(true);
+            parts.Add(new Particle { type = PType.Ring, x = player.x, y = player.y, life = 0.75f, max = 0.75f, size = player.r * 3.3f, col = new Color(1, 220 / 255f, 120 / 255f) });
+            Sparkle(player.x, player.y, player.r, 16, U.Hex("#ffe38a"));
         }
 
         void EatFish(int i)
@@ -404,9 +457,10 @@ namespace DeepFeast
             int pts = Mathf.RoundToInt((f.r * 1.5f + 5) * (f.shark ? 5 : 1)) * combo;
             score += pts;
             eaten++;
+            hud.PulseGrowth(false);
             Burst(f.x, f.y, f.r, f.sp.c0);
             // float the score above the player's head rather than over its mouth
-            hud.AddText(f.x, Mathf.Min(f.y, player.y) - player.r * 1.5f - 10 / zoom, "+" + pts, combo > 1 ? U.Hex("#ffd447") : Color.white, combo > 2 ? 30 : 24);
+            hud.AddText(f.x, Mathf.Min(f.y, player.y) - player.r * 1.5f - 10 / zoom, "+" + pts, combo > 1 ? U.Hex("#ffd447") : Color.white, combo > 2 ? 26 : 22);
             if (combo == 5 || combo == 10)
                 Banner(combo == 10 ? "MEGA FRENZY!" : "FEEDING FRENZY!", $"×{combo} combo", new Color(1, 170 / 255f, 40 / 255f));
             sfx.Chomp(f.r / pr, combo);
@@ -570,7 +624,7 @@ namespace DeepFeast
         {
             var p = new Pearl { x = x, y = y, r = r, life = 16, ph = U.Rand(0, U.TAU) };
             p.glow = Gfx.SpriteObject("PearlGlow", fxRoot, Gfx.Glow, Layer.Glow, true);
-            p.glow.color = new Color(0.7f, 0.88f, 1, 0.38f);
+            p.glow.color = new Color(0.7f, 0.88f, 1, 0.22f);
             p.ring = Gfx.SpriteObject("PearlRing", fxRoot, pearlRing, Layer.Pearl - 1, true);
             p.body = Gfx.SpriteObject("Pearl", fxRoot, pearlSprite, Layer.Pearl);
             p.star = Gfx.SpriteObject("PearlStar", fxRoot, pearlStar, Layer.Pearl + 1);
@@ -584,13 +638,13 @@ namespace DeepFeast
 
         void Burst(float x, float y, float r, Color col)
         {
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 6; i++)
             {
                 float a = U.Rand(0, U.TAU), sp = U.Rand(0.6f, 2.4f) * r;
                 parts.Add(new Particle { type = PType.Bit, x = x, y = y, vx = Mathf.Cos(a) * sp, vy = Mathf.Sin(a) * sp, life = U.Rand(0.5f, 1), max = 1, size = r * U.Rand(0.1f, 0.22f), col = col });
             }
-            for (int i = 0; i < 7; i++) Bubble(x + U.Rand(-r, r) * 0.6f, y + U.Rand(-r, r) * 0.6f, r * 0.22f);
-            parts.Add(new Particle { type = PType.Ring, x = x, y = y, life = 0.45f, max = 0.45f, size = r * 1.1f, col = Color.white });
+            for (int i = 0; i < 4; i++) Bubble(x + U.Rand(-r, r) * 0.6f, y + U.Rand(-r, r) * 0.6f, r * 0.14f);
+            parts.Add(new Particle { type = PType.Ring, x = x, y = y, life = 0.34f, max = 0.34f, size = r * 0.9f, col = Color.Lerp(col, Color.white, 0.55f) });
         }
 
         void Sparkle(float x, float y, float r, int n, Color col)
@@ -605,6 +659,7 @@ namespace DeepFeast
         // ================================================================== main loop
         void Update()
         {
+            PaintedArt.PrepareMeshes();
             float rdt = Mathf.Min(0.1f, Time.unscaledDeltaTime);
             float dt = Mathf.Min(0.05f, Time.deltaTime);
             Resize();
@@ -623,7 +678,8 @@ namespace DeepFeast
 
         void Resize()
         {
-            float w = Mathf.Max(1, Screen.width), h = Mathf.Max(1, Screen.height);
+            float w = captureTarget != null ? captureTarget.width : Mathf.Max(1, Screen.width);
+            float h = captureTarget != null ? captureTarget.height : Mathf.Max(1, Screen.height);
             pxPerRef = Mathf.Min(w, h) / 820f;
             refW = w / pxPerRef; refH = h / pxPerRef;
             hud?.Resize(pxPerRef, refW);
@@ -706,7 +762,7 @@ namespace DeepFeast
         }
 
         // ------------------------------------------------------------------ player
-        void AnimateFish(Fish f, float dt)
+        void AnimateFish(Fish f, float dt, bool animateMouth = true)
         {
             float sp = Dist(f.vx, f.vy);
             if (f.vx > 6) f.face = 1; else if (f.vx < -6) f.face = -1;
@@ -715,7 +771,7 @@ namespace DeepFeast
             f.tilt += (tilt - f.tilt) * Mathf.Min(1, dt * 6);
             f.wag += dt * Mathf.Clamp(3.5f + (sp / f.r) * 0.55f, 3.5f, 20);
             f.chomp = Mathf.Max(0, f.chomp - dt);
-            f.mouth += ((f.chomp > 0 ? 1 : 0) - f.mouth) * Mathf.Min(1, dt * 16);
+            if (animateMouth) f.mouth += ((f.chomp > 0 ? 1 : 0) - f.mouth) * Mathf.Min(1, dt * 16);
         }
 
         void UpdatePlayer(float dt)
@@ -725,7 +781,6 @@ namespace DeepFeast
             pShield = Mathf.Max(0, pShield - dt);
             pStun = Mathf.Max(0, pStun - dt);
             pStungCool = Mathf.Max(0, pStungCool - dt);
-            player.chomp = Mathf.Max(0, player.chomp - dt);
 
             float dx = 0, dy = 0, mag = 0;
             bool wantDash;
@@ -760,6 +815,13 @@ namespace DeepFeast
             }
             else pStamina = Mathf.Min(1, pStamina + dt * 0.3f);
             if (pDashing && !was) sfx.Dash();
+            wakeT = Mathf.Max(0, wakeT - dt);
+            if (pDashing && wakeT <= 0)
+            {
+                wakeT = 0.055f;
+                parts.Add(new Particle { type = PType.Wake, x = player.x - player.face * player.r * 1.55f, y = player.y,
+                    vx = player.vx, vy = player.vy, life = 0.25f, max = 0.25f, size = player.r * 0.55f, col = U.Hex("#97ece2") });
+            }
 
             float spd = bas * mag * (pDashing ? 1.85f : 1) * (pStun > 0 ? 0.3f : 1);
             float k = Mathf.Min(1, dt * (pDashing ? 9 : 6));
@@ -781,7 +843,7 @@ namespace DeepFeast
             if (pBlinkT < 0) { pBlink = 0.12f; pBlinkT = U.Rand(2.5f, 5); }
             pBlink = Mathf.Max(0, pBlink - dt);
 
-            AnimateFish(player, dt);
+            AnimateFish(player, dt, false);
             float target = player.chomp > 0 ? 0.15f : open ? 1 : 0;
             player.mouth += (target - player.mouth) * Mathf.Min(1, dt * 14);
 
@@ -1191,11 +1253,11 @@ namespace DeepFeast
                 if (threat)
                 {
                     float hot = f.state == FState.Chase ? 1 : 0;
-                    float a = 0.2f + hot * (0.15f + 0.1f * Mathf.Sin(time * 10));
+                    float a = 0.045f + hot * (0.075f + 0.025f * Mathf.Sin(time * 7));
                     halo.transform.localPosition = U.V3(f.x, f.y);
-                    float d = f.r * 2.3f * 2;
+                    float d = f.r * 1.9f * 2;
                     halo.transform.localScale = new Vector3(d, d, 1);
-                    halo.color = new Color(1, 40 / 255f, 60 / 255f, a * 1.6f);
+                    halo.color = new Color(1, 70 / 255f, 85 / 255f, a);
                 }
             }
 
@@ -1255,9 +1317,9 @@ namespace DeepFeast
                 j.glow.transform.localPosition = U.V3(j.x, j.y);
                 j.glow.transform.localScale = Vector3.one * j.r * 6;
                 // fine tentacles ending in glowing beads
-                var tc = U.Hsl(j.hue, 0.85f, 0.78f, 0.6f);
-                var bead = U.Hsl(j.hue, 1, 0.92f, 1);
-                float tw = Mathf.Max(1 / zoom, j.r * 0.045f);
+                var tc = U.Hsl(j.hue, 0.65f, 0.8f, 0.55f);
+                var bead = U.Hsl(j.hue, 0.7f, 0.93f, 0.78f);
+                float tw = Mathf.Max(0.75f / zoom, j.r * 0.04f);
                 var pts = new List<Vector2>(12);
                 for (int i = 0; i < 8; i++)
                 {
@@ -1266,20 +1328,20 @@ namespace DeepFeast
                     pts.Add(new Vector2(tx0, j.y));
                     for (int s = 1; s <= 10; s++)
                         pts.Add(new Vector2(tx0 + Mathf.Sin(time * 2.4f + s * 0.6f + i * 1.3f) * j.r * 0.14f * (s / 4f), j.y + s * j.r * (0.26f + (i % 3) * 0.03f)));
-                    Draw.Stroke(jmb, pts, tw, tw * 0.6f, tc, U.WithA(tc, 0.35f));
+                    Draw.Stroke(jmb, pts, tw, tw * 0.18f, tc, U.WithA(tc, 0.22f));
                     var e = pts[pts.Count - 1];
-                    Draw.Circle(jmb, e.x, e.y, tw * 2.4f, U.WithA(bead, 0.22f), 10);
-                    Draw.Circle(jmb, e.x, e.y, tw * 1.15f, bead, 8);
+                    Draw.RadialDisc(jmb, e.x, e.y, tw * 1.8f, U.WithA(bead, 0.26f), U.WithA(bead, 0), 12);
+                    Draw.Circle(jmb, e.x, e.y, tw * 0.7f, bead, 10);
                 }
                 // frilly oral arms: wide translucent ribbons with a brighter spine
-                Color armA = U.Hsl(j.hue, 0.8f, 0.82f, 0.82f), armB = U.Hsl(j.hue, 0.85f, 0.72f, 0.3f), spine = U.Hsl(j.hue, 0.9f, 0.92f, 0.6f);
-                float ow = Mathf.Max(2 / zoom, j.r * 0.38f);
+                Color armA = U.Hsl(j.hue, 0.65f, 0.84f, 0.65f), armB = U.Hsl(j.hue, 0.7f, 0.75f, 0.2f), spine = U.Hsl(j.hue, 0.6f, 0.93f, 0.36f);
+                float ow = Mathf.Max(1.5f / zoom, j.r * 0.32f);
                 for (int i = 0; i < 4; i++)
                 {
                     float tx0 = j.x + (i - 1.5f) * bw * 0.16f;
                     var c = Draw.CubicPts(tx0, j.y, tx0 + Mathf.Sin(time * 1.6f + i) * j.r * 0.3f, j.y + j.r * 0.8f,
                         tx0 - Mathf.Sin(time * 1.3f + i) * j.r * 0.3f, j.y + j.r * 1.4f, tx0 + (i - 1.5f) * j.r * 0.12f, j.y + j.r * (1.9f + (i & 1) * 0.35f), 16);
-                    Draw.Ribbon(jmb, c, ow, ow * 0.25f, 0.34f, time * 3 + i * 1.7f, armA, armB);
+                    Draw.Ribbon(jmb, c, ow, ow * 0.15f, 0.18f, time * 2 + i * 1.7f, armA, armB);
                     Draw.Stroke(jmb, c, ow * 0.18f, ow * 0.04f, spine, U.WithA(spine, 0.1f));
                 }
             }
@@ -1290,15 +1352,15 @@ namespace DeepFeast
             {
                 float bob = Mathf.Sin(time * 2 + p.ph) * p.r * 0.4f;
                 bool hidden = p.life < 3 && Mathf.FloorToInt(time * 8) % 2 == 1;
-                p.body.enabled = p.star.enabled = p.ring.enabled = !hidden;
+                p.body.enabled = p.star.enabled = p.ring.enabled = p.glow.enabled = !hidden;
                 var pos = U.V3(p.x, p.y + bob);
                 p.body.transform.localPosition = pos; p.body.transform.localScale = Vector3.one * p.r;
                 p.ring.transform.localPosition = pos; p.ring.transform.localScale = Vector3.one * p.r * (1 + 0.04f * Mathf.Sin(time * 3 + p.ph));
-                p.ring.color = new Color(1, 1, 1, 0.7f + 0.3f * Mathf.Sin(time * 3 + p.ph));
+                p.ring.color = new Color(1, 1, 1, 0.52f + 0.12f * Mathf.Sin(time * 2 + p.ph));
                 float tw = 0.85f + 0.15f * Mathf.Sin(time * 5 + p.ph);
-                p.star.transform.localPosition = pos; p.star.transform.localScale = Vector3.one * p.r * tw;
+                p.star.transform.localPosition = pos; p.star.transform.localScale = Vector3.one * p.r * tw * 0.62f;
                 p.star.transform.localRotation = Quaternion.Euler(0, 0, Mathf.Sin(time * 0.8f + p.ph) * 12);
-                p.glow.transform.localPosition = pos; p.glow.transform.localScale = Vector3.one * p.r * 10;
+                p.glow.transform.localPosition = pos; p.glow.transform.localScale = Vector3.one * p.r * 6;
             }
 
             parts.Render();
@@ -1310,6 +1372,8 @@ namespace DeepFeast
             foreach (var p in pearls) holes.Add(new Hole(p.x, p.y, p.r * 8, 0.8f));
             foreach (var a in world.glowAnemones)
                 if (a.x > x0 - 300 && a.x < x1 + 300) holes.Add(new Hole(a.x, a.y - a.s * 0.4f, a.s * 2.4f, 0.7f));
+            foreach (var light in world.reefLights)
+                if (light.x > x0 - light.r && light.x < x1 + light.r) holes.Add(light);
 
             fx.Update(time, cam, camPos, zoom, refW, refH, holes);
             world.UpdateView(time, x0, x1, yBot);
