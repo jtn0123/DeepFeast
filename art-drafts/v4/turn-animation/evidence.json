@@ -1,0 +1,130 @@
+{
+  "source": {
+    "before": {
+      "commit": "542a24fd2e1f8bc636d80918a3c7b7b6cfccf4d8",
+      "files": {
+        "unity/Assets/Scripts/FishArt.cs": "9cae0fae0c46ebd58cfd6faa37f44fbfea53f43c075826e5c7e18873f8247f53",
+        "unity/Assets/Resources/Shaders/FishSwim.shader": "8284a1ce01f6045880a08753c497e838f23f01afaa0d0277121d347f36e91c9f"
+      }
+    },
+    "after": {
+      "commit": "8dbd365e8cbb5272fa61fe0ff28ceddf1d6bc180",
+      "files": {
+        "unity/Assets/Scripts/FishArt.cs": "f02a7cf726dd40dd170d766e32162192e52e0912e61b274e9be0f88fb9138fe1",
+        "unity/Assets/Resources/Shaders/FishSwim.shader": "975196e262dbd16a35fdddd9bec545299d04789e08dd733780398e7bd9c577fc"
+      }
+    }
+  },
+  "method": "Isolated native Unity player using each revision of FishArt.cs and FishSwim.shader, with a common capture-only driver. Plain review background, not a gameplay recording. Atlas bitmap bytes unchanged.",
+  "unity": "6000.3.25f1",
+  "species": [
+    "player",
+    "clown",
+    "shark"
+  ],
+  "camera": {
+    "nativeResolution": [
+      960,
+      720
+    ],
+    "orthographicSize": 400,
+    "position": [
+      0,
+      -1300,
+      -10
+    ]
+  },
+  "nativeTimeline": {
+    "framesPerSide": 120,
+    "fps": 30,
+    "seconds": 4,
+    "facing": "cos(time * pi / 2)",
+    "mouth": 0,
+    "jawRecovery": 0,
+    "inputsMatchExactly": true
+  },
+  "widthRatios": {
+    "beforeMinimum": 0.06,
+    "afterMinimum": 0.84
+  },
+  "validation": {
+    "nativeBuildsExitCodes": [
+      0,
+      0
+    ],
+    "nativeCaptureExitCodes": [
+      0,
+      0
+    ],
+    "allFramesCheckedForFinClipping": true
+  },
+  "exports": {
+    "mp4": {
+      "resolution": [
+        1280,
+        592
+      ],
+      "fps": 30,
+      "frames": 120,
+      "seconds": 4
+    },
+    "gif": {
+      "resolution": [
+        1280,
+        592
+      ],
+      "fps": 20,
+      "frames": 80,
+      "seconds": 4,
+      "loop": "infinite"
+    },
+    "labels": "Separate browser-canvas caption overlay; native scene images composed with ffmpeg."
+  },
+  "files": [
+    {
+      "path": "TurnReview.cs",
+      "bytes": 4559,
+      "sha256": "d44c221d859005e33ea240fd41a5856ddc3867521f0444b9d4cc4b91ce49c6ad"
+    },
+    {
+      "path": "CaptureBuild.cs",
+      "bytes": 958,
+      "sha256": "f02b1a50af55d48d03c2061271f76725b8d27c376292c76f7a51ad09c7129a2a"
+    },
+    {
+      "path": "compose.py",
+      "bytes": 1161,
+      "sha256": "10db0d30535cf32ae809ab827ff495f291041d2f642df89ff0f77382bcf35e67"
+    },
+    {
+      "path": "labels.png",
+      "bytes": 48402,
+      "sha256": "84fa6d1580fb01f4dbe42246fa24349960c2edd69e8ce388476d79c509fb449d"
+    },
+    {
+      "path": "fish-turn-before-after.mp4",
+      "bytes": 623074,
+      "sha256": "4dd46f17558b104e3436ec01e1c4269e781a823be73ebb7781e85853f06d459c"
+    },
+    {
+      "path": "fish-turn-before-after.gif",
+      "bytes": 5221714,
+      "sha256": "cdc9e52e242b78db0975b1ac3d241d9f3408b209cd6699449a2b314ba27cfdf5"
+    },
+    {
+      "path": "mid-turn.png",
+      "bytes": 160586,
+      "sha256": "e64549af891f47196cfccc2f929cec4804bf64452242e8aaf5e50131a674fbda"
+    },
+    {
+      "path": "before/native-samples.json",
+      "bytes": 32553,
+      "sha256": "436f0e2eefd49847cd038a00f362fd92ec5c263389ee069f0a347a65b633f37f"
+    },
+    {
+      "path": "after/native-samples.json",
+      "bytes": 32484,
+      "sha256": "ee39d4facdb37f2397b94927593c3e94960e11e4109c238bf0926b169c0c4fcf"
+    }
+  ]
+}
