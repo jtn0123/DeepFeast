@@ -25,7 +25,7 @@ namespace DeepFeast
         void Awake()
         {
             var args = Environment.GetCommandLineArgs();
-            FishVolume.Style = Array.IndexOf(args, "-painted") >= 0 ? FishVolume.Look.Painted : FishVolume.Look.Sculpted;
+            FishVolume.Style = FishVolume.StyleFromArgs(args);
             evidence.style = FishVolume.Style.ToString();
             feeding = Array.IndexOf(args, "-feed-animation") >= 0;
             evidence.sequence = feeding ? "Feeding and blink" : "Turn";

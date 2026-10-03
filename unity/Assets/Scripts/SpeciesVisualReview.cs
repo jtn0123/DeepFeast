@@ -44,7 +44,7 @@ namespace DeepFeast
             evidence.group = Argument(args, "-review-group", "sharks");
             output = Argument(args, "-shots") ?? throw new ArgumentException("-shots is required.");
             Directory.CreateDirectory(output);
-            FishVolume.Style = FishVolume.Look.Sculpted;
+            FishVolume.Style = FishVolume.StyleFromArgs(args);
             Application.runInBackground = true;
             Application.targetFrameRate = 60; QualitySettings.vSyncCount = 0;
             camera3 = new GameObject("SpeciesReviewCamera").AddComponent<Camera>();

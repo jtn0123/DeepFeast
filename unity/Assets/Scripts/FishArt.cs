@@ -113,36 +113,36 @@ namespace DeepFeast
             void AddKnown(Species species, string name, string scientificName, string page)
                 => Add(Identify(species, name, scientificName, noaa + page));
             // Radius ranges are game progression units, not biological adult lengths.
-            AddKnown(S("almaco_jack", "oval", "#9b9e74", "#344c49", "#e7e5ed", "#667d67", 1, "amberjack", 30, 190),
+            AddKnown(S("almaco_jack", "oval", "#c7b46e", "#38524d", "#efe9ef", "#7d8c5e", 1, "amberjack", 30, 190),
                 "Almaco jack", "Seriola rivoliana", "almaco-jack");
-            var goliath = S("goliath_grouper", "fat", "#aa9563", "#514737", "#dcd0a9", "#7c7252", 1, "mottled", 70, 600);
+            var goliath = S("goliath_grouper", "fat", "#c6a663", "#5a4630", "#efdfb0", "#94794a", 1, "mottled", 70, 600);
             goliath.spot = U.Hex("#38382b"); goliath.canSchool = false;
             AddKnown(goliath, "Atlantic goliath grouper", "Epinephelus itajara", "atlantic-goliath-grouper");
-            var halibut = S("atlantic_halibut", "flat", "#938469", "#514b3d", "#eeeee5", "#8b8065", 1, "halibut", 40, 400);
+            var halibut = S("atlantic_halibut", "flat", "#a8916a", "#4e4434", "#f5f2e6", "#9a8463", 1, "halibut", 40, 400);
             halibut.spot = U.Hex("#443f32"); halibut.canSchool = false;
             AddKnown(halibut, "Atlantic halibut", "Hippoglossus hippoglossus", "atlantic-halibut");
-            AddKnown(S("atlantic_mackerel", "slim", "#91c5bf", "#23646e", "#eff7f2", "#647f87", 1, "mackerel", 9, 44),
+            AddKnown(S("atlantic_mackerel", "slim", "#7fd6cb", "#155f72", "#f4fbf7", "#5d93a0", 1, "mackerel", 9, 44),
                 "Atlantic mackerel", "Scomber scombrus", "atlantic-mackerel");
             var mahi = S("mahi_mahi", "torpedo", "#d3e642", "#0b9d91", "#ffed76", "#1a8b9c", 1, "mahi", 35, 250);
             mahi.tailCol = U.Hex("#e8cf37"); mahi.spot = U.Hex("#165ea4");
             AddKnown(mahi, "Atlantic mahi-mahi", "Coryphaena hippurus", "atlantic-mahi-mahi");
-            AddKnown(S("skipjack_tuna", "torpedo", "#9cb7c6", "#343e65", "#eef3f1", "#687c8c", 1, "skipjack", 40, 260),
+            AddKnown(S("skipjack_tuna", "torpedo", "#a6c4dc", "#2b3a78", "#f4f7f9", "#5a76a6", 1, "skipjack", 40, 260),
                 "Atlantic skipjack tuna", "Katsuwonus pelamis", "atlantic-skipjack-tuna");
-            AddKnown(S("striped_bass", "oval", "#b5c4b5", "#53665d", "#f0f1df", "#879588", 1, "bass", 22, 150),
+            AddKnown(S("striped_bass", "oval", "#c4d4c2", "#3f5b52", "#f8f7e9", "#8fa898", 1, "bass", 22, 150),
                 "Atlantic striped bass", "Morone saxatilis", "atlantic-striped-bass");
-            AddKnown(S("yellowfin_tuna", "torpedo", "#88b7ad", "#183e66", "#edf3dd", "#efcd35", 1, "yellowfin", 55, 600),
+            AddKnown(S("yellowfin_tuna", "torpedo", "#8fc7c0", "#163e74", "#f2f6e4", "#f2cf2e", 1, "yellowfin", 55, 600),
                 "Atlantic yellowfin tuna", "Thunnus albacares", "atlantic-yellowfin-tuna");
-            AddKnown(S("bluefish", "torpedo", "#98b6bd", "#365f61", "#ecf3f1", "#627e83", 1, "line", 18, 120),
+            AddKnown(S("bluefish", "torpedo", "#8cc4cf", "#246d7e", "#f1f8f7", "#5f96a2", 1, "line", 18, 120),
                 "Bluefish", "Pomatomus saltatrix", "bluefish");
-            var redDrum = S("red_drum", "oval", "#ca9270", "#755743", "#f0debf", "#b08460", 1, "red_drum", 22, 170);
+            var redDrum = S("red_drum", "oval", "#e2995f", "#8c5130", "#f7e3c6", "#c98a4f", 1, "red_drum", 22, 170);
             redDrum.spot = U.Hex("#171f22");
             Add(Identify(redDrum, "Red drum", "Sciaenops ocellatus", "https://myfwc.com/wildlifehabitats/profiles/saltwater/drums/red-drum/"));
 
             Shark = Identify(S("shark", "shark", "#879da4", "#334957", "#f2f5ee", "#647e87", 1, "shark", 0, 0),
                 "White shark", "Carcharodon carcharias", noaa + "white-shark");
-            TigerShark = Identify(S("tiger_shark", "shark", "#929878", "#4f584c", "#e5e6cb", "#747d63", 1, "tiger", 0, 0),
+            TigerShark = Identify(S("tiger_shark", "shark", "#a0a982", "#4b5747", "#eeeed6", "#7d8866", 1, "tiger", 0, 0),
                 "Tiger shark", "Galeocerdo cuvier", "https://www.fisheries.noaa.gov/feature-story/climate-change-shifting-tiger-shark-populations-northward");
-            MakoShark = Identify(S("mako_shark", "shark", "#527d95", "#173b57", "#ecf6f5", "#386b84", 1, "mako", 0, 0),
+            MakoShark = Identify(S("mako_shark", "shark", "#4f88b8", "#163d6c", "#f1f8f8", "#3b72a0", 1, "mako", 0, 0),
                 "Shortfin mako shark", "Isurus oxyrinchus", noaa + "shortfin-mako-shark");
             MakoShark.aggressive = true; MakoShark.chaseSpeedMultiplier = 1.08f;
             Player = S("player", "oval", "#3df2d0", "#0a8f99", "#e2fff8", "#ffc93c", 1, "player", 0, 0);

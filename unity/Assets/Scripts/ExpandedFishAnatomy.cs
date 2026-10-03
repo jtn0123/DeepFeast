@@ -199,6 +199,82 @@ namespace DeepFeast
             });
         }
 
+        // Cartoon eyes sized like the painted cast, placed on each authored head (relative to the centerline).
+        static bool ExpandedEye(Species sp, out Vector2 position, out float radius)
+        {
+            (position, radius) = sp.key switch
+            {
+                "almaco_jack" => (new Vector2(0.80f, 0.13f), 0.150f),
+                "goliath_grouper" => (new Vector2(0.93f, 0.17f), 0.110f),
+                "atlantic_halibut" => (new Vector2(0.64f, 0.12f), 0.095f),
+                "atlantic_mackerel" => (new Vector2(0.80f, 0.08f), 0.130f),
+                "mahi_mahi" => (new Vector2(0.80f, 0.10f), 0.120f),
+                "skipjack_tuna" => (new Vector2(0.82f, 0.10f), 0.140f),
+                "striped_bass" => (new Vector2(0.86f, 0.10f), 0.140f),
+                "yellowfin_tuna" => (new Vector2(0.86f, 0.09f), 0.140f),
+                "bluefish" => (new Vector2(0.82f, 0.09f), 0.140f),
+                "red_drum" => (new Vector2(0.86f, 0.12f), 0.140f),
+                _ => (Vector2.zero, 0f)
+            };
+            return radius > 0;
+        }
+
+        enum FinForm { Paddle, Blade, Sickle }
+
+        // Pectoral fans for species without an illustration: jacks and tunas carry long sickles,
+        // mackerel, mahi and bluefish tapering blades, the grouper, bass, drum and halibut paddles.
+        static bool ExpandedPectoral(Species sp, Model model, out Vector2 basePoint, out float root, out Vector2[] rim)
+        {
+            (Vector2 point, float length, float droop, float width, float curl, FinForm form)? spec = sp.key switch
+            {
+                "almaco_jack" => (new Vector2(0.40f, -0.10f), 0.62f, 10f, 0.09f, 0.10f, FinForm.Sickle),
+                "goliath_grouper" => (new Vector2(0.48f, -0.14f), 0.42f, 24f, 0.16f, 0f, FinForm.Paddle),
+                "atlantic_halibut" => (new Vector2(0.38f, -0.06f), 0.26f, 20f, 0.08f, 0f, FinForm.Paddle),
+                "atlantic_mackerel" => (new Vector2(0.42f, -0.05f), 0.34f, 14f, 0.06f, 0.05f, FinForm.Blade),
+                "mahi_mahi" => (new Vector2(0.42f, -0.14f), 0.42f, 16f, 0.08f, 0.05f, FinForm.Blade),
+                "skipjack_tuna" => (new Vector2(0.44f, -0.04f), 0.40f, 12f, 0.07f, 0.06f, FinForm.Blade),
+                "striped_bass" => (new Vector2(0.48f, -0.08f), 0.38f, 20f, 0.10f, 0f, FinForm.Paddle),
+                "yellowfin_tuna" => (new Vector2(0.48f, -0.04f), 0.66f, 8f, 0.07f, 0.10f, FinForm.Sickle),
+                "bluefish" => (new Vector2(0.44f, -0.06f), 0.38f, 14f, 0.07f, 0.04f, FinForm.Blade),
+                "red_drum" => (new Vector2(0.50f, -0.10f), 0.36f, 22f, 0.10f, 0f, FinForm.Paddle),
+                _ => null
+            };
+            basePoint = default; root = 0; rim = null;
+            if (spec == null) return false;
+            var (point, length, droop, width, curl, form) = spec.Value;
+            basePoint = new Vector2(point.x, point.y + CenterY(point.x, model));
+            rim = LeafRim(basePoint, length, droop, width, curl, form, out root);
+            return true;
+        }
+
+        // A leaf from a short root, as rim points ordered upper edge, tip, lower edge.
+        static Vector2[] LeafRim(Vector2 basePoint, float length, float droop, float width, float curl, FinForm form, out float root)
+        {
+            float angle = droop * Mathf.Deg2Rad;
+            var direction = new Vector2(-Mathf.Cos(angle), -Mathf.Sin(angle));
+            var normal = new Vector2(direction.y, -direction.x);
+            Vector2 Center(float s) => basePoint + direction * length * s + normal * curl * length * s * s;
+            // sin(pi) is a hair below zero in floats; clamp before the fractional powers.
+            float Arch(float s) => Mathf.Max(0, Mathf.Sin(Mathf.PI * Mathf.Min(1, s)));
+            float Width(float s) => form switch
+            {
+                FinForm.Paddle => width * Mathf.Sqrt(Arch(s * 0.5f + 0.5f * Mathf.Pow(s, 1.5f))) * (1 - 0.25f * s),
+                FinForm.Sickle => width * Mathf.Pow(Arch(s), 0.8f) * (1 - 0.55f * s),
+                _ => width * Mathf.Pow(Arch(s), 0.7f) * (1 - 0.35f * s)
+            };
+            const int steps = 10; const float start = 0.18f;
+            var rim = new Vector2[steps * 2 + 3];
+            for (int i = 0; i <= steps; i++)
+            {
+                float s = start + (1 - start) * i / steps;
+                rim[i] = Center(s) + normal * Width(s);
+                rim[rim.Length - 1 - i] = Center(s) - normal * Width(s);
+            }
+            rim[steps + 1] = Center(1);
+            root = Width(start);
+            return rim;
+        }
+
         static float FinSine(float along) => Mathf.Max(0, Mathf.Sin(Mathf.Clamp01(along) * Mathf.PI));
     }
 }

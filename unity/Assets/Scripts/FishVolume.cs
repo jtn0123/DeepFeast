@@ -7,7 +7,9 @@ namespace DeepFeast
     public sealed partial class FishVolume
     {
         public enum Look { Painted, Sculpted }
-        public static Look Style { get; set; } = Look.Sculpted;
+        public static Look Style { get; set; } = Look.Painted;
+        // Painted skin is the default; -sculpted shows the procedural surface on every species.
+        public static Look StyleFromArgs(string[] args) => System.Array.IndexOf(args, "-sculpted") >= 0 ? Look.Sculpted : Look.Painted;
         sealed class Model
         {
             public Mesh body, fins, nearFin, farFin, nearEye, farEye, mouth;
@@ -16,6 +18,8 @@ namespace DeepFeast
             public Vector3 nearNormal, farNormal;
             public Vector3 nearEyeCenter, farEyeCenter;
             public Vector3 nearFinRoot, farFinRoot;
+            public Vector4 pectoralMask;
+            public bool paintedFins, paintedPectoral;
         }
         static readonly Dictionary<string, Model> cache = new Dictionary<string, Model>();
         static readonly Color reefReflection = U.Hex("#c5af8a"), kelpReflection = U.Hex("#648b65"), abyssReflection = U.Hex("#546581");
@@ -86,15 +90,21 @@ namespace DeepFeast
                 block.SetTexture("_MainTex", sprite.texture);
                 block.SetVector("_Frame", new Vector4(rect.x / sprite.texture.width, rect.y / sprite.texture.height, rect.width / sprite.texture.width, rect.height / sprite.texture.height));
                 block.SetVector("_SpriteBounds", new Vector4(bounds.min.x, bounds.min.y, bounds.size.x, bounds.size.y));
-                block.SetVector("_Eye", new Vector4(art.eyePos.x, art.eyePos.y, art.eyeSize.x * 1.18f, art.eyeSize.y * 1.18f));
+                // Painted art masks its baked eye; generated skins only need the sculpted eye's position.
+                block.SetVector("_Eye", art.painted ? new Vector4(art.eyePos.x, art.eyePos.y, art.eyeSize.x * 1.18f, art.eyeSize.y * 1.18f)
+                    : new Vector4(model.nearEyeCenter.x, model.nearEyeCenter.y, 0.1f, 0.1f));
                 block.SetColor("_Base", species.c0); block.SetColor("_Dark", species.c1); block.SetColor("_Belly", species.c2);
                 block.SetColor("_Accent", species.fin);
                 block.SetVector("_Head", model.head);
                 block.SetVector("_Profile", model.profile);
                 block.SetVector("_MouthShape", model.mouthParameters);
                 block.SetFloat("_SharkKind", species.key == "tiger_shark" ? 2 : species.key == "mako_shark" ? 3 : species.IsShark ? 1 : 0);
-                block.SetFloat("_Pattern", Pattern(species.pat));
+                // Bluefish shares the minnow's line pattern but also needs a pelagic dark back.
+                block.SetFloat("_Pattern", species.key == "bluefish" ? 20 : Pattern(species.pat));
+                // Only real painted art is projected; generated fallback sprites smear on the rounded body,
+                // so those species paint their procedural skin with the illustrations' cues instead.
                 block.SetFloat("_Style", Style == Look.Sculpted ? 1 : 0);
+                block.SetFloat("_Painterly", Style == Look.Painted && !art.painted ? 1 : 0);
                 block.SetFloat("_FrontView", Mathf.Pow(sin, 8));
                 block.SetFloat("_Facing", f.faceS);
                 block.SetFloat("_Part", i == 0 ? 0 : i < 4 ? 1 : i < 6 ? 2 : 3);
@@ -108,7 +118,7 @@ namespace DeepFeast
                 block.SetVector("_FinRoot", new Vector4(finRoot.x, finRoot.y, finRoot.z, i == 2 || i == 3 ? 1 : 0));
                 block.SetFloat("_Mouth", f.mouth);
                 block.SetFloat("_Height", model.height);
-                block.SetFloat("_Fog", species == Data.Player ? 0.025f : 0.035f + Mathf.Clamp01((f.y - 900) / 3500) * 0.045f);
+                block.SetFloat("_Fog", species == Data.Player ? 0.015f : 0.02f + Mathf.Clamp01((f.y - 900) / 3500) * 0.045f);
                 block.SetColor("_FogColor", World.WaterAt(f.y));
                 block.SetColor("_WaterReflection", waterReflection);
                 block.SetColor("_GroundReflection", groundReflection);
@@ -121,6 +131,9 @@ namespace DeepFeast
                     block.SetVector("_EyeCenter", i == 4 ? model.nearEyeCenter : model.farEyeCenter);
                 }
                 block.SetFloat("_Visibility", visibility);
+                block.SetFloat("_PaintedFins", model.paintedFins ? 1 : 0);
+                block.SetFloat("_PaintedPectoral", model.paintedPectoral && (i == 2 || i == 3) ? 1 : 0);
+                block.SetVector("_PectoralMask", model.pectoralMask);
                 parts[i].SetPropertyBlock(block);
             }
             parts[0].sortingOrder = 1; parts[1].sortingOrder = 0;
@@ -138,22 +151,11 @@ namespace DeepFeast
             if (sp.IsShark) return SharkBody(sp, art);
             var expanded = ExpandedBody(sp, art);
             if (expanded != null) return expanded;
-            Model Form(float height, float depth, float shoulder, float nose, float rear, float front, float peduncle, float lift = 0)
-                => new Model { height = art.hh * height, depth = depth, head = new Vector4(shoulder, nose, art.hh * height, depth), profile = new Vector4(rear, front, peduncle, lift) };
             // Species have authored proportions rather than inheriting the same oval body.
-            return sp.key switch
+            return LegacyBody(sp, art) ?? new Model
             {
-                "minnow" => Form(0.86f, 0.13f, -0.02f, 1.36f, 1.50f, 0.65f, 0.13f),
-                "clown" => Form(0.84f, 0.28f, 0.02f, 1.16f, 0.95f, 0.48f, 0.21f),
-                "tang" => Form(0.98f, 0.19f, 0.03f, 1.07f, 0.90f, 0.55f, 0.15f),
-                "angel" => Form(1.01f, 0.18f, 0.03f, 1.03f, 0.90f, 0.52f, 0.11f),
-                "puffer" => Form(0.95f, 0.64f, 0.13f, 1.10f, 0.90f, 0.50f, 0.20f),
-                "parrot" => Form(0.90f, 0.38f, 0.15f, 1.03f, 1.10f, 0.38f, 0.19f),
-                "snapper" => Form(0.88f, 0.25f, -0.05f, 1.42f, 1.45f, 0.65f, 0.15f),
-                "barracuda" => Form(0.85f, 0.12f, -0.10f, 1.65f, 0.75f, 0.85f, 0.22f),
-                "grouper" => Form(0.97f, 0.46f, 0.20f, 1.12f, 0.85f, 0.45f, 0.19f),
-                "tuna" => Form(0.99f, 0.30f, -0.10f, 1.50f, 1.65f, 0.68f, 0.10f),
-                _ => Form(0.88f, 0.33f, 0.08f, 1.22f, 1.20f, 0.50f, 0.16f),
+                height = art.hh * 0.88f, depth = 0.33f,
+                head = new Vector4(0.08f, 1.22f, art.hh * 0.88f, 0.33f), profile = new Vector4(1.20f, 0.50f, 0.16f, 0)
             };
         }
 
@@ -166,7 +168,7 @@ namespace DeepFeast
                 "tiger_shark" => new Vector4(-0.43f, 0.22f, 0.78f, 0.20f),
                 "mako_shark" => new Vector4(-0.38f, 0.23f, 0.66f, 0.24f),
                 "goliath_grouper" => new Vector4(-0.20f, 0.35f, 0.86f, 0.28f),
-                _ => new Vector4(-0.20f, 0.25f, 0.74f, 0.34f),
+                _ => new Vector4(-0.20f, 0.28f, 0.76f, 0.38f),
             };
             float h = model.height, depth = model.depth, headCenter = model.head.x, headLength = model.head.y;
             var b = new Builder();
@@ -193,23 +195,46 @@ namespace DeepFeast
                 b.Tri(noseCap, rings * (sides + 1) + side, rings * (sides + 1) + side + 1);
             }
             if (sp.IsShark) AddSharkKeels(b, sp, model);
+            if (sp.key == "puffer") AddPufferSpines(b, model);
             model.body = b.Mesh(sp.key + " sculpted species body");
             b = new Builder();
+            model.paintedFins = HasPaintedFins(sp, art);
             if (sp.IsShark) BuildSharkFins(b, sp, model);
-            else
+            else if (!BuildPaintedFins(b, sp, model, art))
             {
                 if (!BuildExpandedCaudal(b, sp, model)) Caudal(b, sp, model);
                 if (!BuildExpandedSpines(b, sp, model)) { SpineFin(b, sp, model, 1); SpineFin(b, sp, model, -1); }
                 AddExpandedFinDetails(b, sp, model);
             }
-            if (sp.key == "tuna")
+            if (sp.key == "tuna" && !model.paintedFins)
                 for (int i = 0; i < 4; i++)
                     foreach (int side in new[] { -1, 1 }) SweptSpine(b, sp, model, side, -0.58f - i * 0.10f, -0.69f - i * 0.10f, 0.065f - i * 0.006f, 0.32f);
             model.fins = b.Mesh(sp.key + " rooted caudal dorsal ventral membranes");
-            model.nearFin = Pectoral(sp, model, -1); model.farFin = Pectoral(sp, model, 1);
-            model.nearFinRoot = PectoralRoot(sp, model, -1, 0.5f); model.farFinRoot = PectoralRoot(sp, model, 1, 0.5f);
-            float ex = sp.IsShark ? 0.78f : Mathf.Clamp(art.eyePos.x, 0.5f, 0.83f), ey = sp.IsShark ? h * 0.30f : Mathf.Clamp(art.eyePos.y, 0.08f, h * 0.58f);
-            if (sp.key == "goliath_grouper") ex = model.head.x + model.head.y * 0.58f;
+            if (PectoralOutline(sp, art, out var finBase, out float finRoot, out var finRim, out bool paintedFin))
+            {
+                model.nearFin = TracedPectoral(sp, model, -1, finBase, finRoot, finRim);
+                model.farFin = TracedPectoral(sp, model, 1, finBase, finRoot, finRim);
+                float rootZ = FlankZ(finBase.x, finBase.y, model) + 0.012f;
+                model.nearFinRoot = new Vector3(finBase.x, finBase.y, -rootZ); model.farFinRoot = new Vector3(finBase.x, finBase.y, rootZ);
+                // Only a fin present in the painting is sampled from it and shadowed on the flank.
+                model.paintedPectoral = paintedFin;
+                if (paintedFin) model.pectoralMask = PectoralMask(finBase, finRoot, finRim);
+            }
+            else if (ExpandedPectoral(sp, model, out finBase, out finRoot, out finRim))
+            {
+                model.nearFin = TracedPectoral(sp, model, -1, finBase, finRoot, finRim);
+                model.farFin = TracedPectoral(sp, model, 1, finBase, finRoot, finRim);
+                float rootZ = FlankZ(finBase.x, finBase.y, model) + 0.012f;
+                model.nearFinRoot = new Vector3(finBase.x, finBase.y, -rootZ); model.farFinRoot = new Vector3(finBase.x, finBase.y, rootZ);
+            }
+            else
+            {
+                model.nearFin = Pectoral(sp, model, -1); model.farFin = Pectoral(sp, model, 1);
+                model.nearFinRoot = PectoralRoot(sp, model, -1, 0.5f); model.farFinRoot = PectoralRoot(sp, model, 1, 0.5f);
+            }
+            // Painted fish keep the illustration's eye position on their longer, matched heads.
+            float ex = sp.IsShark ? 0.78f : Mathf.Clamp(art.eyePos.x, 0.5f, model.paintedFins ? 0.95f : 0.83f), ey = sp.IsShark ? h * 0.30f : Mathf.Clamp(art.eyePos.y, 0.08f, h * 0.58f);
+            if (ExpandedEye(sp, out var eyePosition, out _)) { ex = eyePosition.x; ey = eyePosition.y; }
             float profileEye = Profile(ex, model);
             float ez = depth * profileEye * Mathf.Sqrt(Mathf.Max(0.1f, 1 - Mathf.Pow(ey / (h * profileEye), 2))) + 0.015f;
             model.nearNormal = (sp.IsShark ? new Vector3(0.25f, 0.13f, -0.96f) : new Vector3(0.57f, 0.12f, -0.82f)).normalized;
@@ -366,15 +391,17 @@ namespace DeepFeast
         {
             var b = new Builder();
             var q = Quaternion.FromToRotation(Vector3.forward, normal);
-            float rx = Mathf.Clamp(art.eyeSize.x * 0.8f, 0.045f, 0.165f), ry = Mathf.Clamp(art.eyeSize.y * 0.8f, 0.05f, 0.17f);
-            if (sp.IsShark) { rx = 0.033f; ry = 0.027f; }
-            else if (sp.key == "atlantic_halibut" || sp.key == "goliath_grouper" || sp.key == "mahi_mahi") { rx = 0.034f; ry = 0.032f; }
+            // Eyes are drawn large, as in the painted art: they carry the expression at play size.
+            float rx = Mathf.Clamp(art.eyeSize.x * 1.05f, 0.075f, 0.20f), ry = Mathf.Clamp(art.eyeSize.y * 1.05f, 0.08f, 0.205f);
+            if (sp.IsShark) { rx = 0.038f; ry = 0.031f; }
+            else if (ExpandedEye(sp, out _, out float radius)) { rx = radius; ry = radius * 1.04f; }
             b.Ellipsoid(center, new Vector3(rx * 1.10f, ry * 1.10f, 0.035f), q, Color.Lerp(sp.c1, sp.c0, 0.65f), 10, 14);
             b.Ellipsoid(center + normal * 0.018f, new Vector3(rx, ry, sp.IsShark ? 0.018f : 0.038f), q, U.Hex(sp.IsShark ? "#14202a" : "#f6f8e9"), 10, 14);
             Color iris = sp.IsShark ? U.Hex("#252f33") : Color.Lerp(sp.c1, U.Hex("#327c82"), 0.65f);
-            b.Ellipsoid(center + normal * 0.053f, new Vector3(rx * 0.60f, ry * 0.64f, 0.014f), q, iris, 10, 14);
-            b.Ellipsoid(center + normal * 0.065f, new Vector3(rx * 0.38f, ry * 0.48f, 0.016f), q, U.Hex("#071d2d"), 8, 12);
-            b.Ellipsoid(center + normal * 0.082f + q * new Vector3(-rx * 0.15f, ry * 0.20f, 0), new Vector3(rx * 0.12f, ry * 0.11f, 0.006f), q, Color.white, 6, 10);
+            b.Ellipsoid(center + normal * 0.053f, new Vector3(rx * 0.62f, ry * 0.66f, 0.014f), q, iris, 10, 14);
+            b.Ellipsoid(center + normal * 0.065f, new Vector3(rx * 0.40f, ry * 0.50f, 0.016f), q, U.Hex("#071d2d"), 8, 12);
+            b.Ellipsoid(center + normal * 0.082f + q * new Vector3(-rx * 0.16f, ry * 0.20f, 0), new Vector3(rx * 0.19f, ry * 0.17f, 0.006f), q, Color.white, 6, 10);
+            b.Ellipsoid(center + normal * 0.082f + q * new Vector3(rx * 0.17f, -ry * 0.19f, 0), new Vector3(rx * 0.07f, ry * 0.065f, 0.005f), q, Color.white, 6, 10);
             return b.Mesh(sp.key + " globe eye");
         }
 
@@ -405,7 +432,7 @@ namespace DeepFeast
                     int a = 1 + ring * sides + side, next = 1 + ring * sides + (side + 1) % sides;
                     b.Tri(a, next, a + sides); b.Tri(next, next + sides, a + sides);
                 }
-            if (sp.IsShark || sp.shape == "long")
+            if (sp.IsShark || sp.shape == "long" || sp.key == "bluefish")
                 for (int tooth = 0; tooth < 6; tooth++)
                 {
                     float z = Mathf.Lerp(-0.66f, 0.66f, tooth / 5f);
