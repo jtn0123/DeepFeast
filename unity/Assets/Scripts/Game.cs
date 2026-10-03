@@ -10,6 +10,10 @@ namespace DeepFeast
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
         {
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-species-review") >= 0)
+            {
+                new GameObject("SpeciesVisualReview").AddComponent<SpeciesVisualReview>(); return;
+            }
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-turn-animation") >= 0)
             {
                 new GameObject("FishTurnReview").AddComponent<FishTurnReview>(); return;
@@ -63,7 +67,7 @@ namespace DeepFeast
         readonly List<Alert> alerts = new List<Alert>();
         readonly Dictionary<float, Sprite> bellSprites = new Dictionary<float, Sprite>();
         Sprite pearlSprite, pearlStar, pearlRing;
-        int nextId = 1;
+        int nextId = 1, nextSharkVariant;
 
         // ------------------------------------------------------------------ input
         bool kbMode, pointerMode, touchMode;
@@ -334,22 +338,26 @@ namespace DeepFeast
             hud.StartPlay();
             foreach (var f in fish) ReleaseView(f);
             fish.Clear(); schools.Clear();
-            var all = new List<Species>(Data.SpeciesMap.Values) { Data.Shark, Data.Player };
+            var all = Data.AllSpecies;
             zoom = 1.5f;
             cam = new Vector2(10200, 1300);
-            float cw = refW / 5 / zoom, top = cam.y - refH / 2 / zoom;
-            for (int i = 0; i < 15; i++)
+            const int columns = 6;
+            int slots = all.Count + 3, rows = Mathf.CeilToInt(slots / (float)columns);
+            float cw = refW / columns / zoom, top = cam.y - refH / 2 / zoom;
+            for (int i = 0; i < slots; i++)
             {
-                float x = cam.x + (i % 5 - 2) * cw, y = top + (0.3f + i / 5 * 0.26f) * refH / zoom;
+                float x = cam.x + (i % columns - (columns - 1) * 0.5f) * cw;
+                float y = top + (105 + (i / columns + 0.5f) * (refH - 125) / rows) / zoom;
                 if (i < all.Count)
                 {
-                    var f = MakeFish(all[i], 34, x, y, 1);
-                    f.shark = all[i] == Data.Shark;
+                    var f = MakeFish(all[i], 26, x, y, 1);
                     fish.Add(f);
                 }
-                else if (i < 14) AddJelly(x, y - 40, 30, i == 12 ? 270 : 190);
+                else if (i < all.Count + 2) AddJelly(x, y - 20, 20, i == all.Count ? 270 : 190);
                 else AddPearl(x, y, 12);
             }
+            Debug.Log($"[DeepFeast] native gallery: {all.Count} catalog identities, {columns} columns, {rows} rows; " +
+                string.Join(", ", System.Linq.Enumerable.Select(all, sp => sp.key + "=" + sp.displayName)));
         }
 
         void Gallery(float rdt)
@@ -593,7 +601,7 @@ namespace DeepFeast
         {
             var f = new Fish
             {
-                id = nextId++, sp = sp, r = r, x = x, y = y, vx = dir * 20, face = dir, faceS = dir, wag = U.Rand(0, U.TAU),
+                id = nextId++, sp = sp, shark = sp.IsShark, r = r, x = x, y = y, vx = dir * 20, face = dir, faceS = dir, wag = U.Rand(0, U.TAU),
                 dir = dir, phase = U.Rand(0, U.TAU), cruise = U.Rand(0.3f, 0.5f), homeY = y, homeT = U.Rand(2, 7),
                 state = FState.Wander, cool = U.Rand(1.5f, 4), eatCool = 2, aggro = U.Rand(0.5f, 1.2f),
             };
@@ -689,9 +697,12 @@ namespace DeepFeast
             float r = edible ? pr * 0.75f : pr * 3.2f;
             float x = Mathf.Clamp(player.x + side * (vw * 0.62f + r * 2), 200, World.W - 200);
             float y = Mathf.Clamp(player.y + U.Rand(-150, 150), 120 + r, world.FloorY(x) - r - 60);
-            var s = MakeFish(Data.Shark, r, x, y, -side);
+            var identity = Data.SharkForEncounter(nextSharkVariant);
+            nextSharkVariant = (nextSharkVariant + 1) % Data.SharkVariants.Length;
+            var s = MakeFish(identity, r, x, y, -side);
             s.shark = true; s.life = 14; s.state = FState.Chase; s.leaveDir = side; s.alertT = 1.4f;
             fish.Add(s);
+            Debug.Log($"[DeepFeast] shark encounter: key={identity.key}, name={identity.displayName}, aggressive={identity.aggressive}, chaseMultiplier={identity.chaseSpeedMultiplier:0.00}, edible={edible}, radius={r:0.0}, life={s.life:0.0}.");
             if (edible) Banner("SHARK!", "You are the Leviathan now — hunt it down!", new Color(1, 200 / 255f, 60 / 255f));
             else Banner("SHARK!", "Hold click / Space to dash away", new Color(1, 60 / 255f, 80 / 255f));
             sfx.Shark();
@@ -867,7 +878,7 @@ namespace DeepFeast
             if (f.vx > 6) f.face = 1; else if (f.vx < -6) f.face = -1;
             // Advance the actual heading at a bounded angular rate; cosine is consumed by the 3D rig.
             float yaw = Mathf.Acos(Mathf.Clamp(f.faceS, -1, 1)) * Mathf.Rad2Deg;
-            float rate = f.sp.shape == "shark" ? 390 : f.sp.shape == "round" ? 460 : 540;
+            float rate = f.sp.IsShark ? 390 : f.sp.shape == "round" ? 460 : 540;
             yaw = Mathf.MoveTowards(yaw, f.face > 0 ? 0 : 180, dt * rate);
             f.faceS = Mathf.Cos(yaw * Mathf.Deg2Rad);
             float tilt = Mathf.Clamp(Mathf.Atan2(f.vy, Mathf.Abs(f.vx) + 1e-3f), -1.05f, 1.05f);
@@ -1060,7 +1071,7 @@ namespace DeepFeast
                         float lead = Mathf.Min(d / bas, 0.5f);
                         float ax = player.x + player.vx * lead - f.x, ay = player.y + player.vy * lead - f.y, ad = Dist(ax, ay);
                         if (ad <= 0) ad = 1;
-                        tx = ax / ad; ty = ay / ad; spd = bas * 1.1f; agility = 1.7f; f.state = FState.Chase;
+                        tx = ax / ad; ty = ay / ad; spd = bas * 1.1f * f.sp.chaseSpeedMultiplier; agility = 1.7f; f.state = FState.Chase;
                     }
                     else if (f.life > 0 && active && prey)
                     {

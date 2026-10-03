@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deep Feast · Sharks and Atlantic fish</title>
+<style>
+:root{color-scheme:dark;font:15px/1.5 system-ui,sans-serif;background:#071a27;color:#edf5f6}body{max-width:1280px;margin:auto;padding:24px}h1{font-size:28px;margin:0 0 8px}p{color:#a6bbc9;margin:8px 0 16px}video,img{display:block;width:100%;height:auto;border:1px solid #315163;border-radius:8px;box-sizing:border-box}a{color:#83e1cd}button{font:inherit;color:#edf5f6;background:#163a4a;border:1px solid #315163;border-radius:6px;padding:7px 12px;cursor:pointer}nav{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}button[aria-pressed=true]{background:#225d67;border-color:#80d4c8}details{margin-top:24px}summary{cursor:pointer;color:#83e1cd}.gallery{display:grid;grid-template-columns:1fr 1fr;gap:16px}figure{margin:12px 0}figcaption{color:#91b6c7;margin:8px 0}footer{margin-top:20px;font-size:13px;color:#88a8bb}@media(max-width:650px){body{padding:14px}.gallery{grid-template-columns:1fr}button{padding:6px 9px}h1{font-size:24px}}
+</style>
+<h1>Three sharks. Ten more fish.</h1>
+<p>Native Unity animation loops with distinct anatomy and species markings. Start with the white shark comparison, then inspect tiger and mako or the new Atlantic fish.</p>
+<nav aria-label="Animation selection">
+<button data-clip="shark-before-after" data-note="Left: previous 3D white shark (v8). Right: this pass. Identical native turn inputs." aria-pressed="true">Shark before / after</button>
+<button data-clip="sharks" data-note="White shark, tiger shark and shortfin mako. Their encounter order rotates in the game; mako has 8% faster pursuit." aria-pressed="false">Three sharks</button>
+<button data-clip="atlantic-a" data-note="Almaco jack, Atlantic goliath grouper, Atlantic halibut and Atlantic mackerel." aria-pressed="false">Atlantic fish · 1</button>
+<button data-clip="atlantic-b" data-note="Atlantic mahi-mahi, skipjack tuna, striped bass and yellowfin tuna." aria-pressed="false">Atlantic fish · 2</button>
+<button data-clip="extras" data-note="Bluefish and red drum, with the drum’s distinctive tail-stalk spot." aria-pressed="false">Bluefish / red drum</button>
+<button data-clip="legacy-a" data-note="Retained minnow, clownfish, tang and angelfish models." aria-pressed="false">Existing fish · 1</button>
+<button data-clip="legacy-b" data-note="Retained puffer, parrotfish, snapper and barracuda models." aria-pressed="false">Existing fish · 2</button>
+<button data-clip="legacy-c" data-note="Retained grouper, tuna and hero fish models." aria-pressed="false">Existing fish · 3</button>
+</nav>
+<nav aria-label="Playback controls"><button id="toggle">Pause</button><button data-speed="0.5" aria-pressed="false">Half speed</button><button data-speed="1" aria-pressed="true">Normal speed</button><button id="restart">Replay</button><a id="download" href="shark-before-after.mp4">Download animation</a><a href="README.md">Handover</a><a href="species-catalog.json">Species identities</a></nav>
+<video id="review" src="shark-before-after.mp4" poster="shark-before-after-still.png" autoplay loop muted playsinline controls aria-label="Previous and revised white shark turning side by side"></video>
+<p id="note" aria-live="polite">Left: previous 3D white shark (v8). Right: this pass. Identical native turn inputs.</p>
+<details><summary>New species at a glance</summary><div class="gallery">
+<figure><img loading="lazy" src="sharks-still.png" alt="White, tiger and shortfin mako sharks, labeled"><figcaption>Different snouts, bodies, dorsal fins and tails.</figcaption></figure>
+<figure><img loading="lazy" src="extras-still.png" alt="Labeled bluefish and red drum"><figcaption>Two additional Atlantic species.</figcaption></figure>
+<figure><img loading="lazy" src="atlantic-a-still.png" alt="Labeled almaco jack, goliath grouper, halibut and mackerel"><figcaption>Thick grouper, flattened halibut, wavy mackerel markings.</figcaption></figure>
+<figure><img loading="lazy" src="atlantic-b-still.png" alt="Labeled mahi-mahi, skipjack, striped bass and yellowfin tuna"><figcaption>Mahi banner, tuna finlets, bass stripes and yellow sickles.</figcaption></figure>
+</div></details>
+<footer>Species names are shown in this review and stored in game data. Normal gameplay keeps them behind the scenes. These are stylized procedural models. <a href="fish-notes.md">Fish references</a> · <a href="shark-notes.md">Shark references</a> · <a href="../v8/">Previous pass</a></footer>
+<script>
+const video=document.querySelector('#review'),toggle=document.querySelector('#toggle');
+const play=()=>video.play().catch(()=>{toggle.textContent='Play'});
+toggle.onclick=()=>video.paused?play():video.pause();
+video.onplay=()=>toggle.textContent='Pause';video.onpause=()=>toggle.textContent='Play';
+document.querySelector('#restart').onclick=()=>{video.currentTime=0;play()};
+document.querySelectorAll('[data-speed]').forEach(button=>button.onclick=()=>{video.playbackRate=+button.dataset.speed;document.querySelectorAll('[data-speed]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)))});
+document.querySelectorAll('[data-clip]').forEach(button=>button.onclick=()=>{
+const name=button.dataset.clip;video.src=name+'.mp4';video.poster=name+'-still.png';video.setAttribute('aria-label',button.textContent);
+document.querySelector('#download').href=name+'.mp4';document.querySelector('#note').textContent=button.dataset.note;
+document.querySelectorAll('[data-clip]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));play();
+});
+</script>
+</html>

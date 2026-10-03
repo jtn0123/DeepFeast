@@ -4,7 +4,7 @@ using UnityEngine;
 namespace DeepFeast
 {
     /// <summary>Shared sculpted bodies and rooted fin membranes, deformed together while swimming.</summary>
-    public sealed class FishVolume
+    public sealed partial class FishVolume
     {
         public enum Look { Painted, Sculpted }
         public static Look Style { get; set; } = Look.Sculpted;
@@ -12,7 +12,7 @@ namespace DeepFeast
         {
             public Mesh body, fins, nearFin, farFin, nearEye, farEye, mouth;
             public float height, depth;
-            public Vector4 head, profile;
+            public Vector4 head, profile, mouthParameters;
             public Vector3 nearNormal, farNormal;
             public Vector3 nearEyeCenter, farEyeCenter;
             public Vector3 nearFinRoot, farFinRoot;
@@ -91,13 +91,15 @@ namespace DeepFeast
                 block.SetColor("_Accent", species.fin);
                 block.SetVector("_Head", model.head);
                 block.SetVector("_Profile", model.profile);
+                block.SetVector("_MouthShape", model.mouthParameters);
+                block.SetFloat("_SharkKind", species.key == "tiger_shark" ? 2 : species.key == "mako_shark" ? 3 : species.IsShark ? 1 : 0);
                 block.SetFloat("_Pattern", Pattern(species.pat));
                 block.SetFloat("_Style", Style == Look.Sculpted ? 1 : 0);
                 block.SetFloat("_FrontView", Mathf.Pow(sin, 8));
                 block.SetFloat("_Facing", f.faceS);
                 block.SetFloat("_Part", i == 0 ? 0 : i < 4 ? 1 : i < 6 ? 2 : 3);
                 block.SetFloat("_Expression", expression == FishView.EyeMode.Blink ? 1 : expression == FishView.EyeMode.Angry ? 2 : expression == FishView.EyeMode.Happy ? 3 : 0);
-                block.SetFloat("_Phase", f.wag * motion.x);
+                block.SetFloat("_Phase", f.wag * motion.x * (species.key == "mako_shark" ? 1.2f : species.key == "tiger_shark" ? 0.88f : 1));
                 block.SetFloat("_TailFlex", motion.y * 1.5f);
                 block.SetFloat("_Energy", Mathf.Clamp(0.6f + new Vector2(f.vx, f.vy).magnitude / Mathf.Max(1, f.r) * 0.02f, 0.6f, 1.25f));
                 block.SetFloat("_TurnBend", angularVelocity / 240 * 0.22f);
@@ -129,16 +131,18 @@ namespace DeepFeast
 
         public void SetVisible(bool visible) { foreach (var part in parts) part.enabled = visible; }
 
-        static int Pattern(string pattern) => pattern switch { "bands" => 1, "stripes" => 2, "tang" => 3, "spots" => 4, "scales" => 5, "bars" => 6, "player" => 7, "shark" => 8, "line" => 9, "finlets" => 10, _ => 0 };
+        static int Pattern(string pattern) => pattern switch { "bands" => 1, "stripes" => 2, "tang" => 3, "spots" => 4, "scales" => 5, "bars" => 6, "player" => 7, "shark" => 8, "tiger" => 8, "mako" => 8, "line" => 9, "finlets" => 10, "amberjack" => 11, "mottled" => 12, "halibut" => 13, "mackerel" => 14, "mahi" => 15, "skipjack" => 16, "bass" => 17, "yellowfin" => 18, "red_drum" => 19, _ => 0 };
 
         static Model Anatomy(Species sp, FishArt.Art art)
         {
+            if (sp.IsShark) return SharkBody(sp, art);
+            var expanded = ExpandedBody(sp, art);
+            if (expanded != null) return expanded;
             Model Form(float height, float depth, float shoulder, float nose, float rear, float front, float peduncle, float lift = 0)
                 => new Model { height = art.hh * height, depth = depth, head = new Vector4(shoulder, nose, art.hh * height, depth), profile = new Vector4(rear, front, peduncle, lift) };
             // Species have authored proportions rather than inheriting the same oval body.
             return sp.key switch
             {
-                "shark" => Form(0.97f, 0.24f, -0.12f, 1.67f, 1.35f, 0.90f, 0.15f, 0.025f),
                 "minnow" => Form(0.86f, 0.13f, -0.02f, 1.36f, 1.50f, 0.65f, 0.13f),
                 "clown" => Form(0.84f, 0.28f, 0.02f, 1.16f, 0.95f, 0.48f, 0.21f),
                 "tang" => Form(0.98f, 0.19f, 0.03f, 1.07f, 0.90f, 0.55f, 0.15f),
@@ -156,6 +160,14 @@ namespace DeepFeast
         static Model Build(Species sp, FishArt.Art art)
         {
             var model = Anatomy(sp, art);
+            model.mouthParameters = sp.key switch
+            {
+                "shark" => new Vector4(-0.42f, 0.22f, 0.72f, 0.21f),
+                "tiger_shark" => new Vector4(-0.43f, 0.22f, 0.78f, 0.20f),
+                "mako_shark" => new Vector4(-0.38f, 0.23f, 0.66f, 0.24f),
+                "goliath_grouper" => new Vector4(-0.20f, 0.35f, 0.86f, 0.28f),
+                _ => new Vector4(-0.20f, 0.25f, 0.74f, 0.34f),
+            };
             float h = model.height, depth = model.depth, headCenter = model.head.x, headLength = model.head.y;
             var b = new Builder();
             const int rings = 44, sides = 32;
@@ -180,18 +192,15 @@ namespace DeepFeast
                 b.Tri(rearCap, side + 1, side);
                 b.Tri(noseCap, rings * (sides + 1) + side, rings * (sides + 1) + side + 1);
             }
-            if (sp == Data.Shark)
-                foreach (int side in new[] { -1, 1 })
-                    b.Ellipsoid(new Vector3(-0.88f, CenterY(-0.88f, model), side * depth * Profile(-0.88f, model)), new Vector3(0.16f, 0.022f, 0.055f), Quaternion.identity, Color.white, 8, 12);
+            if (sp.IsShark) AddSharkKeels(b, sp, model);
             model.body = b.Mesh(sp.key + " sculpted species body");
             b = new Builder();
-            Caudal(b, sp, model);
-            SpineFin(b, sp, model, 1);
-            SpineFin(b, sp, model, -1);
-            if (sp == Data.Shark)
+            if (sp.IsShark) BuildSharkFins(b, sp, model);
+            else
             {
-                SweptSpine(b, sp, model, 1, -0.69f, -0.95f, 0.13f, 0.38f);
-                foreach (int side in new[] { -1, 1 }) PelvicFin(b, sp, model, side);
+                if (!BuildExpandedCaudal(b, sp, model)) Caudal(b, sp, model);
+                if (!BuildExpandedSpines(b, sp, model)) { SpineFin(b, sp, model, 1); SpineFin(b, sp, model, -1); }
+                AddExpandedFinDetails(b, sp, model);
             }
             if (sp.key == "tuna")
                 for (int i = 0; i < 4; i++)
@@ -199,12 +208,20 @@ namespace DeepFeast
             model.fins = b.Mesh(sp.key + " rooted caudal dorsal ventral membranes");
             model.nearFin = Pectoral(sp, model, -1); model.farFin = Pectoral(sp, model, 1);
             model.nearFinRoot = PectoralRoot(sp, model, -1, 0.5f); model.farFinRoot = PectoralRoot(sp, model, 1, 0.5f);
-            float ex = sp == Data.Shark ? 0.79f : Mathf.Clamp(art.eyePos.x, 0.5f, 0.83f), ey = sp == Data.Shark ? h * 0.29f : Mathf.Clamp(art.eyePos.y, 0.08f, h * 0.58f);
+            float ex = sp.IsShark ? 0.78f : Mathf.Clamp(art.eyePos.x, 0.5f, 0.83f), ey = sp.IsShark ? h * 0.30f : Mathf.Clamp(art.eyePos.y, 0.08f, h * 0.58f);
+            if (sp.key == "goliath_grouper") ex = model.head.x + model.head.y * 0.58f;
             float profileEye = Profile(ex, model);
             float ez = depth * profileEye * Mathf.Sqrt(Mathf.Max(0.1f, 1 - Mathf.Pow(ey / (h * profileEye), 2))) + 0.015f;
-            model.nearNormal = (sp == Data.Shark ? new Vector3(0.25f, 0.13f, -0.96f) : new Vector3(0.57f, 0.12f, -0.82f)).normalized;
+            model.nearNormal = (sp.IsShark ? new Vector3(0.25f, 0.13f, -0.96f) : new Vector3(0.57f, 0.12f, -0.82f)).normalized;
             model.farNormal = new Vector3(model.nearNormal.x, model.nearNormal.y, -model.nearNormal.z);
             model.nearEyeCenter = new Vector3(ex, ey + CenterY(ex, model), -ez); model.farEyeCenter = new Vector3(ex, ey + CenterY(ex, model), ez);
+            if (sp.key == "atlantic_halibut")
+            {
+                // Both eyes belong to the dark, right-eye side; the pale underside has no eye.
+                model.farNormal = model.nearNormal = new Vector3(0.36f, 0.08f, -0.93f).normalized;
+                model.nearEyeCenter = new Vector3(0.64f, h * 0.20f, -depth * Profile(0.64f, model) + -0.010f);
+                model.farEyeCenter = new Vector3(0.43f, h * 0.40f, -depth * Profile(0.43f, model) + -0.006f);
+            }
             model.nearEye = Eye(sp, art, model.nearEyeCenter, model.nearNormal);
             model.farEye = Eye(sp, art, model.farEyeCenter, model.farNormal);
             model.mouth = Mouth(sp, model);
@@ -233,6 +250,7 @@ namespace DeepFeast
         static void Caudal(Builder b, Species sp, Model model)
         {
             float height = sp.Sh.tH * FishArt.HL;
+            if (sp.key == "atlantic_mackerel" || sp.key == "skipjack_tuna" || sp.key == "mahi_mahi") height *= 0.82f;
             // The clown's rounded tail matches its painted reference; oval body shape alone does not
             // determine a species' tail. Other species retain their fork, crescent or asymmetric tail.
             var kind = sp.key == "clown" ? TailKind.Fan : sp.Sh.tail;
@@ -253,7 +271,7 @@ namespace DeepFeast
                 p.y += s * height * 0.09f * Mathf.Sin(weight * Mathf.PI);
                 p.z = Mathf.Sin(weight * Mathf.PI) * (0.035f + 0.025f * s) + Mathf.Sin(across * Mathf.PI * 24) * 0.003f * weight;
                 return p;
-            }, sp == Data.Shark);
+            }, sp.IsShark);
         }
 
         static void SpineFin(Builder b, Species sp, Model model, int side)
@@ -286,12 +304,13 @@ namespace DeepFeast
                 float outline = along < apex ? along / apex : Mathf.Pow(Mathf.Max(0, (1 - along) / (1 - apex)), 1.35f);
                 float rootY = CenterY(x, model) + side * model.height * Profile(x, model) * 0.98f;
                 return new Vector3(x - weight * outline * 0.16f, rootY + side * height * outline * weight, Mathf.Sin(weight * Mathf.PI) * outline * 0.025f);
-            }, sp == Data.Shark);
+            }, sp.IsShark);
         }
 
         static Vector3 PectoralRoot(Species sp, Model model, int side, float along)
         {
-            bool shark = sp == Data.Shark;
+            if (sp.IsShark) return SharkPectoralRoot(sp, model, side, along);
+            bool shark = false;
             float x = Mathf.Lerp(shark ? 0.16f : 0.48f, shark ? -0.18f : 0.30f, along);
             float profile = Profile(x, model), y = -model.height * Mathf.Lerp(shark ? 0.20f : 0.01f, shark ? 0.55f : 0.37f, along);
             float z = model.depth * profile * Mathf.Sqrt(Mathf.Max(0.01f, 1 - Mathf.Pow(y / (model.height * profile), 2)));
@@ -311,9 +330,10 @@ namespace DeepFeast
 
         static Mesh Pectoral(Species sp, Model model, int side)
         {
+            if (sp.IsShark) return SharkPectoral(sp, model, side);
             var b = new Builder();
             float h = model.height;
-            bool shark = sp == Data.Shark;
+            bool shark = false;
             float span = shark ? 0.82f : sp.key == "tuna" ? 0.46f : 0.30f;
             const int radial = 10, across = 24;
             for (int layer = 0; layer < 2; layer++)
@@ -347,10 +367,11 @@ namespace DeepFeast
             var b = new Builder();
             var q = Quaternion.FromToRotation(Vector3.forward, normal);
             float rx = Mathf.Clamp(art.eyeSize.x * 0.8f, 0.045f, 0.165f), ry = Mathf.Clamp(art.eyeSize.y * 0.8f, 0.05f, 0.17f);
-            if (sp == Data.Shark) { rx = 0.037f; ry = 0.033f; }
+            if (sp.IsShark) { rx = 0.033f; ry = 0.027f; }
+            else if (sp.key == "atlantic_halibut" || sp.key == "goliath_grouper" || sp.key == "mahi_mahi") { rx = 0.034f; ry = 0.032f; }
             b.Ellipsoid(center, new Vector3(rx * 1.10f, ry * 1.10f, 0.035f), q, Color.Lerp(sp.c1, sp.c0, 0.65f), 10, 14);
-            b.Ellipsoid(center + normal * 0.018f, new Vector3(rx, ry, sp == Data.Shark ? 0.018f : 0.038f), q, U.Hex(sp == Data.Shark ? "#14202a" : "#f6f8e9"), 10, 14);
-            Color iris = sp == Data.Shark ? U.Hex("#252f33") : Color.Lerp(sp.c1, U.Hex("#327c82"), 0.65f);
+            b.Ellipsoid(center + normal * 0.018f, new Vector3(rx, ry, sp.IsShark ? 0.018f : 0.038f), q, U.Hex(sp.IsShark ? "#14202a" : "#f6f8e9"), 10, 14);
+            Color iris = sp.IsShark ? U.Hex("#252f33") : Color.Lerp(sp.c1, U.Hex("#327c82"), 0.65f);
             b.Ellipsoid(center + normal * 0.053f, new Vector3(rx * 0.60f, ry * 0.64f, 0.014f), q, iris, 10, 14);
             b.Ellipsoid(center + normal * 0.065f, new Vector3(rx * 0.38f, ry * 0.48f, 0.016f), q, U.Hex("#071d2d"), 8, 12);
             b.Ellipsoid(center + normal * 0.082f + q * new Vector3(-rx * 0.15f, ry * 0.20f, 0), new Vector3(rx * 0.12f, ry * 0.11f, 0.006f), q, Color.white, 6, 10);
@@ -363,8 +384,8 @@ namespace DeepFeast
             const int sides = 32;
             int Vertex(Vector2 surface, Color color)
             {
-                float z = surface.x * model.depth * 0.74f;
-                float y = model.height * ((sp == Data.Shark ? -0.48f : -0.20f) + 0.13f * surface.x * surface.x + 0.018f * surface.y);
+                float z = surface.x * model.depth * model.mouthParameters.z;
+                float y = model.height * (model.mouthParameters.x + 0.13f * surface.x * surface.x + 0.018f * surface.y);
                 float radial = Mathf.Pow(y / model.height, 2) + Mathf.Pow(z / model.depth, 2);
                 float x = model.head.x + model.head.y * Mathf.Sqrt(Mathf.Max(0.02f, 1 - Mathf.Pow(radial, 1 / (2 * model.profile.y)))) + 0.008f;
                 y += model.profile.w;
@@ -384,7 +405,7 @@ namespace DeepFeast
                     int a = 1 + ring * sides + side, next = 1 + ring * sides + (side + 1) % sides;
                     b.Tri(a, next, a + sides); b.Tri(next, next + sides, a + sides);
                 }
-            if (sp == Data.Shark || sp.shape == "long")
+            if (sp.IsShark || sp.shape == "long")
                 for (int tooth = 0; tooth < 6; tooth++)
                 {
                     float z = Mathf.Lerp(-0.66f, 0.66f, tooth / 5f);
@@ -393,7 +414,7 @@ namespace DeepFeast
                     int d = Vertex(new Vector2(z + 0.08f, 0.65f), Color.white);
                     b.Tri(a, d, c);
                 }
-            if (sp == Data.Shark)
+            if (sp.IsShark)
                 for (int tooth = 0; tooth < 5; tooth++)
                 {
                     float z = Mathf.Lerp(-0.52f, 0.52f, tooth / 4f);
@@ -441,7 +462,12 @@ namespace DeepFeast
                 mesh.SetNormals(normals); mesh.RecalculateBounds();
                 // Include shader-driven flex so Unity cannot cull a bent tail at the edge of the viewport.
                 var bounds = mesh.bounds; bounds.Expand(new Vector3(0.15f, 0.5f, 2.5f)); mesh.bounds = bounds;
-                mesh.UploadMeshData(true); return mesh;
+                #if UNITY_EDITOR
+                mesh.UploadMeshData(false); // Let build validation inspect the actual authored vertices.
+#else
+                mesh.UploadMeshData(true); // Player meshes remain GPU-only.
+#endif
+                return mesh;
             }
             public void Membrane(Color color, int radial, int across, float kind, System.Func<float, float, Vector3> point, bool cartilage = false)
             {

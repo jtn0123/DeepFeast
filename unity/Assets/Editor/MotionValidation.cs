@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -7,6 +6,8 @@ namespace DeepFeast.EditorTools
 {
     public static class MotionValidation
     {
+        static readonly string[] VolumeParts = { "VolumeBody", "FinMembranes", "PectoralNear", "PectoralFar", "EyeNear", "EyeFar", "Mouth" };
+
         [MenuItem("Deep Feast/Validate Fish Turns")]
         public static void Check()
         {
@@ -14,20 +15,42 @@ namespace DeepFeast.EditorTools
             try
             {
                 var view = new FishView(root.transform, root.transform);
-                var species = new List<Species>(Data.SpeciesMap.Values) { Data.Shark, Data.Player };
+                var species = Data.AllSpecies;
                 foreach (var sp in species)
                 {
                     view.SetSpecies(sp);
-                    var meshes = view.root.GetComponentsInChildren<MeshFilter>();
+                    var modelPivot = view.root.transform.Find("Pivot");
+                    if (modelPivot == null) throw new InvalidOperationException("Missing fish model pivot: " + sp.key);
                     bool volume = false;
-                    foreach (var mesh in meshes)
+                    // Select the seven native parts explicitly. SpriteRenderer fallback meshes can be
+                    // disabled and unreadable; they are validated separately by ArtValidation.
+                    foreach (var partName in VolumeParts)
                     {
-                        if (mesh.sharedMesh == null) continue;
-                        var bounds = mesh.sharedMesh.bounds;
+                        var part = modelPivot.Find(partName);
+                        var filter = part == null ? null : part.GetComponent<MeshFilter>();
+                        var renderer = part == null ? null : part.GetComponent<MeshRenderer>();
+                        if (filter == null || filter.sharedMesh == null || renderer == null || !renderer.enabled)
+                            throw new InvalidOperationException($"Missing or hidden native fish part: {sp.key}, {partName}.");
+                        var mesh = filter.sharedMesh;
+                        if (!mesh.name.StartsWith(sp.key + " ", StringComparison.Ordinal))
+                            throw new InvalidOperationException($"Native fish part retained a different species model: {sp.key}, {partName}, {mesh.name}.");
+                        if (!mesh.isReadable)
+                            throw new InvalidOperationException($"Native fish mesh must retain editor-only CPU data for validation: {sp.key}, {partName}.");
+                        if (mesh.vertexCount < 3)
+                            throw new InvalidOperationException($"Empty native fish part: {sp.key}, {partName}.");
+                        var bounds = mesh.bounds;
                         foreach (var vector in new[] { bounds.center, bounds.extents })
                             if (!float.IsFinite(vector.x) || !float.IsFinite(vector.y) || !float.IsFinite(vector.z))
-                                throw new InvalidOperationException($"Invalid generated mesh bounds: {sp.key}, {mesh.sharedMesh.name}.");
-                        if (bounds.size.z > 0.1f) volume = true;
+                                throw new InvalidOperationException($"Invalid generated mesh bounds: {sp.key}, {partName}.");
+                        float minZ = float.PositiveInfinity, maxZ = float.NegativeInfinity;
+                        foreach (var vertex in mesh.vertices)
+                        {
+                            if (!float.IsFinite(vertex.x) || !float.IsFinite(vertex.y) || !float.IsFinite(vertex.z))
+                                throw new InvalidOperationException($"Invalid generated mesh vertex: {sp.key}, {partName}.");
+                            minZ = Mathf.Min(minZ, vertex.z); maxZ = Mathf.Max(maxZ, vertex.z);
+                        }
+                        // Animated bounds deliberately have padding; test actual geometry for depth.
+                        if (partName == "VolumeBody" && maxZ - minZ > 0.04f) volume = true;
                     }
                     if (!volume) throw new InvalidOperationException($"Fish volume failed for {sp.key}: expected rounded mesh geometry with real depth.");
                     Vector3 previous = Vector3.zero;
@@ -67,7 +90,7 @@ namespace DeepFeast.EditorTools
                     for (int i = 0; i < 10; i++) view.Pose(hold, 0, FishView.EyeMode.Normal, 0);
                     if (Quaternion.Angle(paused, pivot.localRotation) > 0.01f) throw new InvalidOperationException("Paused animation changed: " + sp.key);
                 }
-                Debug.Log("[DeepFeast] volume turns passed: 12 species with finite geometry and bounds, mesh depth, positive scales, continuous midpoint heading, correct pitch, smooth bank reversal, settled bank and frozen pause.");
+                Debug.Log($"[DeepFeast] volume turns passed: {species.Count} species with all seven visible native parts, species-matched finite geometry and bounds, actual body depth, positive scales, continuous midpoint heading, correct pitch, smooth bank reversal, settled bank and frozen pause.");
             }
             finally { UnityEngine.Object.DestroyImmediate(root); }
         }

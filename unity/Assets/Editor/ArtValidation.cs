@@ -24,6 +24,8 @@ namespace DeepFeast.EditorTools
                 Frame(f.atlas, f.closed); Frame(f.atlas, f.open);
                 atlases.Add(f.atlas);
             }
+            var legacyKeys = new HashSet<string> { "minnow", "clown", "tang", "angel", "puffer", "parrot", "snapper", "barracuda", "grouper", "tuna", "player", "shark" };
+            Require(keys.SetEquals(legacyKeys), "The twelve legacy painted identities must retain their aligned atlas poses.");
             var propKeys = new HashSet<string>();
             foreach (var p in catalog.props)
             {
@@ -46,11 +48,38 @@ namespace DeepFeast.EditorTools
                 Require(clear > px.Length / 4 && solid > px.Length / 10, "Atlas must have real transparent padding and solid artwork: " + atlas);
                 UnityEngine.Object.DestroyImmediate(tex);
             }
-            var species = new List<Species>(Data.SpeciesMap.Values) { Data.Player, Data.Shark };
-            int preparedMeshes = 0;
+            var species = Data.AllSpecies;
+            Require(species.Count == Data.SpeciesMap.Count + Data.SharkVariants.Length + 1, "Complete species catalog is missing a fish, shark or hero.");
+            Require(Data.SharkVariants.Length == 3, "Expected white, tiger and shortfin mako shark variants.");
+            var allKeys = new HashSet<string>();
+            int preparedMeshes = 0, fallbackCount = 0;
             foreach (var sp in species)
             {
+                Require(allKeys.Add(sp.key), "Duplicate native species: " + sp.key);
+                Require(!string.IsNullOrWhiteSpace(sp.displayName), "Missing display identity: " + sp.key);
+                Require(FishArt.Shapes.ContainsKey(sp.shape), "Unknown species body shape: " + sp.key);
+                Require(float.IsFinite(sp.chaseSpeedMultiplier) && sp.chaseSpeedMultiplier >= 1 && sp.chaseSpeedMultiplier <= 1.1f,
+                    "Unbounded pursuit multiplier: " + sp.key);
+                if (!legacyKeys.Contains(sp.key) || sp.IsShark)
+                {
+                    Require(!string.IsNullOrWhiteSpace(sp.scientificName), "Missing scientific identity: " + sp.key);
+                    Require(Uri.TryCreate(sp.referenceUrl, UriKind.Absolute, out var reference) && reference.Scheme == "https",
+                        "Missing source reference: " + sp.key);
+                }
+                if (Data.SpeciesMap.ContainsKey(sp.key))
+                    Require(!sp.IsShark && float.IsFinite(sp.min) && float.IsFinite(sp.max) && sp.min > 0 && sp.max >= sp.min,
+                        "Invalid normal-spawn species range: " + sp.key);
                 var a = FishArt.Get(sp);
+                if (!legacyKeys.Contains(sp.key))
+                {
+                    Require(a.fallbackValidated && !a.whole && !a.painted && a.body != null && a.bodyOpen != null && a.bodyOpen != a.body && a.tail != null,
+                        "Missing generated fallback poses/tail for native species: " + sp.key);
+                    foreach (var sprite in new[] { a.body, a.bodyOpen, a.tail }) FallbackSprite(sp.key, sprite);
+                    Require(Mathf.Abs(a.body.bounds.min.x - a.bodyOpen.bounds.min.x) < 0.01f &&
+                        Mathf.Abs(a.body.bounds.size.x - a.bodyOpen.bounds.size.x) < 0.01f, "Unaligned generated poses: " + sp.key);
+                    fallbackCount++;
+                    continue;
+                }
                 Require(a.whole && a.painted && a.body != null && a.bodyOpen != null && a.bodyOpen != a.body,
                     "Missing painted closed/open fish: " + sp.key);
                 Require(Mathf.Abs(a.body.bounds.min.x - a.bodyOpen.bounds.min.x) < 0.12f, "Unaligned tail anchor: " + sp.key);
@@ -59,6 +88,20 @@ namespace DeepFeast.EditorTools
                 if (a.bodyOpen.vertices.Length == 153) preparedMeshes++;
             }
             Require(PaintedArt.PendingMeshCount + preparedMeshes == 24, "Expected 24 swimming meshes, prepared or queued for the first player update.");
+            foreach (var key in new[] { "almaco_jack", "goliath_grouper", "atlantic_halibut", "atlantic_mackerel", "mahi_mahi", "skipjack_tuna", "striped_bass", "yellowfin_tuna", "bluefish", "red_drum" })
+                Require(Data.SpeciesMap.ContainsKey(key), "Missing requested or companion fish: " + key);
+            for (int i = 0; i < Data.SharkVariants.Length * 2; i++)
+            {
+                var shark = Data.SharkForEncounter(i);
+                Require(shark.IsShark && allKeys.Contains(shark.key) && !Data.SpeciesMap.ContainsKey(shark.key), "Shark variants must use the timed encounter pool: " + shark.key);
+                Require(shark == Data.SharkVariants[i % Data.SharkVariants.Length], "Shark identity rotation failed.");
+            }
+            Require(Data.SharkVariants[0].key == "shark" && Data.SharkVariants[1].key == "tiger_shark" && Data.SharkVariants[2].key == "mako_shark",
+                "Shark identity rotation must include white, tiger and mako.");
+            Require(Data.MakoShark.aggressive && Data.MakoShark.chaseSpeedMultiplier > Data.Shark.chaseSpeedMultiplier,
+                "The aggressive mako must have a modest faster pursuit.");
+            Require(!Data.SpeciesMap["atlantic_halibut"].canSchool && !Data.SpeciesMap["goliath_grouper"].canSchool,
+                "Bottom-dwelling halibut and goliath grouper must not spawn in schooling packs.");
             var shader = Resources.Load<Shader>("Shaders/FishSwim");
             Require(shader != null && !ShaderUtil.ShaderHasError(shader), "Swimming shader is missing or has compiler errors.");
             foreach (var key in new[] { "branch", "brain", "tube", "fan", "rock", "deep" })
@@ -76,7 +119,18 @@ namespace DeepFeast.EditorTools
             MotionValidation.Check();
             var volume = Resources.Load<Shader>("Shaders/FishVolume");
             Require(volume != null && !ShaderUtil.ShaderHasError(volume), "Volume fish shader is missing or has compiler errors.");
-            Debug.Log("[DeepFeast] production art validation passed: 12 species, 24 aligned pose keys, 16 props, 10 shared environment meshes, transparent atlases, four shaders and volume turns.");
+            Debug.Log($"[DeepFeast] production art validation passed: {species.Count} native species, {catalog.fish.Length} legacy painted species, 24 aligned painted pose keys, {fallbackCount} generated fallback species with finite transparent sprites and source metadata, {Data.SharkVariants.Length} rotating shark variants, 16 props, 10 shared environment meshes, transparent atlases, four shaders and volume turns.");
+        }
+
+        static void FallbackSprite(string key, Sprite sprite)
+        {
+            foreach (var vector in new[] { sprite.bounds.center, sprite.bounds.extents })
+                Require(float.IsFinite(vector.x) && float.IsFinite(vector.y) && float.IsFinite(vector.z), "Nonfinite generated sprite bounds: " + key);
+            Require(sprite.bounds.size.x > 0.1f && sprite.bounds.size.y > 0.1f, "Empty generated silhouette: " + key);
+            foreach (var vertex in sprite.vertices)
+                Require(float.IsFinite(vertex.x) && float.IsFinite(vertex.y), "Nonfinite generated sprite vertex: " + key);
+            Require(sprite.texture != null && sprite.texture.width > 2 && sprite.texture.height > 2,
+                "Missing generated sprite texture: " + key);
         }
 
         static void Frame(string atlas, PaintedArt.Frame f)

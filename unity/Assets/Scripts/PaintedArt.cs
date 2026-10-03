@@ -117,7 +117,7 @@ namespace DeepFeast
                 return new FishArt.Art
                 {
                     body = closed, bodyOpen = open, whole = true, painted = true, lids = true,
-                    hh = FishArt.HL * sp.Sh.hh, shark = sp == Data.Shark, fin = sp.fin,
+                    hh = FishArt.HL * sp.Sh.hh, shark = sp.IsShark, fin = sp.fin,
                     eyePos = new Vector2(f.eyeX, f.eyeY), eyeSize = new Vector2(f.eyeRX, f.eyeRY), lid = sp.c0,
                 };
             }

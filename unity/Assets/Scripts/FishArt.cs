@@ -16,8 +16,13 @@ namespace DeepFeast
     public sealed class Species
     {
         public string key, shape, pat;
+        // Identity stays in the catalog and review tools rather than floating labels in normal play.
+        public string displayName, scientificName = "", referenceUrl = "";
         public Color c0, c1, c2, fin, tailCol, spot;
         public float min, max, eye;
+        public bool canSchool = true, aggressive;
+        public float chaseSpeedMultiplier = 1;
+        public bool IsShark => shape == "shark";
         public Shape Sh => FishArt.Shapes[shape];
     }
 
@@ -49,11 +54,36 @@ namespace DeepFeast
         public static float SpeedFor(float r) => (235f + (r - 12f) * 0.25f) / ZoomFor(r);
 
         static Species S(string key, string shape, string a, string b, string c, string fin, float finA, string pat, float min, float max)
-            => new Species { key = key, shape = shape, c0 = U.Hex(a), c1 = U.Hex(b), c2 = U.Hex(c), fin = U.Hex(fin, finA), tailCol = U.Hex(fin, finA), pat = pat, min = min, max = max };
+            => new Species { key = key, displayName = key, shape = shape, c0 = U.Hex(a), c1 = U.Hex(b), c2 = U.Hex(c), fin = U.Hex(fin, finA), tailCol = U.Hex(fin, finA), pat = pat, min = min, max = max };
 
+        public static Species Shark, TigerShark, MakoShark, Player;
         public static readonly Dictionary<string, Species> SpeciesMap = Build();
         public static readonly List<string> SpeciesKeys = new List<string>(SpeciesMap.Keys);
-        public static Species Shark, Player;
+        public static readonly Species[] SharkVariants = { Shark, TigerShark, MakoShark };
+        public static readonly IReadOnlyList<Species> AllSpecies = CollectAll().AsReadOnly();
+
+        static List<Species> CollectAll()
+        {
+            var species = new List<Species>(SpeciesMap.Values);
+            species.AddRange(SharkVariants);
+            species.Add(Player);
+            return species;
+        }
+
+        static Species Identify(Species species, string name, string scientificName, string referenceUrl)
+        {
+            species.displayName = name;
+            species.scientificName = scientificName;
+            species.referenceUrl = referenceUrl;
+            return species;
+        }
+
+        // Successive encounters rotate identities while retaining the same size/timer escalation.
+        public static Species SharkForEncounter(int encounter)
+        {
+            int index = encounter % SharkVariants.Length;
+            return SharkVariants[index < 0 ? index + SharkVariants.Length : index];
+        }
 
         static Dictionary<string, Species> Build()
         {
@@ -75,9 +105,48 @@ namespace DeepFeast
             grouper.spot = U.Hex("#3a2814");
             Add(grouper);
             Add(S("tuna", "torpedo", "#4d6d9c", "#1d2f52", "#e3e9f2", "#5a7bb0", 1, "finlets", 70, 600));
-            Shark = S("shark", "shark", "#62788b", "#283746", "#f2f5f7", "#4a5f72", 1, "shark", 0, 0);
+            foreach (var legacy in d.Values)
+                legacy.displayName = legacy.key == "clown" ? "Clownfish" : legacy.key == "angel" ? "Angelfish" :
+                    legacy.key == "parrot" ? "Parrotfish" : char.ToUpperInvariant(legacy.key[0]) + legacy.key.Substring(1);
+
+            const string noaa = "https://www.fisheries.noaa.gov/species/";
+            void AddKnown(Species species, string name, string scientificName, string page)
+                => Add(Identify(species, name, scientificName, noaa + page));
+            // Radius ranges are game progression units, not biological adult lengths.
+            AddKnown(S("almaco_jack", "oval", "#9b9e74", "#344c49", "#e7e5ed", "#667d67", 1, "amberjack", 30, 190),
+                "Almaco jack", "Seriola rivoliana", "almaco-jack");
+            var goliath = S("goliath_grouper", "fat", "#aa9563", "#514737", "#dcd0a9", "#7c7252", 1, "mottled", 70, 600);
+            goliath.spot = U.Hex("#38382b"); goliath.canSchool = false;
+            AddKnown(goliath, "Atlantic goliath grouper", "Epinephelus itajara", "atlantic-goliath-grouper");
+            var halibut = S("atlantic_halibut", "flat", "#938469", "#514b3d", "#eeeee5", "#8b8065", 1, "halibut", 40, 400);
+            halibut.spot = U.Hex("#443f32"); halibut.canSchool = false;
+            AddKnown(halibut, "Atlantic halibut", "Hippoglossus hippoglossus", "atlantic-halibut");
+            AddKnown(S("atlantic_mackerel", "slim", "#91c5bf", "#23646e", "#eff7f2", "#647f87", 1, "mackerel", 9, 44),
+                "Atlantic mackerel", "Scomber scombrus", "atlantic-mackerel");
+            var mahi = S("mahi_mahi", "torpedo", "#d3e642", "#0b9d91", "#ffed76", "#1a8b9c", 1, "mahi", 35, 250);
+            mahi.tailCol = U.Hex("#e8cf37"); mahi.spot = U.Hex("#165ea4");
+            AddKnown(mahi, "Atlantic mahi-mahi", "Coryphaena hippurus", "atlantic-mahi-mahi");
+            AddKnown(S("skipjack_tuna", "torpedo", "#9cb7c6", "#343e65", "#eef3f1", "#687c8c", 1, "skipjack", 40, 260),
+                "Atlantic skipjack tuna", "Katsuwonus pelamis", "atlantic-skipjack-tuna");
+            AddKnown(S("striped_bass", "oval", "#b5c4b5", "#53665d", "#f0f1df", "#879588", 1, "bass", 22, 150),
+                "Atlantic striped bass", "Morone saxatilis", "atlantic-striped-bass");
+            AddKnown(S("yellowfin_tuna", "torpedo", "#88b7ad", "#183e66", "#edf3dd", "#efcd35", 1, "yellowfin", 55, 600),
+                "Atlantic yellowfin tuna", "Thunnus albacares", "atlantic-yellowfin-tuna");
+            AddKnown(S("bluefish", "torpedo", "#98b6bd", "#365f61", "#ecf3f1", "#627e83", 1, "line", 18, 120),
+                "Bluefish", "Pomatomus saltatrix", "bluefish");
+            var redDrum = S("red_drum", "oval", "#ca9270", "#755743", "#f0debf", "#b08460", 1, "red_drum", 22, 170);
+            redDrum.spot = U.Hex("#171f22");
+            Add(Identify(redDrum, "Red drum", "Sciaenops ocellatus", "https://myfwc.com/wildlifehabitats/profiles/saltwater/drums/red-drum/"));
+
+            Shark = Identify(S("shark", "shark", "#879da4", "#334957", "#f2f5ee", "#647e87", 1, "shark", 0, 0),
+                "White shark", "Carcharodon carcharias", noaa + "white-shark");
+            TigerShark = Identify(S("tiger_shark", "shark", "#929878", "#4f584c", "#e5e6cb", "#747d63", 1, "tiger", 0, 0),
+                "Tiger shark", "Galeocerdo cuvier", "https://www.fisheries.noaa.gov/feature-story/climate-change-shifting-tiger-shark-populations-northward");
+            MakoShark = Identify(S("mako_shark", "shark", "#527d95", "#173b57", "#ecf6f5", "#386b84", 1, "mako", 0, 0),
+                "Shortfin mako shark", "Isurus oxyrinchus", noaa + "shortfin-mako-shark");
+            MakoShark.aggressive = true; MakoShark.chaseSpeedMultiplier = 1.08f;
             Player = S("player", "oval", "#3df2d0", "#0a8f99", "#e2fff8", "#ffc93c", 1, "player", 0, 0);
-            Player.eye = 0.15f;
+            Player.eye = 0.15f; Player.displayName = "Hero fish";
             return d;
         }
 
@@ -87,6 +156,7 @@ namespace DeepFeast
             foreach (var k in SpeciesKeys)
             {
                 var s = SpeciesMap[k];
+                if (school && !s.canSchool) continue;
                 if (k == "minnow" && !school && r > 6) continue;
                 if (r >= s.min && r <= s.max) keys.Add(k);
             }
@@ -103,6 +173,7 @@ namespace DeepFeast
             ["slim"] = new Shape { hh = 0.36f, nx = 0.92f, ny = 0.95f, ped = 0.2f, tl = 0.48f, tH = 0.38f, dH = 0.18f, aH = 0.12f, tail = TailKind.Fork, eye = 0.11f },
             ["oval"] = new Shape { hh = 0.50f, nx = 0.95f, ny = 1.0f, ped = 0.2f, tl = 0.45f, tH = 0.42f, dH = 0.22f, aH = 0.15f, tail = TailKind.Fork, eye = 0.11f },
             ["disc"] = new Shape { hh = 0.66f, nx = 0.85f, ny = 1.05f, ped = 0.18f, tl = 0.36f, tH = 0.40f, dH = 0.16f, aH = 0.14f, tail = TailKind.Lunate, eye = 0.1f },
+            ["flat"] = new Shape { hh = 0.60f, nx = 0.78f, ny = 0.95f, ped = 0.15f, tl = 0.33f, tH = 0.36f, dH = 0.18f, aH = 0.18f, tail = TailKind.Fan, eye = 0.07f },
             ["tall"] = new Shape { hh = 0.70f, nx = 0.8f, ny = 1.0f, ped = 0.18f, tl = 0.38f, tH = 0.38f, dH = 0.72f, aH = 0.72f, tail = TailKind.Fan, eye = 0.1f, trailing = true },
             ["round"] = new Shape { hh = 0.80f, nx = 1.05f, ny = 1.15f, ped = 0.22f, tl = 0.30f, tH = 0.30f, dH = 0.12f, aH = 0.10f, tail = TailKind.Fan, eye = 0.14f },
             ["long"] = new Shape { hh = 0.20f, nx = 0.6f, ny = 0.8f, ped = 0.3f, tl = 0.40f, tH = 0.32f, dH = 0.20f, aH = 0.14f, tail = TailKind.Fork, eye = 0.07f },
@@ -122,6 +193,7 @@ namespace DeepFeast
             public Color fin;
             // concept art has its eyes and fins painted in; every fish shows expressions as skin-tinted lids over the eye
             public bool painted, lids, whole;
+            public bool fallbackValidated;
             public Vector2 eyeSize;
             public Color lid;
         }
@@ -139,8 +211,7 @@ namespace DeepFeast
 
         public static void Prewarm()
         {
-            foreach (var s in Data.SpeciesMap.Values) Get(s);
-            Get(Data.Shark); Get(Data.Player);
+            foreach (var s in Data.AllSpecies) Get(s);
             _ = EyeNormal; _ = EyeShark; _ = EyeSharkAngry; _ = FinOval;
             _ = LidBlink; _ = LidHappy; _ = LidAngry;
         }
@@ -286,7 +357,8 @@ namespace DeepFeast
                 Raster.Mul(rays, tm);
                 tr.Paint(rays, new Color(0, 0.05f, 0.1f, 0.16f));
             }
-            art.tail = tr.ToSprite(Vector2.zero, scale);
+            art.tail = VerifiedFallbackSprite(tr, sp.key, Vector2.zero, scale);
+            art.fallbackValidated = true;
 
             float ex = hl * (shark ? 0.62f : 0.56f), ey = -hh * 0.22f;
             art.eyePos = new Vector2(ex, -ey);
@@ -295,6 +367,26 @@ namespace DeepFeast
         }
 
         static readonly Color OutlineCol = new Color(0.94f, 1f, 1f, 1f);
+        static Sprite VerifiedFallbackSprite(Raster raster, string key, Vector2 pivot, float scale)
+        {
+            // Raster uploads discard CPU pixel copies; inspect the actual generated buffer before upload.
+            bool clear = false, visible = false;
+            foreach (var pixel in raster.px)
+            {
+                if (!float.IsFinite(pixel.r) || !float.IsFinite(pixel.g) || !float.IsFinite(pixel.b) || !float.IsFinite(pixel.a))
+                    throw new System.InvalidOperationException("Nonfinite generated fish pixels: " + key);
+                clear |= pixel.a == 0; visible |= pixel.a > 0.5f;
+            }
+            if (!clear || !visible) throw new System.InvalidOperationException("Generated fish needs visible pixels and transparent padding: " + key);
+            return raster.ToSprite(pivot, scale);
+        }
+        // string.GetHashCode varies between runtimes; reviews and fallback sprites need repeatable markings.
+        static uint StableSeed(string key)
+        {
+            uint hash = 2166136261;
+            foreach (char c in key) hash = unchecked((hash ^ c) * 16777619);
+            return hash;
+        }
         static int OutlinePx(float scale) => Mathf.RoundToInt(scale * 0.13f);
         // clean navy contours, as in the concept art
         internal static readonly Color Navy = new Color(0.05f, 0.09f, 0.16f, 1f);
@@ -375,10 +467,12 @@ namespace DeepFeast
                     }
                     break;
                 case "spots":
+                case "mottled":
+                case "halibut":
                     {
-                        var rng = new Mulberry((uint)sp.key.GetHashCode());
+                        var rng = new Mulberry(StableSeed(sp.key));
                         var m = r.Mask();
-                        int n = 10 + (int)(rng.Next() * 6);
+                        int n = sp.pat == "spots" ? 10 + (int)(rng.Next() * 6) : 32;
                         for (int i = 0; i < n; i++)
                         {
                             float sx = (rng.Next() * 1.5f - 0.75f) * hl, sy = (rng.Next() * 1.2f - 0.6f) * hh, sr = (0.05f + rng.Next() * 0.07f) * hl;
@@ -386,6 +480,59 @@ namespace DeepFeast
                         }
                         Clipped(m, U.WithA(sp.spot, 0.75f));
                     }
+                    break;
+                case "mackerel":
+                case "tiger":
+                    {
+                        var m = r.Mask();
+                        int count = sp.pat == "tiger" ? 11 : 24;
+                        for (int i = 0; i < count; i++)
+                        {
+                            float bx = hl * (0.47f - i * 1.3f / count);
+                            var wave = new List<Vector2>();
+                            for (int j = 0; j <= 9; j++)
+                            {
+                                float sy = -hh + hh * 0.95f * j / 9;
+                                wave.Add(new Vector2(bx + Mathf.Sin(j * 0.9f + i * 0.7f) * hl * 0.035f, sy));
+                            }
+                            r.Stroke(wave, hl * (sp.pat == "tiger" ? 0.033f : 0.022f), m);
+                        }
+                        Clipped(m, new Color(0.05f, 0.12f, 0.15f, sp.pat == "tiger" ? 0.58f : 0.75f));
+                    }
+                    break;
+                case "skipjack":
+                case "bass":
+                    {
+                        var m = r.Mask();
+                        int count = sp.pat == "skipjack" ? 5 : 7;
+                        for (int i = 0; i < count; i++)
+                        {
+                            float sy = hh * (sp.pat == "skipjack" ? 0.14f + i * 0.15f : -0.57f + i * 0.19f);
+                            r.Stroke(Raster.QuadPts(new Vector2(-hl * 0.83f, sy * 0.6f), new Vector2(-hl * 0.08f, sy), new Vector2(hl * 0.56f, sy * 0.78f)), hl * 0.022f, m);
+                        }
+                        Clipped(m, new Color(0.11f, 0.18f, 0.23f, 0.78f));
+                    }
+                    break;
+                case "amberjack":
+                    {
+                        Clipped(r.Fill(RectPath(-hl, -hh * 0.05f, hl * 2, hh * 0.13f)), new Color(0.8f, 0.66f, 0.25f, 0.62f));
+                        var m = r.Stroke(Raster.QuadPts(new Vector2(hl * 0.98f, 0), new Vector2(hl * 0.54f, -hh * 0.27f), new Vector2(hl * 0.24f, -hh * 0.92f)), hl * 0.05f);
+                        Clipped(m, new Color(0.1f, 0.18f, 0.18f, 0.82f));
+                    }
+                    break;
+                case "yellowfin":
+                    Clipped(r.Fill(RectPath(-hl, -hh * 0.1f, hl * 2, hh * 0.16f)), U.Hex("#e8d344", 0.7f));
+                    break;
+                case "mahi":
+                    {
+                        var m = r.Mask();
+                        for (int i = 0; i < 34; i++)
+                            r.Circle((Mathf.Sin(i * 3.1f) * 0.74f) * hl, Mathf.Sin(i * 1.7f) * hh * 0.8f, hl * 0.018f, m);
+                        Clipped(m, U.WithA(sp.spot, 0.75f));
+                    }
+                    break;
+                case "red_drum":
+                    Clipped(r.Ellipse(-hl * 0.74f, 0, hl * 0.07f, hh * 0.13f, 0), sp.spot);
                     break;
                 case "scales":
                     {
@@ -464,7 +611,7 @@ namespace DeepFeast
                 var pf = new Path().Move(hl * 0.3f, hh * 0.55f).Line(hl * 0.3f - hl * 0.32f, hh * 0.55f + hh * 1.3f).Line(hl * 0.3f - hl * 0.18f, hh * 0.55f);
                 r.Paint(r.Fill(pf), sp.fin);
             }
-            return r.ToSprite(Vector2.zero, scale);
+            return VerifiedFallbackSprite(r, sp.key, Vector2.zero, scale);
         }
 
         // ------------------------------------------------------------------ eyes (unit radius)
@@ -597,12 +744,10 @@ namespace DeepFeast
             sp = s;
             art = FishArt.Get(s);
             motion = Motion(s.shape);
-            if (art.whole)
-            {
-                volume ??= new FishVolume(pivot);
-                volume.SetSpecies(s, art);
-            }
-            volume?.SetVisible(art.whole);
+            // Every catalog identity receives its own 3D model, including procedural skin fallbacks.
+            volume ??= new FishVolume(pivot);
+            volume.SetSpecies(s, art);
+            volume.SetVisible(true);
             body.sprite = art.body;
             body.sharedMaterial = art.whole ? PaintedArt.SwimMaterial : Gfx.Alpha;
             body.SetPropertyBlock(null);
@@ -615,8 +760,7 @@ namespace DeepFeast
             eyeT.localScale = art.painted ? new Vector3(art.eyeSize.x, art.eyeSize.y, 1) : new Vector3(art.eyeR, art.eyeR, 1);
             eye.sprite = art.painted ? null : art.shark ? FishArt.EyeShark : FishArt.EyeNormal;
             lid.color = art.lid;
-            body.enabled = eye.enabled = lid.enabled = !art.whole;
-            if (art.whole) tail.enabled = fin.enabled = false;
+            body.enabled = eye.enabled = lid.enabled = tail.enabled = fin.enabled = false;
         }
 
         bool HasFin => art != null && !art.shark && !art.painted;
@@ -631,7 +775,7 @@ namespace DeepFeast
 
         public void Pose(Fish f, int order, EyeMode eyeMode, float animationDt = -1)
         {
-            if (art.whole && volume != null)
+            if (volume != null)
             {
                 root.transform.localPosition = U.V3(f.x, f.y);
                 root.transform.localScale = Vector3.one;
@@ -697,7 +841,7 @@ namespace DeepFeast
 
         public void SetVisible(bool v)
         {
-            if (art.whole && volume != null) { volume.SetVisible(v); return; }
+            if (volume != null) { volume.SetVisible(v); return; }
             body.enabled = eye.enabled = lid.enabled = v;
             tail.enabled = v && !art.whole;
             fin.enabled = v && HasFin;

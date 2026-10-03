@@ -15,9 +15,9 @@ Shader "DeepFeast/FishVolume"
             struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; fixed4 color : COLOR; float2 surface : TEXCOORD0; float2 flex : TEXCOORD1; };
             struct v2f { float4 position : SV_POSITION; float3 local : TEXCOORD0; float3 normal : TEXCOORD1; fixed4 color : COLOR; float3 view : TEXCOORD2; float2 surface : TEXCOORD3; float front : TEXCOORD4; float3 skin : TEXCOORD5; float finKind : TEXCOORD6; };
             sampler2D _MainTex;
-            float4 _Frame, _SpriteBounds, _Eye, _EyeCenter, _Head, _Profile, _FinRoot;
+            float4 _Frame, _SpriteBounds, _Eye, _EyeCenter, _Head, _Profile, _FinRoot, _MouthShape;
             fixed4 _Base, _Dark, _Belly, _FogColor, _Accent, _WaterReflection, _GroundReflection;
-            float _Phase, _Energy, _TailFlex, _TurnBend, _Flutter, _Mouth, _Height, _Fog, _Visibility, _Style, _Pattern, _Part, _Expression, _FrontView, _Facing, _ReflectionStrength;
+            float _Phase, _Energy, _TailFlex, _TurnBend, _Flutter, _Mouth, _Height, _Fog, _Visibility, _Style, _Pattern, _Part, _Expression, _FrontView, _Facing, _ReflectionStrength, _SharkKind;
 
             float bodyProfile(float x)
             {
@@ -26,15 +26,15 @@ Shader "DeepFeast/FishVolume"
             }
             float mouthCenter(float across)
             {
-                return (_Pattern==8?-.48:-.20)-_Mouth*.08+(.13+(_Expression==3&&_Pattern!=8?.04:0))*across*across;
+                return _MouthShape.x-_Mouth*.08+((_Pattern==8?.055:.13)+(_Expression==3&&_Pattern!=8?.04:0))*across*across;
             }
-            float mouthRadius() { return lerp(.018,_Pattern==8?.27:.25,_Mouth); }
+            float mouthRadius() { return lerp(.018,_MouthShape.y,_Mouth); }
 
             void jaw(inout float3 p, inout float3 normal)
             {
                 bool shark=_Pattern==8;
                 float weight=smoothstep(shark?.24:.45,shark?.80:.95,p.x)*(1-smoothstep(-_Height*.45+_Profile.w,-_Height*.15+_Profile.w,p.y));
-                float angle=-_Mouth*(shark?.26:.34)*weight, s=sin(angle), c=cos(angle);
+                float angle=-_Mouth*_MouthShape.w*weight, s=sin(angle), c=cos(angle);
                 float2 hinge=float2(shark?.40:.58,-_Height*.18+_Profile.w);
                 float2 offset=p.xy-hinge;
                 p.xy=float2(c*offset.x-s*offset.y,s*offset.x+c*offset.y)+hinge;
@@ -47,7 +47,7 @@ Shader "DeepFeast/FishVolume"
                 if (_Part > 1.5 && _Part < 2.5 && _Expression == 1) v.vertex.y = _EyeCenter.y + (v.vertex.y-_EyeCenter.y)*.08;
                 if (_Part > 2.5)
                 {
-                    float z=v.surface.x*_Head.w*.74;
+                    float z=v.surface.x*_Head.w*_MouthShape.z;
                     float y=_Head.z*(mouthCenter(v.surface.x)+mouthRadius()*v.surface.y);
                     float radial=pow(y/_Head.z,2)+pow(z/_Head.w,2);
                     float front=sqrt(max(.02,1-pow(radial,1/(2*_Profile.y))));
@@ -100,6 +100,12 @@ Shader "DeepFeast/FishVolume"
                 {
                     float belly=1-smoothstep(-.27,-.10,y+.035*sin(p.x*8));
                     skin=lerp(lerp(_Base.rgb,_Dark.rgb,smoothstep(.18,.90,y)*.42),_Belly.rgb,belly*.96);
+                    if (_SharkKind==2)
+                    {
+                        float wave=p.x*20+y*1.8+sin(y*7+p.x*2)*.9;
+                        float bars=smoothstep(.72,.94,sin(wave))*smoothstep(-.32,-.16,y);
+                        skin=lerp(skin,_Dark.rgb,bars*.65*(1-smoothstep(.85,1.12,p.x))*smoothstep(-1.02,-.78,p.x)*smoothstep(-.22,.10,y));
+                    }
                 }
                 if (_Pattern == 1)
                 {
@@ -132,18 +138,82 @@ Shader "DeepFeast/FishVolume"
                     skin=lerp(skin,_Belly.rgb,spots*.8);
                 }
                 if (_Pattern == 9) skin=lerp(skin,_Dark.rgb,(1-smoothstep(.035,.06,abs(y-.06)))*.45);
+                // Species markings wrap the body in rest coordinates, so they remain stable in turns.
+                if (_Pattern==11)
+                {
+                    float amber=exp(-pow((y-.08)*5,2));
+                    skin=lerp(skin,fixed3(.69,.61,.29),amber*.27);
+                    skin=lerp(skin,_Dark.rgb,exp(-pow((p.x-.78+y*.45)*12,2))*.35);
+                }
+                if (_Pattern==12 || _Pattern==13)
+                {
+                    float2 uv=p.xy*float2(10,15);
+                    float2 cell=floor(uv); float seed=frac(sin(dot(cell,float2(127.1,311.7)))*43758.5453);
+                    float seed2=frac(sin(dot(cell,float2(269.5,183.3)))*43758.5453);
+                    float2 offset=float2(.20+seed*.60,.20+seed2*.60);
+                    float distance=length((frac(uv)-offset)*float2(1,lerp(.75,1.5,seed2)));
+                    float size=lerp(.08,.19,seed);
+                    float spot=(1-smoothstep(size*.50,size,distance))*step(.27,seed2);
+                    float mottling=.5+.5*sin(p.x*18+sin(y*13))*sin(y*21+p.x*4);
+                    skin=lerp(skin,_Dark.rgb,spot*.58+mottling*(_Pattern==13?.28:.18));
+                    if (_Pattern==12) skin=lerp(skin,_Dark.rgb,smoothstep(.79,.96,sin(p.x*15+y*.8))*.15);
+                    if (_Pattern==13)
+                    {
+                        float lateral=.08+.20*exp(-pow((p.x-.35)*2.8,2));
+                        skin=lerp(skin,_Dark.rgb,exp(-pow((y-lateral)*75,2))*.26);
+                        skin=lerp(skin,_Belly.rgb,smoothstep(-.015,.015,p.z)*.96);
+                    }
+                }
+                if (_Pattern==14)
+                {
+                    skin=lerp(skin,_Dark.rgb,smoothstep(.1,.6,y)*.52);
+                    float wave=p.x*34+sin(y*10+p.x*3)*1.2;
+                    skin=lerp(skin,_Dark.rgb,smoothstep(.40,.75,sin(wave))*smoothstep(.03,.27,y)*.88);
+                }
+                if (_Pattern==15)
+                {
+                    skin=lerp(_Base.rgb,_Dark.rgb,smoothstep(-.08,.54,y)*.9);
+                    skin=lerp(skin,_Belly.rgb,smoothstep(-.22,-.75,y)*.7);
+                    float2 uv=p.xy*float2(13,17); float2 cell=floor(uv);
+                    float seed=frac(sin(dot(cell,float2(127.1,311.7)))*43758.5453);
+                    float seed2=frac(sin(dot(cell,float2(269.5,183.3)))*43758.5453);
+                    float spot=(1-smoothstep(.035,.09+seed*.035,length(frac(uv)-float2(.20+seed*.60,.20+seed2*.60))))*step(.48,seed);
+                    skin=lerp(skin,fixed3(.03,.28,.59),spot*.84);
+                }
+                if (_Pattern==16 || _Pattern==17)
+                {
+                    float stripe=0;
+                    for(int j=0;j<7;j++)
+                    {
+                        float center=_Pattern==16?-.14-j*.095:.47-j*.15;
+                        float marking=1-smoothstep(.018,.031,abs(y-center-.012*sin(p.x*3)));
+                        stripe=max(stripe,marking*(_Pattern==16&&j>4?0:1));
+                    }
+                    skin=lerp(skin,_Dark.rgb,stripe*.82*(1-smoothstep(.60,.95,p.x)));
+                }
+                if (_Pattern==18)
+                {
+                    skin=lerp(skin,_Dark.rgb,smoothstep(.04,.65,y)*.76);
+                    float marking=1-smoothstep(.045,.10,abs(y-.02));
+                    skin=lerp(skin,fixed3(.90,.78,.27),marking*.65);
+                }
+                if (_Pattern==19)
+                {
+                    float spot=1-smoothstep(.075,.105,length(float2(p.x+.84,y-.13)));
+                    skin=lerp(skin,fixed3(.025,.035,.04),spot*.98);
+                }
                 // Small recessed gill crease follows the curved skin on both sides.
                 float gill = exp(-pow((p.x-.48+y*.13)*38,2)) * (1-smoothstep(.30,.65,abs(y)));
                 if (_Pattern == 8)
                 {
                     gill=0;
-                    for (int j=0;j<5;j++) gill+=exp(-pow((p.x-(.66-j*.095)+y*y*.11)*85,2))*(1-smoothstep(.32,.65,abs(y+.04)));
-                    skin*=1-gill*.48;
-                    float nostril=exp(-pow((p.x-1.24)*38,2)-pow((y+.12)*30,2));
+                    [unroll] for (int j=0;j<5;j++) gill+=exp(-pow((p.x-(.54-j*.065)+y*y*.07)*105,2))*(1-smoothstep(.25,.44,abs(y+.02)));
+                    skin*=1-gill*.30;
+                    float nostril=exp(-pow((p.x-(_Head.x+_Head.y*.94))*38,2)-pow((y+.12)*30,2));
                     skin*=1-nostril*.45;
-                    return skin;
                 }
-                return skin * (1-gill*.20);
+                else skin*=1-gill*.20;
+                return skin;
             }
             fixed4 frag(v2f i) : SV_Target
             {
@@ -153,7 +223,7 @@ Shader "DeepFeast/FishVolume"
                 {
                     // Open a real aperture in the skin so the inset mouth bowl has visible depth.
                     // The test uses rest coordinates, before the shared jaw bend on skin and lip.
-                    float across=i.skin.z/max(.001,_Head.w*.74);
+                    float across=i.skin.z/max(.001,_Head.w*_MouthShape.z);
                     float vertical=((i.skin.y-_Profile.w)/_Height-mouthCenter(across))/mouthRadius();
                     if (_Mouth>.08 && i.skin.x>_Head.x+_Head.y*.20 && across*across+vertical*vertical<.82*.82) discard;
                     // Keep projected skin inside the illustration's body. Its outer black contour and
@@ -197,9 +267,10 @@ Shader "DeepFeast/FishVolume"
                     float lip=smoothstep(.82,.99,length(i.surface));
                     rgb=lerp(fixed3(.035,.055,.075),lerp(_Base.rgb,_Dark.rgb,.4),lip);
                     float tongue=(1-smoothstep(.8,1,length((i.surface-float2(0,-.45))/float2(.62,.35))))*smoothstep(.2,.6,_Mouth)*(1-lip);
-                    rgb=lerp(rgb,_Pattern==8?fixed3(.42,.31,.29):fixed3(.78,.25,.34),tongue);
+                    rgb=lerp(rgb,_Pattern==8?fixed3(.42,.31,.29):_Pattern>=11?fixed3(.46,.31,.28):fixed3(.78,.25,.34),tongue);
                     rgb*=lerp(.55,1,smoothstep(.15,.90,length(i.surface)));
                     if (dot(i.color.rgb,1)>2.8) rgb=fixed3(.94,.95,.84);
+                    else rgb=lerp(lerp(_Base.rgb,_Dark.rgb,.52),rgb,smoothstep(.04,.30,_Mouth));
                 }
                 float diffuse=saturate(dot(normal,normalize(float3(-.3,.65,-.7))));
                 float ndv=saturate(dot(normal,view));
