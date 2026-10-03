@@ -30,6 +30,7 @@ Headless build:
 | `-size <r>` | Start at radius `r` (jump straight to bigger tiers) |
 | `-startx <x>` | Start near the seabed at world x (e.g. `11000` for the deep trench) |
 | `-dumpart <dir>` | Write every baked sprite texture to `dir` as a PNG |
+| `-gallery` | Art review: every species, two jellies and a pearl in a grid; with `-shots` saves `gallery` and `gallery_bite` |
 | `-shark <s>` | First shark arrives after N seconds |
 | `-timescale <x>` / `-mute` / `-nopause` | Speed up, silence, don't pause on focus loss |
 

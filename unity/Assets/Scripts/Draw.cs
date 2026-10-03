@@ -73,6 +73,82 @@ namespace DeepFeast
             if (capStart) Circle(m, pts[0].x, pts[0].y, w0 * 0.5f, c0, 8);
         }
 
+        /// Ribbon whose width tapers w0 → w1 and ripples by ±frill (a frilly edge), coloured c0 → c1.
+        public static void Ribbon(MeshBuilder m, IList<Vector2> pts, float w0, float w1, float frill, float phase, Color c0, Color c1)
+        {
+            int n = pts.Count;
+            if (n < 2) return;
+            int first = m.v.Count;
+            for (int i = 0; i < n; i++)
+            {
+                Vector2 a = pts[Mathf.Max(0, i - 1)], b = pts[Mathf.Min(n - 1, i + 1)];
+                Vector2 d = b - a;
+                float l = d.magnitude;
+                Vector2 nrm = l > 1e-6f ? new Vector2(-d.y / l, d.x / l) : Vector2.up;
+                float t = i / (float)(n - 1);
+                float hw = Mathf.Lerp(w0, w1, t) * (1 + frill * Mathf.Sin(t * 26 + phase)) * 0.5f;
+                var c = Color.Lerp(c0, c1, t);
+                var p = pts[i];
+                V(m, p.x + nrm.x * hw, p.y + nrm.y * hw, c);
+                V(m, p.x - nrm.x * hw, p.y - nrm.y * hw, c);
+            }
+            for (int i = 0; i < n - 1; i++)
+            {
+                int a = first + i * 2;
+                m.Quad(a, a + 2, a + 3, a + 1);
+            }
+        }
+
+        /// Leaf blade along the quadratic curve a → c → b, widest a third of the way out and pointed at b.
+        /// The half facing up takes the top colour and the other half the under colour, split by a midrib, inside a dark rim.
+        public static void Leaf(MeshBuilder m, Vector2 a, Vector2 c, Vector2 b, float w, Color top, Color under, Color rim, float rimW, int n = 9)
+        {
+            // with y down the left-hand normal of a rightward leaf points down, so that side is the underside
+            Color plus = b.x >= a.x ? under : top, minus = b.x >= a.x ? top : under;
+            Color vein = Color.Lerp(under, rim, 0.55f);
+            for (int pass = 0; pass < 2; pass++)
+            {
+                int first = m.v.Count;
+                for (int i = 0; i <= n; i++)
+                {
+                    float t = i / (float)n, u = 1 - t;
+                    var p = u * u * a + 2 * u * t * c + t * t * b;
+                    var d = 2 * u * (c - a) + 2 * t * (b - c);
+                    float l = d.magnitude;
+                    var nrm = l > 1e-6f ? new Vector2(-d.y / l, d.x / l) : Vector2.up;
+                    float hw = w * 0.5f * Mathf.Sin(Mathf.PI * Mathf.Pow(t, 0.65f));
+                    if (pass == 0)
+                    {
+                        // rim: the blade grown by rimW, drawn out to a point past the tip
+                        if (i == n) { p += d / Mathf.Max(l, 1e-6f) * rimW * 1.6f; hw = 0; }
+                        else hw += rimW;
+                        V(m, p.x + nrm.x * hw, p.y + nrm.y * hw, rim);
+                        V(m, p.x - nrm.x * hw, p.y - nrm.y * hw, rim);
+                    }
+                    else
+                    {
+                        // two halves with their own centre vertices so the colours meet in a crisp line
+                        V(m, p.x + nrm.x * hw, p.y + nrm.y * hw, plus);
+                        V(m, p.x, p.y, Color.Lerp(plus, Color.white, 0.1f));
+                        V(m, p.x, p.y, Color.Lerp(minus, Color.white, 0.1f));
+                        V(m, p.x - nrm.x * hw, p.y - nrm.y * hw, minus);
+                    }
+                }
+                int stride = pass == 0 ? 2 : 4;
+                for (int i = 0; i < n; i++)
+                {
+                    int k = first + i * stride;
+                    m.Quad(k, k + stride, k + stride + 1, k + 1);
+                    if (pass == 1) m.Quad(k + 2, k + stride + 2, k + stride + 3, k + 3);
+                }
+            }
+            // midrib fading out before the tip
+            var rib = QuadPts(a.x, a.y, c.x, c.y, b.x, b.y, n);
+            int keep = n * 4 / 5 + 1;
+            rib.RemoveRange(keep, rib.Count - keep);
+            Stroke(m, rib, rimW * 0.9f, rimW * 0.2f, vein);
+        }
+
         public static List<Vector2> QuadPts(float ax, float ay, float cx, float cy, float bx, float by, int n = 8)
         {
             tmp.Clear();

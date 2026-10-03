@@ -69,3 +69,24 @@ namespace DeepFeast.EditorTools
         }
     }
 }
+
+namespace DeepFeast.EditorTools
+{
+    /// <summary>Import settings for the cut-out concept sprites (tools/cut_concepts.py).</summary>
+    public sealed class ConceptArtImport : AssetPostprocessor
+    {
+        void OnPreprocessTexture()
+        {
+            if (!assetPath.Contains("/Resources/Concept/")) return;
+            var ti = (TextureImporter)assetImporter;
+            ti.textureType = TextureImporterType.Default;
+            ti.alphaIsTransparency = true;
+            ti.mipmapEnabled = true;
+            ti.npotScale = TextureImporterNPOTScale.None;
+            ti.wrapMode = TextureWrapMode.Clamp;
+            ti.filterMode = FilterMode.Trilinear;
+            ti.anisoLevel = 2;
+            ti.textureCompression = TextureImporterCompression.CompressedHQ;
+        }
+    }
+}

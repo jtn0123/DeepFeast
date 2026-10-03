@@ -34,7 +34,7 @@ namespace DeepFeast
     public sealed class Pearl
     {
         public float x, y, r, life, ph;
-        public SpriteRenderer body, star, glow;
+        public SpriteRenderer body, star, glow, ring;
     }
 
     public enum PType { Bubble, Bit, Spark, Ring }

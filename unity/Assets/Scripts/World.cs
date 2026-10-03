@@ -18,7 +18,7 @@ namespace DeepFeast
 
         static readonly Color[] WATER_C =
         {
-            C(72, 202, 230), C(28, 150, 198), C(14, 98, 156), C(9, 62, 114), C(6, 36, 78), C(4, 20, 46),
+            C(40, 172, 220), C(18, 128, 188), C(10, 88, 148), C(9, 62, 114), C(6, 36, 78), C(4, 20, 46),
         };
         static readonly float[] WATER_Y = { 0, 700, 1700, 2800, 3800, 4600 };
         static Color C(int r, int g, int b, float a = 1) => new Color(r / 255f, g / 255f, b / 255f, a);
@@ -74,7 +74,12 @@ namespace DeepFeast
         public readonly List<Vector2> vents = new List<Vector2>();
         readonly List<Swayer> swayers = new List<Swayer>();
 
-        static readonly string[] CORAL = { "#ff6f91", "#ff9f5a", "#c77dff", "#ff4d6d", "#48cae4", "#ffd166", "#f15bb5", "#7bf1a8" };
+        // kelp palettes, [0] sea green and [1] olive
+        static readonly Color KelpRim = new Color(0.03f, 0.13f, 0.12f, 0.92f);
+        static readonly Color[] KELP_STEM_A = { U.Hex("#1d6a3e"), U.Hex("#2c6a26") }, KELP_STEM_B = { U.Hex("#52c98a"), U.Hex("#78c94a") };
+        static readonly Color[] KELP_TOP_A = { U.Hex("#2fa36a"), U.Hex("#4fa83a") }, KELP_TOP_B = { U.Hex("#7ee3a8"), U.Hex("#a6e46a") };
+        static readonly Color[] KELP_UNDER_A = { U.Hex("#155a3c"), U.Hex("#215f22") }, KELP_UNDER_B = { U.Hex("#2f9466"), U.Hex("#4f9a34") };
+        static readonly string[] CORAL ={ "#ff6f91", "#ff9f5a", "#c77dff", "#ff4d6d", "#48cae4", "#ffd166", "#f15bb5", "#7bf1a8" };
 
         readonly Transform root;
         readonly MeshBuilder mb = new MeshBuilder();
@@ -157,12 +162,25 @@ namespace DeepFeast
             for (int i = 0; i < 6; i++) fan.Add(DecorArt.Fan(cr, U.Hex(cr.Pick(CORAL))));
             for (int i = 0; i < 6; i++) brain.Add(DecorArt.Brain(cr, U.Hex(cr.Pick(CORAL))));
             for (int i = 0; i < 6; i++) tube.Add(DecorArt.Tube(cr, U.Hex(cr.Pick(CORAL))));
+            // the concept-art coral group stands in now and then as a hero piece
+            var reef = ConceptArt.Reef();
+            float lastReef = -1e4f;
             int ci = 0;
             for (float x = 120; x < W - 120; x += 40 + R.Next() * 120)
             {
                 float fy = FloorY(x);
                 if (fy > 2950 || R.Next() < 0.22f) continue;
                 float k = R.Next(), s = 40 + R.Next() * 95, y = fy + 6;
+                float rs = 50 + R.Next() * 30;
+                if (reef != null && k > 0.9f && x - lastReef > 900 && Mathf.Abs(FloorY(x + rs) - FloorY(x - rs)) < rs * 0.5f)
+                {
+                    var hero = Gfx.SpriteObject("Reef", coralT, reef, Layer.Coral + ci++);
+                    hero.transform.localPosition = U.V3(x, Mathf.Max(fy, Mathf.Max(FloorY(x - rs), FloorY(x + rs))) + 4);
+                    hero.transform.localScale = new Vector3(R.Next() < 0.5f ? -rs : rs, rs, 1);
+                    lastReef = x;
+                    x += rs;
+                    continue;
+                }
                 Sprite spr; float amp = 0, speed = 0;
                 if (k < 0.38f) { spr = R.Pick(branch); amp = 0.02f; speed = 0.7f; }
                 else if (k < 0.58f) { spr = R.Pick(fan); amp = 0.05f; speed = 0.6f; s *= 0.62f; }
@@ -292,19 +310,31 @@ namespace DeepFeast
                     x += Mathf.Cos(ang) * sl; y += Mathf.Sin(ang) * sl;
                     pts.Add(new Vector2(x, y));
                 }
-                bool olive = d.tone >= 0.5f;
-                Color stemA = olive ? U.Hex("#2f6a2a") : U.Hex("#1f5e40"), stemB = olive ? U.Hex("#7cc456") : U.Hex("#4fbf86");
+                // kelp sits behind the play area, so it fades into the water, more so the deeper it grows
+                int tone = d.tone >= 0.5f ? 1 : 0;
+                var water = WaterAt(d.y - d.h * 0.5f);
+                float fog = 0.2f + 0.45f * Mathf.Clamp01((d.y - 1300) / 2400);
+                Color Fog(Color c) { var f = Color.Lerp(c, water, fog); f.a = c.a; return f; }
+                Color rim = Fog(KelpRim), stemA = Fog(KELP_STEM_A[tone]), stemB = Fog(KELP_STEM_B[tone]);
+                Color topA = Fog(KELP_TOP_A[tone]), topB = Fog(KELP_TOP_B[tone]), underA = Fog(KELP_UNDER_A[tone]), underB = Fog(KELP_UNDER_B[tone]);
+                float rimW = Mathf.Max(1.4f, d.w * 0.12f);
+                Draw.Stroke(mb, pts, d.w + rimW * 2, d.w * 0.25f + rimW * 2, rim, rim, true);
                 Draw.Stroke(mb, pts, d.w, d.w * 0.25f, stemA, stemB, true);
-                Color leafA = olive ? U.Hex("#3f8a36") : U.Hex("#2b8a5a"), leafB = olive ? U.Hex("#8fd468") : U.Hex("#66d39a");
-                for (int i = 2; i < pts.Count - 1; i += 2)
+                // broad leaves arch up off the stem and droop at the tip, darker low down
+                int last = pts.Count - 1;
+                for (int i = 1; i <= last; i++)
                 {
-                    float s = i % 4 == 0 ? 1 : -1, rot = s * 0.6f + Mathf.Sin(time * 1.2f + d.phase + i) * 0.25f;
-                    float t = i / (float)(pts.Count - 1);
-                    var lc = Color.Lerp(leafA, leafB, t);
-                    float lx = pts[i].x + s * d.w * 0.9f, ly = pts[i].y;
-                    Draw.Ellipse(mb, lx, ly, d.w * 1.15f, d.w * 0.4f, rot, lc, 12);
-                    var hl = Color.Lerp(lc, Color.white, 0.22f);
-                    Draw.Ellipse(mb, lx - Mathf.Sin(rot) * d.w * 0.08f, ly - Mathf.Cos(rot) * d.w * 0.1f, d.w * 0.8f, d.w * 0.12f, rot, hl, 10);
+                    float s = i % 2 == 0 ? 1 : -1, t = i / (float)last;
+                    if (i == last) s = d.phase > Mathf.PI ? 1 : -1;
+                    float L = (d.w * 2.2f + sl * 0.75f) * (1.1f - t * 0.35f), lw = L * 0.4f;
+                    float rot = s * Mathf.Sin(time * 1.2f + d.phase + i) * 0.2f, cs = Mathf.Cos(rot), sn = Mathf.Sin(rot);
+                    // the crown leaf curls up off the top of the stem; the rest reach out
+                    float cx = i == last ? 0.15f : 0.4f, cy = i == last ? -0.75f : -0.6f;
+                    float bx = i == last ? 0.6f : 1f, by = i == last ? -0.7f : -0.12f;
+                    var p = pts[i];
+                    var c = p + new Vector2(s * cx * cs - cy * sn, s * cx * sn + cy * cs) * L;
+                    var b = p + new Vector2(s * bx * cs - by * sn, s * bx * sn + by * cs) * L;
+                    Draw.Leaf(mb, p, c, b, lw, Color.Lerp(topA, topB, t), Color.Lerp(underA, underB, t), rim, rimW, 7);
                 }
             }
             mb.Apply(kelpMesh);
@@ -355,7 +385,7 @@ namespace DeepFeast
                 for (float x = s0; x <= x1 + CS; x += CS)
                 {
                     float y = FloorY(x);
-                    float k = Mathf.Clamp01(1 - (y - 900) / 2300) * (layer == 0 ? 0.42f : 0.3f);
+                    float k = Mathf.Clamp01(1 - (y - 900) / 2300) * (layer == 0 ? 0.24f : 0.17f);
                     float wob = Mathf.Sin(time * 0.9f + x * 0.004f) * 0.02f;
                     int a = mb.Vert(x, -(y - 1), new Color(0.9f, 1, 0.95f, k), x * sc + ox + wob, y * sc * 2.4f + oy);
                     mb.Vert(x, -(y + 170), new Color(0.9f, 1, 0.95f, 0), x * sc + ox - wob, (y + 170) * sc * 2.4f + oy);
@@ -373,6 +403,9 @@ namespace DeepFeast
         const float PPU = 150f;
 
         static readonly Vector3 Sun = new Vector3(-0.45f, 0.8f, 0.5f);
+
+        /// Coral contour width in pixels, in the same navy as the fish outlines.
+        const int RIM = 4;
 
         public static Sprite Rock(Mulberry R, float tone)
         {
@@ -467,9 +500,14 @@ namespace DeepFeast
             var m = r.Mask();
             for (int l = 0; l < levels.Count; l++)
             {
-                float w = 0.13f * Mathf.Pow(0.7f, l);
+                float w = 0.15f * Mathf.Pow(0.72f, l);
                 foreach (var s in levels[l]) r.Stroke(new[] { new Vector2(s.x, s.y), new Vector2(s.z, s.w) }, w, m);
             }
+            var tips = r.Mask();
+            foreach (var s in levels[levels.Count - 1]) r.Circle(s.z, s.w, 0.05f, tips);
+            var outline = (float[])m.Clone();
+            for (int i = 0; i < outline.Length; i++) outline[i] = Mathf.Max(outline[i], tips[i]);
+            r.Paint(r.Dilate(outline, RIM), FishArt.Navy);
             var lit = r.Light(m, Mathf.RoundToInt(PPU * 0.03f), Sun, 2.5f);
             r.Paint(m, (i, x, y) =>
             {
@@ -486,12 +524,15 @@ namespace DeepFeast
                         r.Circle(Mathf.Lerp(s.x, s.z, t) + (R.Next() - 0.5f) * 0.03f, Mathf.Lerp(s.y, s.w, t), 0.012f, dots);
             Raster.Mul(dots, m);
             r.Paint(dots, U.WithA(tip, 0.6f));
-            var tips = r.Mask();
-            foreach (var s in levels[levels.Count - 1]) r.Circle(s.z, s.w, 0.04f, tips);
-            r.Paint(tips, tip);
+            // pearly polyp heads: a shaded ball, a lit cap and a catch-light
+            r.Paint(tips, Color.Lerp(tip, col, 0.35f));
+            var cap = r.Mask();
+            foreach (var s in levels[levels.Count - 1]) r.Circle(s.z - 0.01f, s.w - 0.012f, 0.035f, cap);
+            Raster.Mul(cap, tips);
+            r.Paint(cap, tip);
             var shine = r.Mask();
-            foreach (var s in levels[levels.Count - 1]) r.Circle(s.z - 0.012f, s.w - 0.014f, 0.014f, shine);
-            r.Paint(shine, new Color(1, 1, 1, 0.8f));
+            foreach (var s in levels[levels.Count - 1]) r.Circle(s.z - 0.019f, s.w - 0.022f, 0.012f, shine);
+            r.Paint(shine, new Color(1, 1, 1, 0.9f));
             return r.ToSprite(Vector2.zero, PPU);
         }
 
@@ -536,6 +577,7 @@ namespace DeepFeast
             var path = new Path().Move(-0.7f, 0);
             for (int i = 1; i <= 32; i++) { float a = Mathf.PI + Mathf.PI * i / 32f; path.Line(Mathf.Cos(a) * 0.7f, Mathf.Sin(a) * 0.48f); }
             var m = r.Fill(path);
+            r.Paint(r.Dilate(m, RIM), FishArt.Navy);
             var dark = Color.Lerp(col, new Color(0.16f, 0.06f, 0.14f), 0.6f);
             float ox = R.Next() * 64, oy = R.Next() * 64, rot = R.Next() * U.TAU, cs = Mathf.Cos(rot), sn = Mathf.Sin(rot);
             r.Paint(m, (x, y) =>
@@ -557,7 +599,6 @@ namespace DeepFeast
                 c.a = 1;
                 return c;
             });
-            r.Paint(r.InnerRing(m, 2), new Color(0.1f, 0.03f, 0.08f, 0.35f));
             return r.ToSprite(Vector2.zero, PPU);
         }
 
@@ -589,6 +630,10 @@ namespace DeepFeast
             {
                 float x = t.x, h = t.y, w = t.z;
                 var m = r.Fill(RoundRect(x - w, -h, w * 2, h + 0.02f, w * 0.6f));
+                var rim = r.Ellipse(x, -h + w * 0.25f, w * 1.08f, w * 0.38f, 0);
+                var outline = (float[])m.Clone();
+                for (int i = 0; i < outline.Length; i++) outline[i] = Mathf.Max(outline[i], rim[i]);
+                r.Paint(r.Dilate(outline, RIM), FishArt.Navy);
                 r.Paint(m, (px, py) =>
                 {
                     // cylinder: lit on the left, shaded on the right, darker toward the base
@@ -599,8 +644,20 @@ namespace DeepFeast
                     c.a = 1;
                     return c;
                 });
+                // pitted sponge: dark pores, each with a lit lower lip
+                var lips = r.Mask(); var pits = r.Mask();
+                int pores = Mathf.RoundToInt(h * 26);
+                for (int k = 0; k < pores; k++)
+                {
+                    float px = x + (R.Next() * 2 - 1) * w * 0.72f, py = -h * (0.12f + R.Next() * 0.8f), pr = w * (0.07f + R.Next() * 0.06f);
+                    r.Circle(px, py + pr * 0.4f, pr, lips);
+                    r.Circle(px, py, pr, pits);
+                }
+                Raster.Mul(lips, m); Raster.Mul(pits, m);
+                r.Paint(lips, U.WithA(lite, 0.35f));
+                r.Paint(pits, U.WithA(shade, 0.7f));
                 // flared rim and dark mouth
-                r.Paint(r.Ellipse(x, -h + w * 0.25f, w * 1.08f, w * 0.38f, 0), lite);
+                r.Paint(rim, lite);
                 r.Paint(r.Ellipse(x, -h + w * 0.25f, w * 0.78f, w * 0.26f, 0), new Color(30 / 255f, 10 / 255f, 20 / 255f, 0.85f));
                 // tiny polyps peeking out
                 for (int k = 0; k < 3; k++)

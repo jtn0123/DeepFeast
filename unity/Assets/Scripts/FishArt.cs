@@ -120,15 +120,19 @@ namespace DeepFeast
             public float eyeR, hh;
             public bool shark;
             public Color fin;
+            // concept art has its eyes and fins painted in; every fish shows expressions as skin-tinted lids over the eye
+            public bool painted, lids;
+            public Vector2 eyeSize;
+            public Color lid;
         }
 
         static readonly Dictionary<string, Art> cache = new Dictionary<string, Art>();
-        static Sprite eyeNormal, eyeAngry, eyeShark, eyeSharkAngry, eyeBlink, eyeHappy, finOval;
+        static Sprite eyeNormal, eyeShark, eyeSharkAngry, finOval, lidBlink, lidHappy, lidAngry;
 
         public static Art Get(Species sp)
         {
             if (cache.TryGetValue(sp.key, out var a)) return a;
-            a = Bake(sp);
+            a = LoadConcept(sp) ?? Bake(sp);
             cache[sp.key] = a;
             return a;
         }
@@ -137,7 +141,26 @@ namespace DeepFeast
         {
             foreach (var s in Data.SpeciesMap.Values) Get(s);
             Get(Data.Shark); Get(Data.Player);
-            _ = EyeNormal; _ = EyeAngry; _ = EyeShark; _ = EyeSharkAngry; _ = EyeBlink; _ = EyeHappy; _ = FinOval;
+            _ = EyeNormal; _ = EyeShark; _ = EyeSharkAngry; _ = FinOval;
+            _ = LidBlink; _ = LidHappy; _ = LidAngry;
+        }
+
+        // ------------------------------------------------------------------ concept art (tools/cut_concepts.py)
+        static Art LoadConcept(Species sp)
+        {
+            var m = ConceptArt.FishMeta(sp.key);
+            if (m == null) return null;
+            var body = ConceptArt.Load($"fish_{sp.key}_body", m.bodyPX, m.bodyPY, m.ppu);
+            var tail = ConceptArt.Load($"fish_{sp.key}_tail", m.tailPX, m.tailPY, m.ppu);
+            if (body == null || tail == null) return null;
+            var open = m.open ? ConceptArt.Load($"fish_{sp.key}_open", m.bodyPX, m.bodyPY, m.ppu) : null;
+            return new Art
+            {
+                body = body, bodyOpen = open ?? body, tail = tail,
+                eyePos = new Vector2(m.eyeX, m.eyeY), eyeSize = new Vector2(m.eyeRX, m.eyeRY), hh = m.hh,
+                shark = sp.Sh.tail == TailKind.Shark, fin = sp.fin, painted = true, lids = m.overlay,
+                lid = new Color(m.lidR, m.lidG, m.lidB),
+            };
         }
 
         // ------------------------------------------------------------------ paths
@@ -238,7 +261,7 @@ namespace DeepFeast
             float maxY = Mathf.Max(hh * 1.95f, hh + hl * sh.aH * 1.45f + (sh.trailing ? hh * 0.2f : 0)) + pad;
             float minX = -hl * 1.0f - pad, maxX = hl * 1.08f + pad;
 
-            var art = new Art { shark = shark, hh = hh, fin = sp.fin };
+            var art = new Art { shark = shark, hh = hh, fin = sp.fin, lids = !shark, lid = Color.Lerp(sp.c1, sp.c0, 0.6f) };
             art.body = BakeBody(sp, sh, hl, hh, minX, minY, maxX, maxY, scale, 0f, outline);
             art.bodyOpen = BakeBody(sp, sh, hl, hh, minX, minY, maxX, maxY, scale, 1f, outline);
 
@@ -246,6 +269,7 @@ namespace DeepFeast
             var tr = new Raster(-tl * 1.35f - pad, -th - pad, hl * 0.12f + pad, th + pad, scale);
             var tm = tr.Fill(TailPath(sh, hl, hh));
             if (outline) tr.Paint(tr.Dilate(tm, OutlinePx(scale)), OutlineCol);
+            tr.Paint(tr.Dilate(tm, ContourPx(scale)), Navy);
             Color tc = sp.tailCol;
             tr.Paint(tm, (x, y) =>
             {
@@ -262,17 +286,19 @@ namespace DeepFeast
                 Raster.Mul(rays, tm);
                 tr.Paint(rays, new Color(0, 0.05f, 0.1f, 0.16f));
             }
-            tr.Paint(tr.InnerRing(tm, Mathf.Max(1, Mathf.RoundToInt(scale * 0.012f))), new Color(0, 0.07f, 0.14f, 0.3f));
             art.tail = tr.ToSprite(Vector2.zero, scale);
 
             float ex = hl * (shark ? 0.62f : 0.56f), ey = -hh * 0.22f;
             art.eyePos = new Vector2(ex, -ey);
-            art.eyeR = hl * (sp.eye > 0 ? sp.eye : sh.eye);
+            art.eyeR = hl * (sp.eye > 0 ? sp.eye : sh.eye) * (shark ? 1 : 1.2f);
             return art;
         }
 
         static readonly Color OutlineCol = new Color(0.94f, 1f, 1f, 1f);
         static int OutlinePx(float scale) => Mathf.RoundToInt(scale * 0.13f);
+        // clean navy contours, as in the concept art
+        internal static readonly Color Navy = new Color(0.05f, 0.09f, 0.16f, 1f);
+        static int ContourPx(float scale) => Mathf.Max(2, Mathf.RoundToInt(scale * 0.022f));
 
         static Sprite BakeBody(Species sp, Shape sh, float hl, float hh, float minX, float minY, float maxX, float maxY, float scale, float mouth, bool outline)
         {
@@ -281,15 +307,13 @@ namespace DeepFeast
             var fins = r.Fill(FinsPath(sh, hl, hh));
             var body = r.Fill(BodyPath(hl, hh, sh));
 
-            // player only: white sticker outline (faded out at the tail cut so the tail joins cleanly)
-            if (outline)
-            {
-                var all = (float[])body.Clone();
-                for (int i = 0; i < all.Length; i++) all[i] = Mathf.Max(all[i], fins[i]);
-                var ring = r.Dilate(all, OutlinePx(scale));
-                float cut = -hl * 0.86f + 2f / scale;
-                r.Paint(ring, (x, y) => { var c = OutlineCol; c.a = Mathf.Clamp01((x - cut) * scale * 0.5f); return c; });
-            }
+            // outlines round body and fins, faded out at the tail cut so the tail joins cleanly
+            var silhouette = (float[])body.Clone();
+            for (int i = 0; i < silhouette.Length; i++) silhouette[i] = Mathf.Max(silhouette[i], fins[i]);
+            float cut = -hl * 0.86f + 2f / scale;
+            Color Faded(Color c, float x) { c.a = Mathf.Clamp01((x - cut) * scale * 0.5f); return c; }
+            if (outline) r.Paint(r.Dilate(silhouette, OutlinePx(scale)), (x, y) => Faded(OutlineCol, x)); // player: white sticker
+            r.Paint(r.Dilate(silhouette, ContourPx(scale)), (x, y) => Faded(Navy, x));
 
             // fins behind the body: darker at the root, with fin rays
             float finSpan = hl * Mathf.Max(sh.dH, sh.aH) + hh * 0.4f;
@@ -414,8 +438,8 @@ namespace DeepFeast
                 Clipped(r.Fill(mp), U.Hex("#3b0d16"));
             }
 
-            // outline + gills
-            r.Paint(r.InnerRing(body, Mathf.Max(1, Mathf.RoundToInt(scale * 0.016f))), new Color(0, 18 / 255f, 36 / 255f, 0.42f));
+            // body edge (separates it from the fins), gills and a smile
+            r.Paint(r.InnerRing(body, Mathf.Max(1, Mathf.RoundToInt(scale * 0.014f))), (x, y) => Faded(U.WithA(Navy, 0.75f), x));
             float lw = hl * 0.028f;
             var g = r.Mask();
             if (shark)
@@ -428,6 +452,12 @@ namespace DeepFeast
             }
             else r.Stroke(Arc(hl * 0.62f, 0, hl * 0.28f, Mathf.PI * 0.72f, Mathf.PI * 1.28f), lw, g);
             r.Paint(g, new Color(0, 0, 0, 0.22f));
+            if (!shark && mouth == 0)
+            {
+                var smile = r.Stroke(Raster.QuadPts(new Vector2(hl * 0.97f, hh * 0.1f), new Vector2(hl * 0.88f, hh * 0.3f), new Vector2(hl * 0.77f, hh * 0.12f)), hl * 0.024f);
+                Raster.Mul(smile, body);
+                r.Paint(smile, U.WithA(Navy, 0.8f));
+            }
 
             if (shark)
             {
@@ -447,23 +477,14 @@ namespace DeepFeast
         static void Brow(Raster r) => r.Paint(r.Stroke(new[] { new Vector2(-1.3f, -1.7f), new Vector2(1.1f, -0.95f) }, 0.45f), U.Hex("#1a0d0d"));
         static void Shine(Raster r) => r.Paint(r.Circle(0.05f, -0.32f, 0.26f), Color.white);
 
-        static void Rim(Raster r) => r.Paint(r.Circle(0, 0, 1.16f), new Color(0, 0.05f, 0.1f, 0.4f));
-
+        // big cartoon eye in the concept style: navy rim, large pupil, two catch-lights
         public static Sprite EyeNormal => eyeNormal ??= EyeSprite(r =>
         {
-            Rim(r);
-            r.Paint(r.Circle(0, 0, 1), Color.white);
-            r.Paint(r.Circle(0.25f, 0, 0.6f), U.Hex("#0b0f14"));
+            r.Paint(r.Circle(0, 0, 1.16f), Navy);
+            r.Paint(r.Circle(0, 0, 1), (x, y) => Color.Lerp(Color.white, U.Hex("#d9e4f2"), Mathf.Clamp01(y * 0.8f + 0.2f)));
+            r.Paint(r.Circle(0.24f, 0.04f, 0.66f), U.Hex("#0b0f14"));
             Shine(r);
-        });
-        public static Sprite EyeAngry => eyeAngry ??= EyeSprite(r =>
-        {
-            Rim(r);
-            r.Paint(r.Circle(0, 0, 1), Color.white);
-            r.Paint(r.Circle(0.22f, 0, 0.66f), U.Hex("#e0283c"));
-            r.Paint(r.Circle(0.25f, 0, 0.36f), U.Hex("#0b0f14"));
-            Shine(r);
-            Brow(r);
+            r.Paint(r.Circle(0.5f, 0.36f, 0.11f), new Color(1, 1, 1, 0.85f));
         });
         public static Sprite EyeShark => eyeShark ??= EyeSprite(r =>
         {
@@ -476,10 +497,27 @@ namespace DeepFeast
             Shine(r);
             Brow(r);
         });
-        public static Sprite EyeBlink => eyeBlink ??= EyeSprite(r =>
-            r.Paint(r.Stroke(new[] { new Vector2(-1, 0), new Vector2(1, 0) }, 0.35f), U.Hex("#0b0f14")));
-        public static Sprite EyeHappy => eyeHappy ??= EyeSprite(r =>
-            r.Paint(r.Stroke(new[] { new Vector2(-0.9f, 0.3f), new Vector2(0, -0.5f), new Vector2(0.9f, 0.3f) }, 0.38f), U.Hex("#0b0f14")));
+
+        // lids laid over the eye: white (tinted to the skin by the renderer) with dark lash lines
+        static readonly Color Lash = U.Hex("#0b0f14");
+        public static Sprite LidBlink => lidBlink ??= EyeSprite(r =>
+        {
+            r.Paint(r.Circle(0, 0, 1.18f), Color.white);
+            r.Paint(r.Stroke(Raster.QuadPts(new Vector2(-1, 0.05f), new Vector2(0, 0.45f), new Vector2(1, 0.05f)), 0.3f), Lash);
+        });
+        public static Sprite LidHappy => lidHappy ??= EyeSprite(r =>
+        {
+            r.Paint(r.Circle(0, 0, 1.18f), Color.white);
+            r.Paint(r.Stroke(Raster.QuadPts(new Vector2(-0.9f, 0.35f), new Vector2(0, -0.45f), new Vector2(0.9f, 0.35f)), 0.32f), Lash);
+        });
+        public static Sprite LidAngry => lidAngry ??= EyeSprite(r =>
+        {
+            // heavy upper lid sloping down toward the snout, edged with a scowl line
+            var lid = r.Circle(0, 0, 1.18f);
+            Raster.Mul(lid, r.Fill(new Path().Poly(new[] { new Vector2(-1.6f, -2), new Vector2(1.6f, -2), new Vector2(1.6f, 0.05f), new Vector2(-1.6f, -0.85f) })));
+            r.Paint(lid, Color.white);
+            r.Paint(r.Stroke(new[] { new Vector2(-1.35f, -0.97f), new Vector2(1.3f, -0.02f) }, 0.34f), Lash);
+        });
 
         /// White oval, rx = ry = 1, centred 0.7 behind the pivot (pectoral fin).
         public static Sprite FinOval => finOval ??= MakeFin();
@@ -508,7 +546,7 @@ namespace DeepFeast
     {
         public readonly GameObject root;
         readonly Transform pivot, tailT, finT, eyeT;
-        readonly SpriteRenderer body, tail, fin, eye;
+        readonly SpriteRenderer body, tail, fin, eye, lid;
         readonly SortingGroup group;
         public readonly SpriteRenderer halo;
         FishArt.Art art;
@@ -528,6 +566,7 @@ namespace DeepFeast
             finT = fin.transform;
             eye = Gfx.SpriteObject("Eye", pivot, FishArt.EyeNormal, 3);
             eyeT = eye.transform;
+            lid = Gfx.SpriteObject("Lid", eyeT, null, 4);
             halo = Gfx.SpriteObject("Halo", haloParent, Gfx.Glow, Layer.Halo);
             halo.enabled = false;
         }
@@ -540,11 +579,15 @@ namespace DeepFeast
             body.sprite = art.body;
             tail.sprite = art.tail;
             tailT.localPosition = new Vector3(-FishArt.HL * 0.84f, 0, 0);
-            fin.enabled = !art.shark;
+            fin.enabled = HasFin;
             fin.color = art.fin * new Color(1, 1, 1, 0.85f);
             eyeT.localPosition = art.eyePos;
-            eyeT.localScale = new Vector3(art.eyeR, art.eyeR, 1);
+            eyeT.localScale = art.painted ? new Vector3(art.eyeSize.x, art.eyeSize.y, 1) : new Vector3(art.eyeR, art.eyeR, 1);
+            eye.sprite = art.painted ? null : art.shark ? FishArt.EyeShark : FishArt.EyeNormal;
+            lid.color = art.lid;
         }
+
+        bool HasFin => art != null && !art.shark && !art.painted;
 
         public void SetActive(bool on) { if (root.activeSelf != on) root.SetActive(on); if (!on) halo.enabled = false; }
 
@@ -566,28 +609,26 @@ namespace DeepFeast
             tailT.localPosition = new Vector3(-FishArt.HL * 0.84f, -w * hh * 0.45f, 0);
             tailT.localRotation = Quaternion.Euler(0, 0, -w * 1.3f * Mathf.Rad2Deg);
             body.sprite = f.mouth > 0.4f ? art.bodyOpen : art.body;
-            if (!art.shark)
+            if (HasFin)
             {
                 finT.localPosition = new Vector3(FishArt.HL * 0.22f, -hh * 0.25f, 0);
                 finT.localRotation = Quaternion.Euler(0, 0, -(0.6f + Mathf.Sin(f.wag * 1.3f) * 0.35f) * Mathf.Rad2Deg);
                 finT.localScale = new Vector3(FishArt.HL * 0.17f, Mathf.Max(hh * 0.12f, 0.02f), 1);
             }
-            Sprite e;
-            if (art.shark) e = eyeMode == EyeMode.Angry ? FishArt.EyeSharkAngry : FishArt.EyeShark;
-            else e = eyeMode switch
+            if (art.shark && !art.painted) eye.sprite = eyeMode == EyeMode.Angry ? FishArt.EyeSharkAngry : FishArt.EyeShark;
+            lid.sprite = !art.lids ? null : eyeMode switch
             {
-                EyeMode.Angry => FishArt.EyeAngry,
-                EyeMode.Blink => FishArt.EyeBlink,
-                EyeMode.Happy => FishArt.EyeHappy,
-                _ => FishArt.EyeNormal,
+                EyeMode.Angry => FishArt.LidAngry,
+                EyeMode.Blink => FishArt.LidBlink,
+                EyeMode.Happy => FishArt.LidHappy,
+                _ => null,
             };
-            eye.sprite = e;
         }
 
         public void SetVisible(bool v)
         {
-            body.enabled = tail.enabled = eye.enabled = v;
-            fin.enabled = v && art != null && !art.shark;
+            body.enabled = tail.enabled = eye.enabled = lid.enabled = v;
+            fin.enabled = v && HasFin;
         }
     }
 }

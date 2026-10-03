@@ -259,7 +259,7 @@ namespace DeepFeast
             {
                 sunBloom.transform.localPosition = U.V3(sunX, 60);
                 sunBloom.transform.localScale = new Vector3(2400, 1500, 1);
-                sunBloom.color = new Color(0.85f, 1, 0.95f, 0.22f * bloomK);
+                sunBloom.color = new Color(0.85f, 1, 0.95f, 0.16f * bloomK);
             }
 
             // sea surface, sky and sun glare
@@ -317,7 +317,7 @@ namespace DeepFeast
                 const float step = 48;
                 float sx0 = Mathf.Floor((x0 - 60) / step) * step - step, sx1 = x1 + 60 + step;
                 float[] rows = { 0, 50, 170, 380 };
-                float[] alphas = { 0.11f, 0.065f, 0.022f, 0 };
+                float[] alphas = { 0.05f, 0.03f, 0.01f, 0 };
                 for (int layer = 0; layer < 2; layer++)
                 {
                     float sc = layer == 0 ? 1 / 340f : 1 / 230f;

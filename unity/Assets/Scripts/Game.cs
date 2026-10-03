@@ -55,7 +55,7 @@ namespace DeepFeast
         readonly List<Hole> holes = new List<Hole>();
         readonly List<Alert> alerts = new List<Alert>();
         readonly Dictionary<float, Sprite> bellSprites = new Dictionary<float, Sprite>();
-        Sprite pearlSprite, pearlStar;
+        Sprite pearlSprite, pearlStar, pearlRing;
         int nextId = 1;
 
         // ------------------------------------------------------------------ input
@@ -64,7 +64,7 @@ namespace DeepFeast
         Vector3 lastMouse;
 
         // ------------------------------------------------------------------ test harness (command line)
-        bool autoplay, noPause;
+        bool autoplay, noPause, gallery;
         string shotDir;
         float shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, realTime, statT, botWanderDir = 1, restartT = -1;
         int shotN;
@@ -121,6 +121,7 @@ namespace DeepFeast
             zoom = Data.ZoomFor(22);
             for (int i = 0; i < 60; i++) SpawnOne(true);
             lastMouse = Input.mousePosition;
+            if (gallery) SetupGallery();
         }
 
         void BuildPlayerView()
@@ -138,30 +139,56 @@ namespace DeepFeast
 
         void BuildPearlArt()
         {
-            var r = new Raster(-1.05f, -1.05f, 1.05f, 1.05f, 48);
-            Color a = Color.white, b = U.Hex("#ffe6f5"), c = U.Hex("#c9a8e8");
-            r.Paint(r.Circle(0, 0, 1), (x, y) =>
+            // iridescent pearl: warm core, lavender rim, cyan and pink sheen, bright catch-light
+            static float Blob(float dx, float dy, float rad) => Mathf.Clamp01(1 - Mathf.Sqrt(dx * dx + dy * dy) / rad);
+            var r = new Raster(-1.05f, -1.05f, 1.05f, 1.05f, 64);
+            Color core = U.Hex("#fff4ea"), mid = U.Hex("#eedcff"), rim = U.Hex("#a993ea"), cyan = U.Hex("#9fe8ff"), pink = U.Hex("#ffc4e6");
+            var disc = r.Circle(0, 0, 1);
+            r.Paint(disc, (x, y) =>
             {
-                float t = Mathf.Clamp01(Vector2.Distance(new Vector2(x, y), new Vector2(-0.35f, -0.35f)) / 1.3f);
-                return t < 0.5f ? Color.Lerp(a, b, t * 2) : Color.Lerp(b, c, t * 2 - 1);
+                float d = Vector2.Distance(new Vector2(x, y), new Vector2(-0.12f, -0.1f));
+                var c = d < 0.55f ? Color.Lerp(core, mid, d / 0.55f) : Color.Lerp(mid, rim, (d - 0.55f) / 0.55f);
+                c = Color.Lerp(c, cyan, Blob(x - 0.42f, y - 0.45f, 0.45f) * 0.6f);
+                return Color.Lerp(c, pink, Blob(x - 0.5f, y + 0.25f, 0.38f) * 0.45f);
             });
-            pearlSprite = r.ToSprite(Vector2.zero, 48);
-            var s = new Raster(-2.3f, -2.3f, 2.3f, 2.3f, 32);
+            r.Paint(r.InnerRing(disc, 2), new Color(1, 1, 1, 0.5f));
+            r.Paint(r.Ellipse(-0.38f, -0.42f, 0.27f, 0.19f, -0.6f), new Color(1, 1, 1, 0.92f));
+            pearlSprite = r.ToSprite(Vector2.zero, 64);
+
+            // thin cyan halo ring with a soft glow
+            var h = new Raster(-1.75f, -1.75f, 1.75f, 1.75f, 48);
+            var ring = h.Circle(0, 0, 1.5f);
+            var inner = h.Circle(0, 0, 1.42f);
+            for (int i = 0; i < ring.Length; i++) ring[i] = Mathf.Clamp01(ring[i] - inner[i]);
+            h.Paint(h.Blur(ring, 4), new Color(0.45f, 0.9f, 1, 0.9f));
+            h.Paint(ring, new Color(0.75f, 0.97f, 1, 1));
+            pearlRing = h.ToSprite(Vector2.zero, 48);
+
+            // long, thin four-point sparkle
+            var s = new Raster(-3.2f, -3.2f, 3.2f, 3.2f, 32);
             var m = s.Mask();
             for (int i = 0; i < 4; i++)
             {
                 float ang = i * Mathf.PI / 2, cs = Mathf.Cos(ang), sn = Mathf.Sin(ang);
                 Vector2 R(float x, float y) => new Vector2(x * cs - y * sn, x * sn + y * cs);
-                Vector2 p0 = R(0, -0.15f), p1 = R(2.2f, 0), p2 = R(0, 0.15f);
+                Vector2 p0 = R(0, -0.09f), p1 = R(i % 2 == 0 ? 2.6f : 3.1f, 0), p2 = R(0, 0.09f);
                 s.Fill(new Path().Move(p0.x, p0.y).Line(p1.x, p1.y).Line(p2.x, p2.y), m);
             }
-            s.Paint(m, new Color(1, 1, 1, 0.9f));
+            s.Circle(0, 0, 0.22f, m);
+            s.Paint(m, new Color(1, 1, 1, 0.95f));
             pearlStar = s.ToSprite(Vector2.zero, 32);
         }
 
         Sprite BellSprite(float hue)
         {
             if (bellSprites.TryGetValue(hue, out var spr)) return spr;
+            spr = ConceptArt.JellyBell(hue) ?? ProceduralBell(hue);
+            bellSprites[hue] = spr;
+            return spr;
+        }
+
+        static Sprite ProceduralBell(float hue)
+        {
             float bw = 1, bh = 0.75f;
             var r = new Raster(-1.08f, -0.83f, 1.08f, 0.25f, 64);
             var p = new Path().Move(-bw, 0);
@@ -180,9 +207,7 @@ namespace DeepFeast
                 return t < 0.55f ? Color.Lerp(c0, c1, t / 0.55f) : Color.Lerp(c1, c2, (t - 0.55f) / 0.45f);
             });
             r.Paint(r.InnerRing(m, 2), U.Hsl(hue, 1, 0.92f, 0.6f));
-            spr = r.ToSprite(Vector2.zero, 64);
-            bellSprites[hue] = spr;
-            return spr;
+            return r.ToSprite(Vector2.zero, 64);
         }
 
         // ================================================================== args / harness
@@ -195,6 +220,7 @@ namespace DeepFeast
         {
             args = Environment.GetCommandLineArgs();
             autoplay = Has("-autoplay");
+            gallery = Has("-gallery");
             noPause = autoplay || Has("-nopause");
             shotDir = Arg("-shots");
             shotEvery = ArgF("-shotevery", 15);
@@ -251,6 +277,42 @@ namespace DeepFeast
                 if (restartT <= 1.2f && restartT + rdt > 1.2f) Shot($"over_{shotN++:00}");
                 if (restartT <= 0) { restartT = -1; StartGame(); nextShot = playTime + 2; }
             }
+        }
+
+        // -gallery: every species side by side at one size, plus jellies and a pearl, for art review
+        void SetupGallery()
+        {
+            state = GState.Play;
+            hud.StartPlay();
+            foreach (var f in fish) ReleaseView(f);
+            fish.Clear(); schools.Clear();
+            var all = new List<Species>(Data.SpeciesMap.Values) { Data.Shark, Data.Player };
+            zoom = 1.5f;
+            cam = new Vector2(10200, 1300);
+            float cw = refW / 5 / zoom, top = cam.y - refH / 2 / zoom;
+            for (int i = 0; i < 15; i++)
+            {
+                float x = cam.x + (i % 5 - 2) * cw, y = top + (0.3f + i / 5 * 0.26f) * refH / zoom;
+                if (i < all.Count)
+                {
+                    var f = MakeFish(all[i], 34, x, y, 1);
+                    f.shark = all[i] == Data.Shark;
+                    fish.Add(f);
+                }
+                else if (i < 14) AddJelly(x, y - 40, 30, i == 12 ? 270 : 190);
+                else AddPearl(x, y, 12);
+            }
+        }
+
+        void Gallery(float rdt)
+        {
+            realTime += rdt; time += rdt;
+            foreach (var f in fish) f.wag += rdt * 5;
+            foreach (var j in jellies) j.phase += rdt * j.pf;
+            if (shotN == 0 && realTime > 2.5f) { Shot("gallery"); shotN = 1; }
+            if (shotN == 1 && realTime > 3.5f) { foreach (var f in fish) { f.state = FState.Chase; f.mouth = 1; } shotN = 2; }
+            if (shotN == 2 && realTime > 4.5f) { Shot("gallery_bite"); shotN = 3; }
+            if (quitAfter > 0 && realTime >= quitAfter) Application.Quit();
         }
 
         // ================================================================== flow
@@ -459,19 +521,21 @@ namespace DeepFeast
             float r = Mathf.Max(9, pr * U.Rand(0.75f, 1.35f));
             float y = Mathf.Clamp(cam.y + U.Rand(-0.5f, 0.5f) * vh, 650, world.FloorY(x) - r * 4 - 60);
             if (!world.InWater(x, y, r * 2)) return;
-            var j = new Jelly
-            {
-                x = x, y = y, r = r, vx = U.Rand(-0.04f, 0.04f) * Data.SpeedFor(pr), phase = U.Rand(0, U.TAU), pf = U.Rand(1.6f, 2.4f),
-                hue = U.Pick(new float[] { 300, 320, 190, 270, 200 }),
-            };
+            AddJelly(x, y, r, U.Pick(new float[] { 300, 320, 190, 270, 200 })).vx = U.Rand(-0.04f, 0.04f) * Data.SpeedFor(pr);
+        }
+
+        Jelly AddJelly(float x, float y, float r, float hue)
+        {
+            var j = new Jelly { x = x, y = y, r = r, phase = U.Rand(0, U.TAU), pf = U.Rand(1.6f, 2.4f), hue = hue };
             j.bell = Gfx.SpriteObject("Jelly", fxRoot, BellSprite(j.hue), Layer.Jelly + jellies.Count);
             j.glow = Gfx.SpriteObject("JellyGlow", fxRoot, Gfx.Glow, Layer.Glow, true);
             j.glow.color = U.Hsl(j.hue, 1, 0.7f, 0.24f);
             jellies.Add(j);
+            return j;
         }
 
         void DestroyJelly(Jelly j) { Destroy(j.bell.gameObject); Destroy(j.glow.gameObject); }
-        void DestroyPearl(Pearl p) { Destroy(p.body.gameObject); Destroy(p.star.gameObject); Destroy(p.glow.gameObject); }
+        void DestroyPearl(Pearl p) { Destroy(p.body.gameObject); Destroy(p.star.gameObject); Destroy(p.glow.gameObject); Destroy(p.ring.gameObject); }
 
         void SpawnShark()
         {
@@ -497,14 +561,21 @@ namespace DeepFeast
             {
                 float x = cam.x + U.Rand(-0.38f, 0.38f) * vw, y = cam.y + U.Rand(-0.36f, 0.36f) * vh;
                 if (!world.InWater(x, y, pr) || Dist(x - player.x, y - player.y) < pr * 5) continue;
-                var p = new Pearl { x = x, y = y, r = Mathf.Max(6, pr * 0.32f), life = 16, ph = U.Rand(0, U.TAU) };
-                p.glow = Gfx.SpriteObject("PearlGlow", fxRoot, Gfx.Glow, Layer.Glow, true);
-                p.glow.color = new Color(1, 220 / 255f, 250 / 255f, 0.4f);
-                p.body = Gfx.SpriteObject("Pearl", fxRoot, pearlSprite, Layer.Pearl);
-                p.star = Gfx.SpriteObject("PearlStar", fxRoot, pearlStar, Layer.Pearl + 1);
-                pearls.Add(p);
+                AddPearl(x, y, Mathf.Max(6, pr * 0.32f));
                 return;
             }
+        }
+
+        Pearl AddPearl(float x, float y, float r)
+        {
+            var p = new Pearl { x = x, y = y, r = r, life = 16, ph = U.Rand(0, U.TAU) };
+            p.glow = Gfx.SpriteObject("PearlGlow", fxRoot, Gfx.Glow, Layer.Glow, true);
+            p.glow.color = new Color(0.7f, 0.88f, 1, 0.38f);
+            p.ring = Gfx.SpriteObject("PearlRing", fxRoot, pearlRing, Layer.Pearl - 1, true);
+            p.body = Gfx.SpriteObject("Pearl", fxRoot, pearlSprite, Layer.Pearl);
+            p.star = Gfx.SpriteObject("PearlStar", fxRoot, pearlStar, Layer.Pearl + 1);
+            pearls.Add(p);
+            return p;
         }
 
         // ================================================================== particles
@@ -537,6 +608,7 @@ namespace DeepFeast
             float rdt = Mathf.Min(0.1f, Time.unscaledDeltaTime);
             float dt = Mathf.Min(0.05f, Time.deltaTime);
             Resize();
+            if (gallery) { Gallery(rdt); Render(rdt, rdt); return; }
             ReadInput();
             Harness(rdt);
             if (state != GState.Paused)
@@ -1182,26 +1254,33 @@ namespace DeepFeast
                 j.bell.sortingOrder = Layer.Jelly + ji;
                 j.glow.transform.localPosition = U.V3(j.x, j.y);
                 j.glow.transform.localScale = Vector3.one * j.r * 6;
-                var tc = U.Hsl(j.hue, 0.9f, 0.78f, 0.5f);
-                float tw = Mathf.Max(1 / zoom, j.r * 0.05f);
-                var pts = new List<Vector2>(10);
-                for (int i = 0; i < 7; i++)
+                // fine tentacles ending in glowing beads
+                var tc = U.Hsl(j.hue, 0.85f, 0.78f, 0.6f);
+                var bead = U.Hsl(j.hue, 1, 0.92f, 1);
+                float tw = Mathf.Max(1 / zoom, j.r * 0.045f);
+                var pts = new List<Vector2>(12);
+                for (int i = 0; i < 8; i++)
                 {
-                    float tx0 = j.x + (i / 6f - 0.5f) * bw * 1.5f;
+                    float tx0 = j.x + (i / 7f - 0.5f) * bw * 1.5f;
                     pts.Clear();
                     pts.Add(new Vector2(tx0, j.y));
-                    for (int s = 1; s <= 9; s++)
-                        pts.Add(new Vector2(tx0 + Mathf.Sin(time * 2.4f + s * 0.65f + i * 1.3f) * j.r * 0.12f * (s / 4f), j.y + s * j.r * 0.3f));
-                    Draw.Stroke(jmb, pts, tw, tw * 0.6f, tc);
+                    for (int s = 1; s <= 10; s++)
+                        pts.Add(new Vector2(tx0 + Mathf.Sin(time * 2.4f + s * 0.6f + i * 1.3f) * j.r * 0.14f * (s / 4f), j.y + s * j.r * (0.26f + (i % 3) * 0.03f)));
+                    Draw.Stroke(jmb, pts, tw, tw * 0.6f, tc, U.WithA(tc, 0.35f));
+                    var e = pts[pts.Count - 1];
+                    Draw.Circle(jmb, e.x, e.y, tw * 2.4f, U.WithA(bead, 0.22f), 10);
+                    Draw.Circle(jmb, e.x, e.y, tw * 1.15f, bead, 8);
                 }
-                var oc = U.Hsl(j.hue, 0.9f, 0.85f, 0.7f);
-                float ow = Mathf.Max(1.5f / zoom, j.r * 0.13f);
-                for (int i = 0; i < 3; i++)
+                // frilly oral arms: wide translucent ribbons with a brighter spine
+                Color armA = U.Hsl(j.hue, 0.8f, 0.82f, 0.82f), armB = U.Hsl(j.hue, 0.85f, 0.72f, 0.3f), spine = U.Hsl(j.hue, 0.9f, 0.92f, 0.6f);
+                float ow = Mathf.Max(2 / zoom, j.r * 0.38f);
+                for (int i = 0; i < 4; i++)
                 {
-                    float tx0 = j.x + (i - 1) * bw * 0.22f;
+                    float tx0 = j.x + (i - 1.5f) * bw * 0.16f;
                     var c = Draw.CubicPts(tx0, j.y, tx0 + Mathf.Sin(time * 1.6f + i) * j.r * 0.3f, j.y + j.r * 0.8f,
-                        tx0 - Mathf.Sin(time * 1.3f + i) * j.r * 0.3f, j.y + j.r * 1.4f, tx0, j.y + j.r * 1.9f, 10);
-                    Draw.Stroke(jmb, c, ow, ow * 0.5f, oc, true);
+                        tx0 - Mathf.Sin(time * 1.3f + i) * j.r * 0.3f, j.y + j.r * 1.4f, tx0 + (i - 1.5f) * j.r * 0.12f, j.y + j.r * (1.9f + (i & 1) * 0.35f), 16);
+                    Draw.Ribbon(jmb, c, ow, ow * 0.25f, 0.34f, time * 3 + i * 1.7f, armA, armB);
+                    Draw.Stroke(jmb, c, ow * 0.18f, ow * 0.04f, spine, U.WithA(spine, 0.1f));
                 }
             }
             jmb.Apply(jellyMesh);
@@ -1211,11 +1290,14 @@ namespace DeepFeast
             {
                 float bob = Mathf.Sin(time * 2 + p.ph) * p.r * 0.4f;
                 bool hidden = p.life < 3 && Mathf.FloorToInt(time * 8) % 2 == 1;
-                p.body.enabled = p.star.enabled = !hidden;
+                p.body.enabled = p.star.enabled = p.ring.enabled = !hidden;
                 var pos = U.V3(p.x, p.y + bob);
                 p.body.transform.localPosition = pos; p.body.transform.localScale = Vector3.one * p.r;
-                p.star.transform.localPosition = pos; p.star.transform.localScale = Vector3.one * p.r;
-                p.star.transform.localRotation = Quaternion.Euler(0, 0, -time * 1.5f * Mathf.Rad2Deg);
+                p.ring.transform.localPosition = pos; p.ring.transform.localScale = Vector3.one * p.r * (1 + 0.04f * Mathf.Sin(time * 3 + p.ph));
+                p.ring.color = new Color(1, 1, 1, 0.7f + 0.3f * Mathf.Sin(time * 3 + p.ph));
+                float tw = 0.85f + 0.15f * Mathf.Sin(time * 5 + p.ph);
+                p.star.transform.localPosition = pos; p.star.transform.localScale = Vector3.one * p.r * tw;
+                p.star.transform.localRotation = Quaternion.Euler(0, 0, Mathf.Sin(time * 0.8f + p.ph) * 12);
                 p.glow.transform.localPosition = pos; p.glow.transform.localScale = Vector3.one * p.r * 10;
             }
 
