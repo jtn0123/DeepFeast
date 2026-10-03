@@ -107,6 +107,24 @@ def main():
             ppu = (box[2] - box[0]) / prop_widths[key]
             catalog["props"].append(dict(key=key, atlas="atlas-props-v2", ppu=round(ppu, 5),
                                          frame=frame(box, (box[0] + box[2]) / 2, box[3] - 2, image)))
+    # Environment sprites retain the generator's original alpha. Botanical height is one game unit;
+    # reef formations share a 2.4-unit width. Group by grounding bases, since authored heights vary.
+    for sheet, rows in [
+        ("plants", [["kelp-teal", "kelp-olive", "seaweed-red"], ["seagrass", "anemone-rose", "anemone-deep"]]),
+        ("reefs", [["reef-shelf", "reef-arch"], ["reef-terrace", "reef-abyss"]]),
+    ]:
+        image = Image.open(DEST / f"atlas-{sheet}-v3.png")
+        boxes = sorted(regions(image), key=lambda box: (box[3], box[0]))
+        assert len(boxes) == sum(map(len, rows)), (sheet, boxes)
+        offset = 0
+        for names in rows:
+            row = sorted(boxes[offset:offset + len(names)], key=lambda box: box[0])
+            offset += len(names)
+            for box, key in zip(row, names):
+                ppu = box[3] - box[1] if sheet == "plants" else (box[2] - box[0]) / 2.4
+                catalog["props"].append(dict(key=key, atlas=f"atlas-{sheet}-v3", ppu=round(ppu, 5),
+                    frame=frame(box, (box[0] + box[2]) / 2, box[3] - 2, image)))
+                print(f"{key:16s} frame={box}")
     out = DEST / "painted-atlas.json"
     out.write_text(json.dumps(catalog, indent=2) + "\n")
     print(f"Wrote {out.relative_to(ROOT)}; source PNGs unchanged.")

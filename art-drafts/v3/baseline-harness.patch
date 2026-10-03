@@ -1,0 +1,53 @@
+diff --git a/unity/Assets/Scripts/Game.cs b/unity/Assets/Scripts/Game.cs
+index 504b3a7..c1516da 100644
+--- a/unity/Assets/Scripts/Game.cs
++++ b/unity/Assets/Scripts/Game.cs
+@@ -70 +70 @@ namespace DeepFeast
+-        string shotDir;
++        string shotDir, scenery;
+@@ -83,0 +84 @@ namespace DeepFeast
++            if (scenery != null) UnityEngine.Random.InitState(20261003);
+@@ -133,0 +135 @@ namespace DeepFeast
++            if (scenery != null) SetupScenery();
+@@ -234 +236,2 @@ namespace DeepFeast
+-            noPause = autoplay || Has("-nopause");
++            scenery = Arg("-scenery");
++            noPause = autoplay || scenery != null || Has("-nopause");
+@@ -370,0 +374,35 @@ namespace DeepFeast
++        // Fixed native camera/creatures/time for comparable environment reviews; normal gameplay never enters this path.
++        void SetupScenery()
++        {
++            StartGame();
++            foreach (var f in fish) ReleaseView(f);
++            fish.Clear(); schools.Clear();
++            foreach (var j in jellies) DestroyJelly(j);
++            jellies.Clear();
++            hud.ClearTexts();
++            float x = scenery == "abyss" ? 11000 : scenery == "kelp" ? 7200 : scenery == "surface" ? 8600 : 5500;
++            zoom = 1.05f;
++            cam = new Vector2(x, scenery == "surface" ? 340 : world.FloorY(x) - 260);
++            player.r = 22; tier = 1; pInvuln = 0;
++            player.x = x; player.y = cam.y; player.wag = 2;
++            var species = new[] { Data.SpeciesMap["clown"], Data.SpeciesMap["tang"], Data.SpeciesMap["snapper"], Data.SpeciesMap["angel"] };
++            for (int i = 0; i < species.Length; i++)
++                fish.Add(MakeFish(species[i], 17 + i * 2, x + (i - 1.5f) * 250, cam.y - 100 + (i % 2) * 90, i % 2 == 0 ? 1 : -1));
++            Debug.Log($"[DeepFeast] scenery {scenery}: camera={cam}, zoom={zoom}, fixed seed=20261003.");
++        }
++
++        void Scenery(float rdt)
++        {
++            realTime += rdt;
++            bool animate = Has("-animate-scenery");
++            time = 2 + (animate ? shotN * shotEvery : 0);
++            foreach (var f in fish) f.wag = time * 5;
++            player.wag = time * 5;
++            if (realTime > 3.1f && (shotN == 0 || animate && realTime >= nextShot))
++            {
++                Shot(animate ? $"scenery_{shotN:000}" : "scenery");
++                shotN++; nextShot = realTime + shotEvery;
++            }
++            if (quitAfter > 0 && realTime >= quitAfter) Application.Quit();
++        }
++
+@@ -665,0 +704 @@ namespace DeepFeast
++            if (scenery != null) { Scenery(rdt); Render(0, rdt); return; }

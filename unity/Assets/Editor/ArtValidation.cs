@@ -14,7 +14,7 @@ namespace DeepFeast.EditorTools
         {
             var catalog = PaintedArt.Entries;
             Require(catalog?.fish != null && catalog.fish.Length == 12, "Expected all twelve painted fish.");
-            Require(catalog.props != null && catalog.props.Length == 6, "Expected all six painted decor sprites.");
+            Require(catalog.props != null && catalog.props.Length == 16, "Expected six reef props, six plants and four parallax formations.");
             var keys = new HashSet<string>();
             var atlases = new HashSet<string>();
             foreach (var f in catalog.fish)
@@ -24,7 +24,13 @@ namespace DeepFeast.EditorTools
                 Frame(f.atlas, f.closed); Frame(f.atlas, f.open);
                 atlases.Add(f.atlas);
             }
-            foreach (var p in catalog.props) { Frame(p.atlas, p.frame); atlases.Add(p.atlas); }
+            var propKeys = new HashSet<string>();
+            foreach (var p in catalog.props)
+            {
+                Require(propKeys.Add(p.key), "Duplicate prop: " + p.key);
+                Require(p.ppu > 0, "Invalid prop scale: " + p.key);
+                Frame(p.atlas, p.frame); atlases.Add(p.atlas);
+            }
             foreach (var atlas in atlases)
             {
                 string path = "Assets/Resources/Concept/" + atlas + ".png";
@@ -57,7 +63,15 @@ namespace DeepFeast.EditorTools
             Require(shader != null && !ShaderUtil.ShaderHasError(shader), "Swimming shader is missing or has compiler errors.");
             foreach (var key in new[] { "branch", "brain", "tube", "fan", "rock", "deep" })
                 Require(PaintedArt.Prop(key) != null, "Missing prop: " + key);
-            Debug.Log("[DeepFeast] production art validation passed: 12 species, 24 aligned pose keys, 6 props, transparent atlases and swimming shader.");
+            foreach (var key in new[] { "kelp-teal", "kelp-olive", "seaweed-red", "seagrass", "anemone-rose", "anemone-deep", "reef-shelf", "reef-arch", "reef-terrace", "reef-abyss" })
+            {
+                var mesh = EnvironmentArt.Geometry(key);
+                Require(mesh != null && mesh.vertexCount == 273, "Missing environment deformation mesh: " + key);
+                Require(mesh.bounds.min.y < 0.02f && mesh.bounds.max.y > 0.5f, "Unrooted or undersized environment sprite: " + key);
+            }
+            var plants = Resources.Load<Shader>("Shaders/PlantSway");
+            Require(plants != null && !ShaderUtil.ShaderHasError(plants), "Plant current/fog shader is missing or has compiler errors.");
+            Debug.Log("[DeepFeast] production art validation passed: 12 species, 24 aligned pose keys, 16 props, 10 shared environment meshes, transparent atlases and both animation shaders.");
         }
 
         static void Frame(string atlas, PaintedArt.Frame f)

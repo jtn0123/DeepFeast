@@ -67,7 +67,7 @@ namespace DeepFeast
 
         // ------------------------------------------------------------------ test harness (command line)
         bool autoplay, noPause, gallery, animateGallery;
-        string shotDir;
+        string shotDir, scenery;
         float shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, realTime, statT, botWanderDir = 1, restartT = -1;
         int shotN;
         bool menuShotDone;
@@ -81,6 +81,7 @@ namespace DeepFeast
         void Awake()
         {
             ParseArgs();
+            if (scenery != null) UnityEngine.Random.InitState(20261003);
             Application.runInBackground = true;
 #if !UNITY_WEBGL
             Application.targetFrameRate = 60;
@@ -131,6 +132,7 @@ namespace DeepFeast
             for (int i = 0; i < 60; i++) SpawnOne(true);
             lastMouse = Input.mousePosition;
             if (gallery) SetupGallery();
+            if (scenery != null) SetupScenery();
         }
 
         void BuildPlayerView()
@@ -231,7 +233,8 @@ namespace DeepFeast
             autoplay = Has("-autoplay");
             gallery = Has("-gallery");
             animateGallery = Has("-animate-gallery");
-            noPause = autoplay || Has("-nopause");
+            scenery = Arg("-scenery");
+            noPause = autoplay || scenery != null || Has("-nopause");
             shotDir = Arg("-shots");
             shotEvery = ArgF("-shotevery", 15);
             quitAfter = ArgF("-quitafter", 0);
@@ -368,6 +371,41 @@ namespace DeepFeast
         }
 
         // ================================================================== flow
+        // Fixed native camera/creatures/time for comparable environment reviews; normal gameplay never enters this path.
+        void SetupScenery()
+        {
+            StartGame();
+            foreach (var f in fish) ReleaseView(f);
+            fish.Clear(); schools.Clear();
+            foreach (var j in jellies) DestroyJelly(j);
+            jellies.Clear();
+            hud.ClearTexts();
+            float x = scenery == "abyss" ? 11000 : scenery == "kelp" ? 7200 : scenery == "surface" ? 8600 : 5500;
+            zoom = 1.05f;
+            cam = new Vector2(x, scenery == "surface" ? 340 : world.FloorY(x) - 260);
+            player.r = 22; tier = 1; pInvuln = 0;
+            player.x = x; player.y = cam.y; player.wag = 2;
+            var species = new[] { Data.SpeciesMap["clown"], Data.SpeciesMap["tang"], Data.SpeciesMap["snapper"], Data.SpeciesMap["angel"] };
+            for (int i = 0; i < species.Length; i++)
+                fish.Add(MakeFish(species[i], 17 + i * 2, x + (i - 1.5f) * 250, cam.y - 100 + (i % 2) * 90, i % 2 == 0 ? 1 : -1));
+            Debug.Log($"[DeepFeast] scenery {scenery}: camera={cam}, zoom={zoom}, fixed seed=20261003.");
+        }
+
+        void Scenery(float rdt)
+        {
+            realTime += rdt;
+            bool animate = Has("-animate-scenery");
+            time = 2 + (animate ? shotN * shotEvery : 0);
+            foreach (var f in fish) f.wag = time * 5;
+            player.wag = time * 5;
+            if (realTime > 3.1f && (shotN == 0 || animate && realTime >= nextShot))
+            {
+                Shot(animate ? $"scenery_{shotN:000}" : "scenery");
+                shotN++; nextShot = realTime + shotEvery;
+            }
+            if (quitAfter > 0 && realTime >= quitAfter) Application.Quit();
+        }
+
         void StartGame()
         {
             foreach (var f in fish) ReleaseView(f);
@@ -663,6 +701,7 @@ namespace DeepFeast
             float rdt = Mathf.Min(0.1f, Time.unscaledDeltaTime);
             float dt = Mathf.Min(0.05f, Time.deltaTime);
             Resize();
+            if (scenery != null) { Scenery(rdt); Render(0, rdt); return; }
             if (gallery) { Gallery(rdt); Render(rdt, rdt); return; }
             ReadInput();
             Harness(rdt);

@@ -379,6 +379,136 @@
         "pivotX": 0.5,
         "pivotY": 0.010499
       }
+    },
+    {
+      "key": "kelp-teal",
+      "atlas": "atlas-plants-v3",
+      "ppu": 588,
+      "frame": {
+        "x": 133,
+        "y": 16,
+        "width": 302,
+        "height": 592,
+        "pivotX": 0.5,
+        "pivotY": 0.006757
+      }
+    },
+    {
+      "key": "kelp-olive",
+      "atlas": "atlas-plants-v3",
+      "ppu": 585,
+      "frame": {
+        "x": 567,
+        "y": 21,
+        "width": 366,
+        "height": 589,
+        "pivotX": 0.5,
+        "pivotY": 0.006791
+      }
+    },
+    {
+      "key": "seaweed-red",
+      "atlas": "atlas-plants-v3",
+      "ppu": 496,
+      "frame": {
+        "x": 1071,
+        "y": 110,
+        "width": 397,
+        "height": 500,
+        "pivotX": 0.5,
+        "pivotY": 0.008
+      }
+    },
+    {
+      "key": "seagrass",
+      "atlas": "atlas-plants-v3",
+      "ppu": 370,
+      "frame": {
+        "x": 42,
+        "y": 627,
+        "width": 467,
+        "height": 374,
+        "pivotX": 0.5,
+        "pivotY": 0.010695
+      }
+    },
+    {
+      "key": "anemone-rose",
+      "atlas": "atlas-plants-v3",
+      "ppu": 353,
+      "frame": {
+        "x": 557,
+        "y": 645,
+        "width": 426,
+        "height": 357,
+        "pivotX": 0.5,
+        "pivotY": 0.011204
+      }
+    },
+    {
+      "key": "anemone-deep",
+      "atlas": "atlas-plants-v3",
+      "ppu": 359,
+      "frame": {
+        "x": 1062,
+        "y": 636,
+        "width": 438,
+        "height": 363,
+        "pivotX": 0.5,
+        "pivotY": 0.011019
+      }
+    },
+    {
+      "key": "reef-shelf",
+      "atlas": "atlas-reefs-v3",
+      "ppu": 318.75,
+      "frame": {
+        "x": 28,
+        "y": 162,
+        "width": 769,
+        "height": 307,
+        "pivotX": 0.5,
+        "pivotY": 0.013029
+      }
+    },
+    {
+      "key": "reef-arch",
+      "atlas": "atlas-reefs-v3",
+      "ppu": 285.41667,
+      "frame": {
+        "x": 829,
+        "y": 109,
+        "width": 689,
+        "height": 371,
+        "pivotX": 0.5,
+        "pivotY": 0.010782
+      }
+    },
+    {
+      "key": "reef-terrace",
+      "atlas": "atlas-reefs-v3",
+      "ppu": 317.91667,
+      "frame": {
+        "x": 18,
+        "y": 545,
+        "width": 767,
+        "height": 389,
+        "pivotX": 0.5,
+        "pivotY": 0.010283
+      }
+    },
+    {
+      "key": "reef-abyss",
+      "atlas": "atlas-reefs-v3",
+      "ppu": 296.66667,
+      "frame": {
+        "x": 802,
+        "y": 550,
+        "width": 716,
+        "height": 384,
+        "pivotX": 0.5,
+        "pivotY": 0.010417
+      }
     }
   ]
 }

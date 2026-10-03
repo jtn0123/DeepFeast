@@ -74,6 +74,8 @@ namespace DeepFeast
         /// Seabed vents that trickle bubble columns (x, floor y).
         public readonly List<Vector2> vents = new List<Vector2>();
         readonly List<Swayer> swayers = new List<Swayer>();
+        readonly List<EnvironmentArt.Instance> plants = new List<EnvironmentArt.Instance>();
+        bool paintedKelp, paintedGrass, paintedAnemones;
 
         // kelp palettes, [0] sea green and [1] olive
         static readonly Color KelpRim = new Color(0.03f, 0.13f, 0.12f, 0.92f);
@@ -93,6 +95,7 @@ namespace DeepFeast
             root.SetParent(parent, false);
             GenFloor();
             GenDecor();
+            BuildPlants();
             BuildFloorMesh();
             kelpMesh = Gfx.MeshObject("Kelp", root, Layer.Kelp).mesh;
             frontMesh = Gfx.MeshObject("Front", root, Layer.Front).mesh;
@@ -263,6 +266,47 @@ namespace DeepFeast
             shadow.color = new Color(0.04f, 0.12f, 0.17f, 0.3f);
         }
 
+        void BuildPlants()
+        {
+            var vegetation = new GameObject("PaintedVegetation").transform;
+            vegetation.SetParent(root, false);
+            paintedKelp = EnvironmentArt.Geometry("kelp-teal") != null && EnvironmentArt.Geometry("kelp-olive") != null;
+            paintedGrass = EnvironmentArt.Geometry("seagrass") != null;
+            paintedAnemones = EnvironmentArt.Geometry("anemone-rose") != null && EnvironmentArt.Geometry("anemone-deep") != null;
+            if (paintedKelp)
+                foreach (var k in kelps)
+                {
+                    float height = k.h * 0.88f, rootRadius = height * 0.14f;
+                    // Bury the wide painted footing to the lower side of a slope, behind the terrain mesh.
+                    float y = Mathf.Max(k.y, Mathf.Max(FloorY(k.x - rootRadius), FloorY(k.x + rootRadius))) + 2;
+                    plants.Add(EnvironmentArt.Place(k.tone < 0.5f ? "kelp-teal" : "kelp-olive", vegetation, Layer.Kelp,
+                        k.x, y, height, k.phase > Mathf.PI, k.phase, 0.055f));
+                }
+            if (paintedGrass)
+                foreach (var g in grasses)
+                    plants.Add(EnvironmentArt.Place("seagrass", vegetation, Layer.Front, g.x, g.y, g.s * 1.15f,
+                        g.phase > Mathf.PI, g.phase, 0.045f));
+            if (paintedAnemones)
+                foreach (var a in anemones)
+                    plants.Add(EnvironmentArt.Place(a.deep ? "anemone-deep" : "anemone-rose", vegetation, Layer.Front + 1,
+                        a.x, a.y, a.s * 1.05f, a.phase > Mathf.PI, a.phase, 0.04f));
+            // A separate seed leaves existing terrain, reef placements, creatures and gameplay unchanged.
+            if (EnvironmentArt.Geometry("seaweed-red") != null)
+            {
+                var r = new Mulberry(307);
+                for (float x = 220; x < W - 220; x += 260 + r.Next() * 380)
+                {
+                    float y = FloorY(x);
+                    if (y > 3050 || r.Next() < 0.32f) continue;
+                    float height = 70 + r.Next() * 90;
+                    plants.Add(EnvironmentArt.Place("seaweed-red", vegetation, Layer.Coral - 1, x, y + 5, height,
+                        r.Next() < 0.5f, r.Next() * U.TAU, 0.035f));
+                    ContactShadow(vegetation, x, y + 2, height * 0.26f, height * 0.035f);
+                }
+            }
+            Debug.Log($"[DeepFeast] painted vegetation: {plants.Count} rooted instances, shared meshes and atlas materials.");
+        }
+
         static readonly Color[] FLOOR_C = { new Color32(0xf0, 0xdc, 0xa4, 255), new Color32(0xc9, 0xae, 0x74, 255), new Color32(0x7d, 0x68, 0x44, 255), new Color32(0x3a, 0x31, 0x28, 255) };
         static readonly float[] FLOOR_T = { 0, 0.3f, 0.65f, 1 };
         static Color FloorCol(float y)
@@ -319,9 +363,42 @@ namespace DeepFeast
                 Draw.Ellipse(d, px, py, pr, pr * 0.62f, 0, dark, 10);
                 Draw.Ellipse(d, px - pr * 0.25f, py - pr * 0.22f, pr * 0.5f, pr * 0.24f, 0, lite, 8);
             }
+            // Broken crescent ripples and occasional ribbed shells give the beach a quieter material scale.
+            var sandR = new Mulberry(981);
+            for (float x = 70; x < W - 70; x += 110 + sandR.Next() * 150)
+            {
+                float width = 35 + sandR.Next() * 70;
+                for (int row = 0; row < 3; row++)
+                {
+                    if (sandR.Next() < 0.32f) continue;
+                    float depth = 18 + row * 42 + sandR.Next() * 12;
+                    var ripple = new List<Vector2>(13);
+                    for (int i = 0; i <= 12; i++)
+                    {
+                        float t = i / 12f, px = x + (t - 0.5f) * width;
+                        ripple.Add(new Vector2(px, FloorY(px) + depth + Mathf.Sin(t * Mathf.PI) * 5));
+                    }
+                    var shade = FloorCol(FloorY(x));
+                    Draw.Stroke(d, ripple, 1.8f, 0.6f, U.WithA(shade * 0.64f, 0.19f), U.WithA(shade * 0.64f, 0.03f));
+                    for (int i = 0; i < ripple.Count; i++) ripple[i] += new Vector2(0, 2.2f);
+                    Draw.Stroke(d, ripple, 2, 0.4f, new Color(1, 0.96f, 0.83f, 0.15f), new Color(1, 0.96f, 0.83f, 0.02f));
+                }
+                if (sandR.Next() > 0.38f) continue;
+                float sx = x + width * 0.25f, sy = FloorY(sx) + 10 + sandR.Next() * 32, sr = 4 + sandR.Next() * 4;
+                var shell = Color.Lerp(FloorCol(sy), new Color(0.96f, 0.88f, 0.73f), 0.4f);
+                Draw.Ellipse(d, sx, sy + sr * 0.18f, sr * 1.2f, sr * 0.58f, 0, U.WithA(shell * 0.55f, 0.38f), 12);
+                Draw.Ellipse(d, sx, sy, sr, sr * 0.65f, -0.15f, shell, 14);
+                for (int rib = 0; rib < 5; rib++)
+                {
+                    float angle = -Mathf.PI + 0.35f + rib * 0.6f;
+                    var line = Draw.QuadPts(sx, sy + sr * 0.4f, sx + Mathf.Cos(angle) * sr * 0.35f, sy - sr * 0.1f,
+                        sx + Mathf.Cos(angle) * sr * 0.85f, sy + Mathf.Sin(angle) * sr * 0.48f, 4);
+                    Draw.Stroke(d, line, 0.65f, 0.4f, U.WithA(shell * 0.7f, 0.45f));
+                }
+            }
             var lip = new List<Vector2>(cols);
             for (int i = 0; i < cols; i++) lip.Add(new Vector2(i * FSTEP, floorS[i] + 2f));
-            Draw.Stroke(d, lip, 6f, 6f, new Color(1f, 245 / 255f, 210 / 255f, 0.4f));
+            Draw.Stroke(d, lip, 3.5f, 3.5f, new Color(1f, 245 / 255f, 210 / 255f, 0.3f));
             var edge = new List<Vector2>(cols);
             for (int i = 0; i < cols; i++) edge.Add(new Vector2(i * FSTEP, floorS[i] - 0.5f));
             Draw.Stroke(d, edge, 2.5f, 2.5f, new Color(0.25f, 0.2f, 0.12f, 0.25f));
@@ -334,12 +411,23 @@ namespace DeepFeast
         {
             foreach (var s in swayers)
                 s.t.localRotation = Quaternion.Euler(0, 0, -Mathf.Sin(time * s.speed + s.phase) * s.amp * Mathf.Rad2Deg);
+            foreach (var p in plants)
+            {
+                bool visible = p.x + p.radius > x0 - 60 && p.x - p.radius < x1 + 60;
+                p.renderer.enabled = visible;
+                if (!visible) continue;
+                float y = -p.transform.localPosition.y;
+                float height = p.transform.localScale.y;
+                float fog = Mathf.Clamp01((y - 850) / 3400) * (height > 200 ? 0.5f : 0.22f);
+                p.Pose(time, Color.white, fog, WaterAt(y - height * 0.4f));
+            }
 
             // kelp
             mb.Clear();
             var pts = new List<Vector2>(17);
             foreach (var d in kelps)
             {
+                if (paintedKelp) break;
                 if (d.x < x0 - 120 || d.x > x1 + 120) continue;
                 const int segs = 12;
                 float sl = d.h / segs, x = d.x, y = d.y;
@@ -385,6 +473,7 @@ namespace DeepFeast
             Color grassA = U.Hex("#2c6e3e"), grassB = U.Hex("#6cc070");
             foreach (var d in grasses)
             {
+                if (paintedGrass) break;
                 if (d.x < x0 - 80 || d.x > x1 + 80) continue;
                 for (int i = 0; i < d.n; i++)
                 {
@@ -396,6 +485,7 @@ namespace DeepFeast
             }
             foreach (var d in anemones)
             {
+                if (paintedAnemones) break;
                 if (d.x < x0 - 100 || d.x > x1 + 100) continue;
                 var col = U.Hsl(d.hue, d.deep ? 0.9f : 0.75f, d.deep ? 0.68f : 0.66f);
                 var baseC = U.Hsl(d.hue, 0.6f, 0.4f);

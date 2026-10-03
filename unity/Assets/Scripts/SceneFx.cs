@@ -23,6 +23,7 @@ namespace DeepFeast
         {
             public float p, s, baseY, amp, alpha, off; public int seed; public Noise1D n;
             public Transform t; public Mesh kelp;
+            public readonly List<(EnvironmentArt.Instance reef, EnvironmentArt.Instance abyss)> paintings = new List<(EnvironmentArt.Instance, EnvironmentArt.Instance)>();
             public float Ridge(float x) => baseY + n.At(x / 1500) * amp + n.At(x / 380 + 50) * amp * 0.12f;
         }
         readonly FarLayer[] far;
@@ -71,6 +72,12 @@ namespace DeepFeast
                 new FarLayer { p = 0.32f, s = 0.46f, n = new Noise1D(5), baseY = 1610, amp = 480, alpha = 0.23f, seed = 2, off = 3100 },
                 new FarLayer { p = 0.55f, s = 0.68f, n = new Noise1D(9), baseY = 1930, amp = 520, alpha = 0.29f, seed = 3, off = 900 },
             };
+            if (EnvironmentArt.Geometry("reef-shelf") != null)
+            {
+                far[0].baseY = 1220; far[0].amp = 140;
+                far[1].baseY = 1490; far[1].amp = 180;
+                far[2].baseY = 1840; far[2].amp = 220;
+            }
             for (int i = 0; i < far.Length; i++) BuildFar(far[i], worldRoot, Layer.Far + i * 10);
 
             for (int i = 0; i < snow.Length; i++)
@@ -102,6 +109,24 @@ namespace DeepFeast
                 int a = i * 3, b = a + 3;
                 m.Quad(a, b, b + 1, a + 1);
                 m.Quad(a + 1, b + 1, b + 2, a + 2);
+            }
+
+            if (EnvironmentArt.Geometry("reef-shelf") != null)
+            {
+                var r = new Mulberry((uint)(L.seed * 1777));
+                var keys = new[] { "reef-shelf", "reef-arch", "reef-terrace" };
+                for (float x = X0; x < X1;)
+                {
+                    float size = 520 + L.seed * 80 + r.Next() * 280;
+                    bool flip = r.Next() < 0.5f;
+                    var reef = EnvironmentArt.Place(keys[(int)(r.Next() * keys.Length)], L.t, order + 1,
+                        x, L.Ridge(x) + 20, size, flip, 0, 0);
+                    var abyss = EnvironmentArt.Place("reef-abyss", L.t, order + 2, x, L.Ridge(x) + 20, size, flip, 0, 0);
+                    L.paintings.Add((reef, abyss));
+                    x += size * 2.4f * (0.95f + r.Next() * 0.25f);
+                }
+                m.Apply(mesh);
+                return;
             }
 
             // rounded boulders and the odd pinnacle on the ridge (only the part above the ridge, so alpha doesn't stack)
@@ -204,6 +229,20 @@ namespace DeepFeast
                 L.t.localScale = new Vector3(L.s, L.s, 1);
                 float z = zoom * L.s;
                 float fx0 = cx - hw / z - 60, fx1 = cx + hw / z + 60;
+                if (L.paintings.Count > 0)
+                {
+                    float fog = 0.89f - L.seed * 0.09f;
+                    var water = World.WaterAt(cam.y + 180);
+                    foreach (var p in L.paintings)
+                    {
+                        bool visible = p.reef.x + p.reef.radius > fx0 && p.reef.x - p.reef.radius < fx1;
+                        p.reef.renderer.enabled = visible && deep < 0.999f;
+                        p.abyss.renderer.enabled = visible && deep > 0.001f;
+                        if (p.reef.renderer.enabled) p.reef.Pose(0, new Color(1, 1, 1, (0.28f + L.seed * 0.05f) * (1 - deep)), fog, water);
+                        if (p.abyss.renderer.enabled) p.abyss.Pose(0, new Color(1, 1, 1, (0.28f + L.seed * 0.05f) * deep), fog, water);
+                    }
+                    continue;
+                }
                 mb.Clear();
                 var kc = U.WithA(FarCol, L.alpha * 0.65f);
                 const float K = 140;
