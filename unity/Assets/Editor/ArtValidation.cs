@@ -74,7 +74,9 @@ namespace DeepFeast.EditorTools
             var scenery = Resources.Load<Shader>("Shaders/PaintedScenery");
             Require(scenery != null && !ShaderUtil.ShaderHasError(scenery), "Shared scenery lighting shader is missing or has compiler errors.");
             MotionValidation.Check();
-            Debug.Log("[DeepFeast] production art validation passed: 12 species, 24 aligned pose keys, 16 props, 10 shared environment meshes, transparent atlases, three shaders and turn visibility.");
+            var volume = Resources.Load<Shader>("Shaders/FishVolume");
+            Require(volume != null && !ShaderUtil.ShaderHasError(volume), "Volume fish shader is missing or has compiler errors.");
+            Debug.Log("[DeepFeast] production art validation passed: 12 species, 24 aligned pose keys, 16 props, 10 shared environment meshes, transparent atlases, four shaders and volume turns.");
         }
 
         static void Frame(string atlas, PaintedArt.Frame f)

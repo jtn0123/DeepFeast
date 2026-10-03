@@ -18,16 +18,32 @@ namespace DeepFeast.EditorTools
                 foreach (var sp in species)
                 {
                     view.SetSpecies(sp);
+                    var meshes = view.root.GetComponentsInChildren<MeshFilter>();
+                    bool volume = false;
+                    foreach (var mesh in meshes) if (mesh.sharedMesh != null && mesh.sharedMesh.bounds.size.z > 0.1f) volume = true;
+                    if (!volume) throw new InvalidOperationException($"Fish volume failed for {sp.key}: expected rounded mesh geometry with real depth.");
+                    Vector3 previous = Vector3.zero;
                     foreach (var facing in new[] { -1f, -0.1f, -0.01f, 0f, 0.01f, 0.1f, 1f })
                     {
                         var f = new Fish { sp = sp, r = 22, face = -1, faceS = facing, wag = 2, y = 1700 };
                         view.Pose(f, 0, FishView.EyeMode.Normal);
-                        float width = Mathf.Abs(view.root.transform.localScale.x);
-                        if (width < 0.8f || !float.IsFinite(width))
-                            throw new InvalidOperationException($"Turn visibility failed for {sp.key}: facing={facing}, rendered width ratio={width:0.000}; expected >=0.800.");
+                        var scale = view.root.transform.localScale;
+                        if (scale.x <= 0 || scale.y <= 0 || scale.z <= 0) throw new InvalidOperationException("A 3D turn must not mirror the model: " + sp.key);
+                        var heading = view.root.transform.Find("Pivot").localToWorldMatrix.MultiplyVector(Vector3.right).normalized;
+                        if (!float.IsFinite(heading.x) || !float.IsFinite(heading.z)) throw new InvalidOperationException("Invalid turn transform: " + sp.key);
+                        if (Mathf.Abs(facing) <= 0.01f && previous != Vector3.zero && Vector3.Angle(previous, heading) > 8)
+                            throw new InvalidOperationException("Discontinuous midpoint heading: " + sp.key);
+                        if (facing == 0 && heading.z > -0.95f) throw new InvalidOperationException("Mid-turn must face the camera: " + sp.key);
+                        previous = heading;
+                    }
+                    foreach (float facing in new[] { -1f, 1f })
+                    {
+                        view.Pose(new Fish { sp = sp, r = 22, faceS = facing, face = facing, tilt = 0.35f }, 0, FishView.EyeMode.Normal);
+                        var heading = view.root.transform.Find("Pivot").localToWorldMatrix.MultiplyVector(Vector3.right).normalized;
+                        if (heading.y > -0.25f) throw new InvalidOperationException($"Downward swimming must pitch the nose down in both directions: {sp.key}, facing={facing}.");
                     }
                 }
-                Debug.Log("[DeepFeast] turn visibility passed: 12 species at 7 facing samples, width >=80%, finite transforms.");
+                Debug.Log("[DeepFeast] volume turns passed: 12 species with real mesh depth, positive scales, continuous midpoint heading, head-on pose and correct pitch in both directions.");
             }
             finally { UnityEngine.Object.DestroyImmediate(root); }
         }

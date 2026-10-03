@@ -1,0 +1,123 @@
+{
+  "baselineCommit": "8dbd365e8cbb5272fa61fe0ff28ceddf1d6bc180",
+  "draftRevision": "Commit containing this file",
+  "installedAppReplaced": false,
+  "unity": "6000.3.25f1",
+  "build": {
+    "result": "Succeeded",
+    "errors": 0,
+    "sizeMB": 137.7,
+    "codesignDeepStrict": true
+  },
+  "capture": {
+    "type": "Native macOS Metal RenderTexture",
+    "fps": 30,
+    "frames": 120,
+    "seconds": 4,
+    "species": [
+      "player",
+      "clown",
+      "shark"
+    ],
+    "radii": [
+      125,
+      110,
+      130
+    ],
+    "resolution": [
+      960,
+      720
+    ],
+    "orthographicSize": 400,
+    "baselineCameraZ": -10,
+    "draftCameraZ": -2000,
+    "mouth": 0,
+    "facing": "cos(t*pi/2)",
+    "wag": "4+t*5"
+  },
+  "sourceSHA256": {
+    "unity/Assets/Scripts/FishVolume.cs": "8c8b629d1a6e402a717841b67d51e9a66e72683bcfc4fe9061bb680d80d0622d",
+    "unity/Assets/Scripts/FishArt.cs": "79d7a6c09e46b479f0919aeef4d837555614c73ffda05efbbe4a6bc3bb1e9d0a",
+    "unity/Assets/Scripts/Game.cs": "cdce8401edbfb57df56e0729dd8a17c37d9c25b8bba8f103c3aa8dba56b647fa",
+    "unity/Assets/Scripts/FishTurnReview.cs": "cf6d2f3a3e645fa7e95af641fc928018910e76ff6f8830754cdab003dc99581a",
+    "unity/Assets/Resources/Shaders/FishVolume.shader": "f6da63960128c7e1dc6e90eed8961fbd843782d03525c5091a0324ff83938c90",
+    "unity/Assets/Editor/MotionValidation.cs": "edb98b7c2a36ba86b1424496cb6b659ce004f1926950f8abe2a62aa94d6de30b"
+  },
+  "checks": {
+    "current": {
+      "native_frames": 120,
+      "no_edge_clipping": true,
+      "pixel_bounds_minmax": [
+        261,
+        31,
+        699,
+        684
+      ]
+    },
+    "painted": {
+      "native_frames": 120,
+      "no_edge_clipping": true,
+      "pixel_bounds_minmax": [
+        284,
+        73,
+        677,
+        648
+      ]
+    },
+    "sculpted": {
+      "native_frames": 120,
+      "no_edge_clipping": true,
+      "pixel_bounds_minmax": [
+        284,
+        73,
+        677,
+        648
+      ]
+    },
+    "identical_turn_inputs": true,
+    "current_baseline": "Unchanged native 8dbd365 captures from v4/turn-animation/after"
+  },
+  "media": {
+    "both-3d-options.mp4": {
+      "width": 1280,
+      "height": 592,
+      "r_frame_rate": "30/1",
+      "duration": "4.000000",
+      "nb_frames": "120",
+      "sha256": "756cba44c1b118947d9a0ea9eb0ec0897bf2e60fe6b378486145611b48073f2b"
+    },
+    "current-and-both-options.mp4": {
+      "width": 1440,
+      "height": 472,
+      "r_frame_rate": "30/1",
+      "duration": "4.000000",
+      "nb_frames": "120",
+      "sha256": "82bdb2688824a8bb9a5bb9764288aa3c328db666909887c94e48163c60fbe81d"
+    },
+    "both-3d-options.gif": {
+      "sha256": "f9f86a69bf9dd3f4066317341c7f75c148e8d3732c315f897e66df6028306bd6"
+    },
+    "current-and-both-options.gif": {
+      "sha256": "d4fc63fc4a5bec3eaf382e4e293a9051aba5b0ac240df350bbce334213420485"
+    }
+  },
+  "finalBuildCaptureRecheck": "Painted and sculpted: 120 frames each byte-identical to delivered native captures",
+  "browser": {
+    "url": "http://localhost:4321/art-drafts/v5/",
+    "duration": 4,
+    "readyState": 4,
+    "seekable": [
+      0,
+      4
+    ],
+    "pause": true,
+    "halfSpeed": true,
+    "seekToSecond": 1,
+    "replay": true,
+    "allGalleryImagesLoaded": true
+  },
+  "pitchRegression": {
+    "failBefore": "Left-facing minnow incorrectly pitched up when descending",
+    "passAfter": "All 12 species at both horizontal headings pitch down correctly"
+  }
+}

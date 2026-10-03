@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deep Feast · Two 3D fish animation drafts</title>
+<style>
+:root{color-scheme:dark;font:15px/1.5 system-ui,sans-serif;background:#071a27;color:#edf5f6}body{max-width:1280px;margin:auto;padding:24px}h1{font-size:26px;margin:0 0 8px}p{color:#a6bbc9;margin:8px 0 16px}video,img{display:block;width:100%;height:auto;border:1px solid #315163;border-radius:8px;box-sizing:border-box}a{color:#83e1cd}button{font:inherit;color:#edf5f6;background:#163a4a;border:1px solid #315163;border-radius:6px;padding:6px 12px;cursor:pointer}nav{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px}button[aria-pressed=true]{background:#225d67}details{margin-top:20px}summary{cursor:pointer;color:#83e1cd}figure{margin:12px 0}figcaption{color:#91b6c7;margin:8px 0}.gallery{display:grid;grid-template-columns:1fr 1fr;gap:16px}footer{margin-top:16px;font-size:13px;color:#88a8bb}
+</style>
+<h1>Two directions for 3D fish animation</h1>
+<p><strong>A: painted 3D</strong> keeps the existing character art. <strong>B: sculpted 3D</strong> uses procedural skin and stronger lighting. Both rotate rounded meshes through a head-on pose with paired eyes, bent tails and separate fins.</p>
+<nav><button id="toggle">Pause</button><button data-speed="0.5" aria-pressed="false">Half speed</button><button data-speed="1" aria-pressed="true">Normal speed</button><button id="restart">Replay</button><a href="both-3d-options.mp4">Download animation</a><a href="README.md">Review notes</a></nav>
+<video id="review" src="both-3d-options.mp4" poster="both-3d-options-front.png" autoplay loop muted playsinline controls aria-label="Painted 3D and sculpted 3D turning side by side"></video>
+<details><summary>Compare both drafts with the current installed animation</summary><figure><img loading="lazy" src="current-and-both-options.gif" alt="Current flat sprite animation, painted 3D draft and sculpted 3D draft"><figcaption>Left: installed 8dbd365. Middle: painted 3D draft. Right: sculpted 3D draft. Identical four-second turn inputs.</figcaption></figure><a href="current-and-both-options.mp4">Download three-way comparison</a></details>
+<details><summary>See all twelve species in the game</summary><div class="gallery"><figure><img loading="lazy" src="gallery-painted/gallery.png" alt="Twelve painted 3D fish in the native Unity game"><figcaption>A · Painted 3D</figcaption></figure><figure><img loading="lazy" src="gallery-sculpted/gallery.png" alt="Twelve sculpted 3D fish in the native Unity game"><figcaption>B · Sculpted 3D</figcaption></figure></div></details>
+<footer>Native Unity captures, not concept illustrations. These are review drafts on the working branch; the installed app remains at 8dbd365. The environment is still the existing painted world.</footer>
+<script>
+const video=document.querySelector('#review'),toggle=document.querySelector('#toggle');
+toggle.onclick=()=>video.paused?video.play():video.pause();
+video.onplay=()=>toggle.textContent='Pause';video.onpause=()=>toggle.textContent='Play';
+document.querySelector('#restart').onclick=()=>{video.currentTime=0;video.play()};
+document.querySelectorAll('[data-speed]').forEach(button=>button.onclick=()=>{video.playbackRate=+button.dataset.speed;document.querySelectorAll('[data-speed]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)))});
+</script>
+</html>

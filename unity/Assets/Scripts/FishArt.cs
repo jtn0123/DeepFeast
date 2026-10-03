@@ -556,6 +556,7 @@ namespace DeepFeast
         static readonly int TailFlexId = Shader.PropertyToID("_TailFlex"), FinFlutterId = Shader.PropertyToID("_FinFlutter"),
             LightHeightId = Shader.PropertyToID("_LightHeight"), FogId = Shader.PropertyToID("_Fog"), FogColorId = Shader.PropertyToID("_FogColor");
         Vector4 motion;
+        FishVolume volume;
 
         // Rate, tail flex, pectoral flutter and body drift distinguish propulsive fish from hovering ones.
         static Vector4 Motion(string shape) => shape switch
@@ -596,6 +597,12 @@ namespace DeepFeast
             sp = s;
             art = FishArt.Get(s);
             motion = Motion(s.shape);
+            if (art.whole)
+            {
+                volume ??= new FishVolume(pivot);
+                volume.SetSpecies(s, art);
+            }
+            volume?.SetVisible(art.whole);
             body.sprite = art.body;
             body.sharedMaterial = art.whole ? PaintedArt.SwimMaterial : Gfx.Alpha;
             body.SetPropertyBlock(null);
@@ -608,6 +615,8 @@ namespace DeepFeast
             eyeT.localScale = art.painted ? new Vector3(art.eyeSize.x, art.eyeSize.y, 1) : new Vector3(art.eyeR, art.eyeR, 1);
             eye.sprite = art.painted ? null : art.shark ? FishArt.EyeShark : FishArt.EyeNormal;
             lid.color = art.lid;
+            body.enabled = eye.enabled = lid.enabled = !art.whole;
+            if (art.whole) tail.enabled = fin.enabled = false;
         }
 
         bool HasFin => art != null && !art.shark && !art.painted;
@@ -618,6 +627,20 @@ namespace DeepFeast
 
         public void Pose(Fish f, int order, EyeMode eyeMode)
         {
+            if (art.whole && volume != null)
+            {
+                root.transform.localPosition = U.V3(f.x, f.y);
+                root.transform.localScale = Vector3.one;
+                float swim = f.wag * motion.x;
+                var rotation = volume.Rotation(f.faceS, f.tilt, swim);
+                pivot.localRotation = rotation;
+                pivot.localPosition = new Vector3(0, Mathf.Sin(swim * 0.65f) * motion.w * f.r, 0);
+                float squash = Mathf.Sin(Mathf.Clamp01(f.mouth) * Mathf.PI) * 0.02f;
+                pivot.localScale = new Vector3(f.r * (1 - squash), f.r * (1 + squash), f.r);
+                group.sortingOrder = order;
+                volume.Pose(f, motion, eyeMode, rotation);
+                return;
+            }
             // Facing interpolation is a turn progress signal, not the fish's physical width.
             float facing = Mathf.Clamp(f.faceS, -1, 1), turn = 1 - Mathf.Abs(facing);
             float direction = facing < 0 ? -1 : facing > 0 ? 1 : f.face < 0 ? -1 : 1;
@@ -670,6 +693,7 @@ namespace DeepFeast
 
         public void SetVisible(bool v)
         {
+            if (art.whole && volume != null) { volume.SetVisible(v); return; }
             body.enabled = eye.enabled = lid.enabled = v;
             tail.enabled = v && !art.whole;
             fin.enabled = v && HasFin;

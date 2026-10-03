@@ -10,6 +10,11 @@ namespace DeepFeast
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
         {
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-turn-animation") >= 0)
+            {
+                new GameObject("FishTurnReview").AddComponent<FishTurnReview>(); return;
+            }
+            FishVolume.Style = Array.IndexOf(Environment.GetCommandLineArgs(), "-sculpted") >= 0 ? FishVolume.Look.Sculpted : FishVolume.Look.Painted;
             if (UnityEngine.Object.FindAnyObjectByType<Game>() == null) new GameObject("DeepFeast").AddComponent<Game>();
         }
     }
@@ -93,7 +98,7 @@ namespace DeepFeast
             cam3.orthographic = true;
             cam3.clearFlags = CameraClearFlags.SolidColor;
             cam3.backgroundColor = U.Hex("#03121f");
-            cam3.nearClipPlane = 0.1f; cam3.farClipPlane = 100;
+            cam3.nearClipPlane = 0.1f; cam3.farClipPlane = 5000;
             camGo.AddComponent<AudioListener>();
 
             worldRoot = new GameObject("WorldRoot").transform;
@@ -860,7 +865,11 @@ namespace DeepFeast
         {
             float sp = Dist(f.vx, f.vy);
             if (f.vx > 6) f.face = 1; else if (f.vx < -6) f.face = -1;
-            f.faceS += (f.face - f.faceS) * Mathf.Min(1, dt * 9);
+            // Advance the actual heading at a bounded angular rate; cosine is consumed by the 3D rig.
+            float yaw = Mathf.Acos(Mathf.Clamp(f.faceS, -1, 1)) * Mathf.Rad2Deg;
+            float rate = f.sp.shape == "shark" ? 390 : f.sp.shape == "round" ? 460 : 540;
+            yaw = Mathf.MoveTowards(yaw, f.face > 0 ? 0 : 180, dt * rate);
+            f.faceS = Mathf.Cos(yaw * Mathf.Deg2Rad);
             float tilt = Mathf.Clamp(Mathf.Atan2(f.vy, Mathf.Abs(f.vx) + 1e-3f), -1.05f, 1.05f);
             f.tilt += (tilt - f.tilt) * Mathf.Min(1, dt * 6);
             f.wag += dt * Mathf.Clamp(3.5f + (sp / f.r) * 0.55f, 3.5f, 20);
@@ -1322,7 +1331,7 @@ namespace DeepFeast
             float shk = state == GState.Paused ? 0 : shake;
             float shx = (U.Rand() - 0.5f) * shk * 2 / zoom, shy = (U.Rand() - 0.5f) * shk * 2 / zoom;
             cam3.orthographicSize = refH / 2 / zoom;
-            var camPos = new Vector3(cam.x + shx, -(cam.y + shy), -10);
+            var camPos = new Vector3(cam.x + shx, -(cam.y + shy), -2000);
             cam3.transform.position = camPos;
 
             float hw = refW / 2 / zoom, hh = refH / 2 / zoom;

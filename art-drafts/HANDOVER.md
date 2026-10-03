@@ -1,3 +1,11 @@
+# Latest Unity visual review
+
+The latest review is [v5: two 3D fish animation drafts](v5/README.md), with [native side-by-side animations](v5/index.html) and source in the working branch. The installed version is **8dbd365**; see [v4 implementation handover](v4/HANDOVER.md) for that pass. The v5 drafts have not replaced the installed app.
+
+The original v1 concept handover is preserved below as historical context.
+
+---
+
 # Deep Feast — Visual Draft Handover
 
 Prepared: October 2, 2026 (America/Los_Angeles). Version: 1.
