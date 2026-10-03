@@ -14,7 +14,7 @@ namespace DeepFeast
             {
                 new GameObject("FishTurnReview").AddComponent<FishTurnReview>(); return;
             }
-            FishVolume.Style = Array.IndexOf(Environment.GetCommandLineArgs(), "-sculpted") >= 0 ? FishVolume.Look.Sculpted : FishVolume.Look.Painted;
+            FishVolume.Style = Array.IndexOf(Environment.GetCommandLineArgs(), "-painted") >= 0 ? FishVolume.Look.Painted : FishVolume.Look.Sculpted;
             if (UnityEngine.Object.FindAnyObjectByType<Game>() == null) new GameObject("DeepFeast").AddComponent<Game>();
         }
     }

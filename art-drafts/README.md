@@ -1,6 +1,6 @@
 # Latest Unity visual review
 
-The latest review is [v6: refined 3D fish in both styles](v6/README.md), with [native turn and feeding comparisons](v6/index.html) and committed source in the working branch. The installed version is **8dbd365**; see [v4 implementation handover](v4/HANDOVER.md) for that pass. The 3D drafts have not replaced the installed app.
+The latest review is [v7: focus on sculpted 3D fish](v7/README.md), with [native turn, swimming and feeding comparisons](v7/index.html). Sculpted 3D is now the draft app's default. The installed version remains **8dbd365**; see [v4 implementation handover](v4/HANDOVER.md) for that pass.
 
 The original v1 concept handover is preserved below as historical context.
 

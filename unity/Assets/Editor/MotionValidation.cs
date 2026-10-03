@@ -20,7 +20,15 @@ namespace DeepFeast.EditorTools
                     view.SetSpecies(sp);
                     var meshes = view.root.GetComponentsInChildren<MeshFilter>();
                     bool volume = false;
-                    foreach (var mesh in meshes) if (mesh.sharedMesh != null && mesh.sharedMesh.bounds.size.z > 0.1f) volume = true;
+                    foreach (var mesh in meshes)
+                    {
+                        if (mesh.sharedMesh == null) continue;
+                        var bounds = mesh.sharedMesh.bounds;
+                        foreach (var vector in new[] { bounds.center, bounds.extents })
+                            if (!float.IsFinite(vector.x) || !float.IsFinite(vector.y) || !float.IsFinite(vector.z))
+                                throw new InvalidOperationException($"Invalid generated mesh bounds: {sp.key}, {mesh.sharedMesh.name}.");
+                        if (bounds.size.z > 0.1f) volume = true;
+                    }
                     if (!volume) throw new InvalidOperationException($"Fish volume failed for {sp.key}: expected rounded mesh geometry with real depth.");
                     Vector3 previous = Vector3.zero;
                     foreach (var facing in new[] { -1f, -0.1f, -0.01f, 0f, 0.01f, 0.1f, 1f })
@@ -59,7 +67,7 @@ namespace DeepFeast.EditorTools
                     for (int i = 0; i < 10; i++) view.Pose(hold, 0, FishView.EyeMode.Normal, 0);
                     if (Quaternion.Angle(paused, pivot.localRotation) > 0.01f) throw new InvalidOperationException("Paused animation changed: " + sp.key);
                 }
-                Debug.Log("[DeepFeast] volume turns passed: 12 species with mesh depth, positive scales, continuous midpoint heading, correct pitch, smooth bank reversal, settled bank and frozen pause.");
+                Debug.Log("[DeepFeast] volume turns passed: 12 species with finite geometry and bounds, mesh depth, positive scales, continuous midpoint heading, correct pitch, smooth bank reversal, settled bank and frozen pause.");
             }
             finally { UnityEngine.Object.DestroyImmediate(root); }
         }

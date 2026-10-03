@@ -3,11 +3,11 @@ using UnityEngine;
 
 namespace DeepFeast
 {
-    /// <summary>Shared rounded bodies and solid fins. Both review styles use the same actual 3D rig.</summary>
+    /// <summary>Shared sculpted bodies and rooted fin membranes, deformed together while swimming.</summary>
     public sealed class FishVolume
     {
         public enum Look { Painted, Sculpted }
-        public static Look Style { get; set; } = Look.Painted;
+        public static Look Style { get; set; } = Look.Sculpted;
         sealed class Model
         {
             public Mesh body, fins, nearFin, farFin, nearEye, farEye, mouth;
@@ -31,7 +31,7 @@ namespace DeepFeast
 
         public FishVolume(Transform parent)
         {
-            var names = new[] { "VolumeBody", "SolidFins", "PectoralNear", "PectoralFar", "EyeNear", "EyeFar", "Mouth" };
+            var names = new[] { "VolumeBody", "FinMembranes", "PectoralNear", "PectoralFar", "EyeNear", "EyeFar", "Mouth" };
             for (int i = 0; i < parts.Length; i++)
             {
                 var go = new GameObject(names[i]); go.transform.SetParent(parent, false);
@@ -95,8 +95,8 @@ namespace DeepFeast
                 block.SetFloat("_TailFlex", motion.y * 1.5f);
                 block.SetFloat("_Energy", Mathf.Clamp(0.6f + new Vector2(f.vx, f.vy).magnitude / Mathf.Max(1, f.r) * 0.02f, 0.6f, 1.25f));
                 block.SetFloat("_TurnBend", angularVelocity / 240 * 0.22f);
-                block.SetFloat("_Flutter", i == 2 || i == 3 ? motion.z * 6 : 0.016f);
-                block.SetVector("_FinRoot", new Vector4(0.25f, -model.height * 0.18f, (i == 2 ? -1 : 1) * model.depth * 0.88f, i == 2 || i == 3 ? 1 : 0));
+                block.SetFloat("_Flutter", i == 2 || i == 3 ? motion.z * 5 : 0.035f);
+                block.SetVector("_FinRoot", new Vector4(0.39f, -model.height * 0.18f, (i == 2 ? -1 : 1) * model.depth * 0.94f, i == 2 || i == 3 ? 1 : 0));
                 block.SetFloat("_Mouth", f.mouth);
                 block.SetFloat("_Height", model.height);
                 block.SetFloat("_Fog", species == Data.Player ? 0.025f : 0.035f + Mathf.Clamp01((f.y - 900) / 3500) * 0.045f);
@@ -123,20 +123,20 @@ namespace DeepFeast
 
         static Model Build(Species sp, FishArt.Art art)
         {
-            float h = art.hh * (sp.shape == "shark" || sp.shape == "long" ? 0.90f : 1);
-            float depth = sp.shape switch { "round" => 0.70f, "fat" => 0.46f, "disc" => 0.24f, "tall" => 0.23f, "long" => 0.16f, "slim" => 0.17f, "shark" => 0.33f, "torpedo" => 0.35f, _ => 0.43f };
-            float headCenter = sp.shape == "round" ? 0.20f : sp.shape == "shark" ? 0.48f : sp.shape == "long" ? 0.52f : 0.36f;
-            float headLength = sp.shape == "round" ? 1.04f : sp.shape == "shark" ? 0.90f : sp.shape == "long" ? 0.85f : 0.96f;
+            float h = art.hh * (sp.shape == "round" ? 0.95f : sp.shape == "disc" || sp.shape == "tall" ? 0.94f : 0.88f);
+            float depth = sp.shape switch { "round" => 0.64f, "fat" => 0.40f, "disc" => 0.22f, "tall" => 0.21f, "long" => 0.14f, "slim" => 0.16f, "shark" => 0.28f, "torpedo" => 0.30f, _ => 0.33f };
+            float headCenter = sp.shape == "round" ? 0.13f : sp.shape == "long" || sp.shape == "shark" ? 0.20f : 0.08f;
+            float headLength = sp.shape == "round" ? 1.10f : sp.shape == "long" || sp.shape == "shark" ? 1.14f : 1.22f;
             var model = new Model { height = h, depth = depth, head = new Vector4(headCenter, headLength, h, depth) };
             var b = new Builder();
-            const int rings = 36, sides = 28;
+            const int rings = 44, sides = 32;
             for (int ring = 0; ring <= rings; ring++)
             {
                 float u = ring / (float)rings, x = Mathf.Lerp(-1.04f, headCenter + headLength, u), profile = Profile(x, model.head);
                 for (int side = 0; side <= sides; side++)
                 {
                     float angle = side / (float)sides * U.TAU;
-                    b.Vertex(new Vector3(x, Mathf.Cos(angle) * h * profile, Mathf.Sin(angle) * depth * profile), Color.white, Vector2.zero);
+                    b.Vertex(new Vector3(x, Mathf.Cos(angle) * h * profile, Mathf.Sin(angle) * depth * profile), Color.white, Vector2.zero, new Vector2(x, side / (float)sides));
                     if (ring < rings && side < sides)
                     {
                         int a = ring * (sides + 1) + side, c = a + sides + 1;
@@ -153,18 +153,11 @@ namespace DeepFeast
             }
             model.body = b.Mesh(sp.key + " rounded body");
             b = new Builder();
-            float tailH = sp.Sh.tH * FishArt.HL;
-            var tail = sp.Sh.tail == TailKind.Fan
-                ? new[] { new Vector2(-0.93f, 0), new Vector2(-1.58f, tailH), new Vector2(-1.72f, 0), new Vector2(-1.58f, -tailH) }
-                : new[] { new Vector2(-0.93f, 0), new Vector2(-1.7f, tailH * (sp.Sh.tail == TailKind.Shark ? 1.25f : 1)), new Vector2(-1.46f, 0.04f), new Vector2(-1.68f, -tailH * 0.9f) };
-            b.Fin(tail, sp.tailCol, 0.018f, new Vector2(-0.93f, 0), p => Mathf.Clamp01((-p.x - 0.93f) / 0.75f));
-            float dorsal = sp.Sh.dH * FishArt.HL;
-            float Surface(float x) => h * Profile(x, model.head);
-            b.Fin(new[] { new Vector2(-0.83f, Surface(-0.83f) * 0.9f), new Vector2(-0.45f, Surface(-0.45f) + dorsal), new Vector2(0.08f, Surface(0.08f) + dorsal * 0.18f), new Vector2(0.49f, Surface(0.49f) * 0.95f) }, sp.fin, 0.012f, new Vector2(0.10f, h * 0.8f), p => Mathf.Clamp01((p.y - Surface(p.x) * 0.95f) / Mathf.Max(dorsal, 0.1f)));
-            float ventral = sp.Sh.aH * FishArt.HL;
-            b.Fin(new[] { new Vector2(-0.7f, -Surface(-0.7f) * 0.9f), new Vector2(-0.4f, -Surface(-0.4f) - ventral), new Vector2(0.25f, -Surface(0.25f) * 0.95f) }, sp.fin, 0.012f, new Vector2(0, -h * 0.8f), p => Mathf.Clamp01((-p.y - Surface(p.x) * 0.95f) / Mathf.Max(ventral, 0.1f)));
-            model.fins = b.Mesh(sp.key + " caudal dorsal ventral fins");
-            model.nearFin = Pectoral(sp, depth, h, -1); model.farFin = Pectoral(sp, depth, h, 1);
+            Caudal(b, sp, model);
+            SpineFin(b, sp, model, 1);
+            SpineFin(b, sp, model, -1);
+            model.fins = b.Mesh(sp.key + " rooted caudal dorsal ventral membranes");
+            model.nearFin = Pectoral(sp, model, -1); model.farFin = Pectoral(sp, model, 1);
             float ex = Mathf.Clamp(art.eyePos.x, 0.5f, 0.83f), ey = Mathf.Clamp(art.eyePos.y, 0.08f, h * 0.58f);
             float profileEye = Profile(ex, model.head);
             float ez = depth * profileEye * Mathf.Sqrt(Mathf.Max(0.1f, 1 - Mathf.Pow(ey / (h * profileEye), 2))) + 0.015f;
@@ -180,24 +173,80 @@ namespace DeepFeast
         static float Profile(float x, Vector4 head)
         {
             if (x >= head.x) return Mathf.Sqrt(Mathf.Max(0.000016f, 1 - Mathf.Pow((x - head.x) / head.y, 2)));
-            return Mathf.Lerp(0.10f, 1, Mathf.SmoothStep(0, 1, Mathf.InverseLerp(-1.04f, head.x, x)));
+            float t = Mathf.InverseLerp(-1.04f, head.x, x);
+            return Mathf.Lerp(0.16f, 1, Mathf.Pow(Mathf.Sin(t * Mathf.PI * 0.5f), 1.2f));
         }
 
-        static Mesh Pectoral(Species sp, float depth, float h, int side)
+        static Color FinColor(Color color, float weight)
+        {
+            var root = Color.Lerp(color, U.Hex("#48362e"), 0.24f);
+            var tip = Color.Lerp(color, U.Hex("#fff1cc"), 0.23f);
+            var result = Color.Lerp(root, tip, Mathf.SmoothStep(0, 1, weight));
+            result.a = color.a * Mathf.Lerp(0.97f, 0.57f, weight * weight);
+            return result;
+        }
+
+        static void Caudal(Builder b, Species sp, Model model)
+        {
+            float height = sp.Sh.tH * FishArt.HL;
+            // The clown's rounded tail matches its painted reference; oval body shape alone does not
+            // determine a species' tail. Other species retain their fork, crescent or asymmetric tail.
+            var kind = sp.key == "clown" ? TailKind.Fan : sp.Sh.tail;
+            b.Membrane(sp.tailCol, 12, 36, 4, (weight, across) =>
+            {
+                float s = across * 2 - 1, edge = Mathf.Abs(s);
+                float x = kind switch
+                {
+                    TailKind.Fan => -1.70f + 0.17f * edge * edge,
+                    TailKind.Lunate => -1.28f - 0.50f * Mathf.Pow(edge, 1.35f),
+                    TailKind.Shark => -1.34f - (s > 0 ? 0.48f : 0.32f) * Mathf.Pow(edge, 0.9f),
+                    _ => -1.38f - 0.38f * Mathf.Pow(edge, 1.15f),
+                };
+                float y = s * height * (kind == TailKind.Shark ? s > 0 ? 1.18f : 0.82f : 1);
+                var root = new Vector3(-1.04f, s * model.height * 0.16f, 0);
+                var end = new Vector3(x, y, 0);
+                var p = Vector3.Lerp(root, end, weight);
+                p.y += s * height * 0.09f * Mathf.Sin(weight * Mathf.PI);
+                p.z = Mathf.Sin(weight * Mathf.PI) * (0.035f + 0.025f * s) + Mathf.Sin(across * Mathf.PI * 24) * 0.003f * weight;
+                return p;
+            });
+        }
+
+        static void SpineFin(Builder b, Species sp, Model model, int side)
+        {
+            float height = (side > 0 ? sp.Sh.dH : sp.Sh.aH) * FishArt.HL;
+            bool shark = sp.shape == "shark";
+            b.Membrane(sp.fin, 8, 26, side > 0 ? 2 : 3, (weight, along) =>
+            {
+                float x = Mathf.Lerp(side > 0 ? 0.43f : 0.22f, side > 0 ? -0.83f : -0.72f, along);
+                // sin(PI) can round below zero; fractional powers require a nonnegative base.
+                float outline = Mathf.Pow(Mathf.Max(0, Mathf.Sin(along * Mathf.PI)), shark ? 1.8f : sp.shape == "tall" ? 0.65f : 1.1f);
+                if (shark) outline *= 1.2f - along * 0.65f;
+                float rootY = model.height * Profile(x, model.head) * 0.96f;
+                var p = new Vector3(x - weight * outline * 0.18f, side * (rootY + height * outline * weight), 0);
+                p.z = Mathf.Sin(weight * Mathf.PI) * Mathf.Sin(along * Mathf.PI) * 0.06f;
+                return p;
+            });
+        }
+
+        static Mesh Pectoral(Species sp, Model model, int side)
         {
             var b = new Builder();
-            float span = sp.shape == "shark" ? 0.62f : 0.38f;
-            const int radial = 7, across = 20;
+            float h = model.height, depth = model.depth;
+            float span = sp.shape == "shark" ? 0.45f : 0.30f;
+            const int radial = 10, across = 24;
             for (int layer = 0; layer < 2; layer++)
                 for (int u = 0; u <= radial; u++)
                     for (int t = 0; t <= across; t++)
                     {
                         float weight = u / (float)radial, angle = t / (float)across;
-                        var root = Vector3.Lerp(new Vector3(0.38f, h * 0.02f, side * depth * 0.84f), new Vector3(0.05f, -h * 0.53f, side * depth * 0.9f), angle);
+                        var root = Vector3.Lerp(new Vector3(0.48f, -h * 0.01f, 0), new Vector3(0.30f, -h * 0.37f, 0), angle);
+                        float profile = Profile(root.x, model.head);
+                        root.z = side * (depth * profile * Mathf.Sqrt(Mathf.Max(0.01f, 1 - Mathf.Pow(root.y / (h * profile), 2))) + 0.002f);
                         float spread = Mathf.Pow(Mathf.Max(0, Mathf.Sin(angle * Mathf.PI)), 0.8f);
-                        var p = root + new Vector3(-0.55f, -h * 0.08f, side * span) * spread * weight;
-                        p.y += Mathf.Sin(weight * Mathf.PI) * spread * 0.065f + (layer == 0 ? 1 : -1) * 0.009f;
-                        b.Vertex(p, sp.fin, new Vector2(weight, side), new Vector2(weight, angle * Mathf.PI));
+                        var p = root + new Vector3(-0.46f, -h * 0.35f, side * span) * spread * weight;
+                        p.y += Mathf.Sin(weight * Mathf.PI) * spread * 0.055f + (layer == 0 ? 1 : -1) * Mathf.Lerp(0.009f, 0.002f, weight);
+                        b.Vertex(p, FinColor(sp.fin, weight), new Vector2(weight, side), new Vector2(weight, angle));
                     }
             int count = (radial + 1) * (across + 1);
             for (int layer = 0; layer < 2; layer++)
@@ -274,7 +323,9 @@ namespace DeepFeast
             readonly List<int> triangles = new List<int>();
             public int Vertex(Vector3 v, Color color, Vector2 weight, Vector2 uv = default)
             {
-                vertices.Add(v); colors.Add(new Color(color.r, color.g, color.b, 1)); flex.Add(weight); surface.Add(uv);
+                if (!float.IsFinite(v.x) || !float.IsFinite(v.y) || !float.IsFinite(v.z))
+                    throw new System.InvalidOperationException("Nonfinite generated fish vertex: " + v);
+                vertices.Add(v); colors.Add(color); flex.Add(weight); surface.Add(uv);
                 return vertices.Count - 1;
             }
             public void Tri(int a, int b, int c) { triangles.Add(a); triangles.Add(b); triangles.Add(c); }
@@ -298,86 +349,44 @@ namespace DeepFeast
                 foreach (var vertex in vertices) { sums.TryGetValue(Key(vertex), out var sum); normals.Add(sum.sqrMagnitude > 1e-15f ? sum.normalized : Vector3.right); }
                 mesh.SetNormals(normals); mesh.RecalculateBounds();
                 // Include shader-driven flex so Unity cannot cull a bent tail at the edge of the viewport.
-                var bounds = mesh.bounds; bounds.Expand(new Vector3(0.15f, 0.5f, 0.9f)); mesh.bounds = bounds;
+                var bounds = mesh.bounds; bounds.Expand(new Vector3(0.15f, 0.5f, 2.5f)); mesh.bounds = bounds;
                 mesh.UploadMeshData(true); return mesh;
             }
-            public void Fin(Vector2[] polygon, Color color, float thickness, Vector2 origin, System.Func<Vector2, float> rootWeight)
+            public void Membrane(Color color, int radial, int across, float kind, System.Func<float, float, Vector3> point)
             {
-                // Round each corner with a short quadratic arc and keep a consistent outward winding.
-                var rounded = new List<Vector2>();
-                for (int i = 0; i < polygon.Length; i++)
-                {
-                    var previous = polygon[(i + polygon.Length - 1) % polygon.Length];
-                    var next = polygon[(i + 1) % polygon.Length];
-                    var a = Vector2.Lerp(polygon[i], previous, 0.22f); var c = Vector2.Lerp(polygon[i], next, 0.22f);
-                    for (int j = 0; j < 5; j++) { float t = j / 4f; rounded.Add((1-t)*(1-t)*a + 2*(1-t)*t*polygon[i] + t*t*c); }
-                }
-                polygon = rounded.ToArray();
-                float area = 0;
-                for (int i = 0; i < polygon.Length; i++) { var a = polygon[i]; var c = polygon[(i + 1) % polygon.Length]; area += a.x*c.y - c.x*a.y; }
-                if (area < 0) System.Array.Reverse(polygon);
-                var faces = Triangulate(polygon);
-                var shared = new Dictionary<Vector3Int, int>();
-                int Point(Vector2 p, int side)
-                {
-                    var key = new Vector3Int(Mathf.RoundToInt(p.x * 100000), Mathf.RoundToInt(p.y * 100000), side);
-                    if (shared.TryGetValue(key, out var index)) return index;
-                    float weight = rootWeight(p);
-                    float camber = Mathf.Sin(weight * Mathf.PI) * 0.035f;
-                    float z = camber + (side == 0 ? -1 : 1) * thickness * (0.5f + 0.5f * Mathf.Sin(weight * Mathf.PI));
-                    index = Vertex(new Vector3(p.x, p.y, z), color, new Vector2(weight, 0), new Vector2(weight, Mathf.Atan2(p.y - origin.y, p.x - origin.x)));
-                    shared[key] = index; return index;
-                }
-                const int divisions = 3;
-                for (int side = 0; side < 2; side++)
-                    for (int face = 0; face < faces.Count; face += 3)
-                    {
-                        var a = polygon[faces[face]]; var c = polygon[faces[face + 1]]; var d = polygon[faces[face + 2]];
-                        int At(int i, int j) => Point(a + (c - a) * (i / (float)divisions) + (d - a) * (j / (float)divisions), side);
-                        void Face(int x, int y, int z) { if (side == 0) Tri(x, z, y); else Tri(x, y, z); }
-                        for (int i = 0; i < divisions; i++)
-                            for (int j = 0; j < divisions - i; j++)
-                            {
-                                Face(At(i, j), At(i + 1, j), At(i, j + 1));
-                                if (i + j < divisions - 1) Face(At(i + 1, j), At(i + 1, j + 1), At(i, j + 1));
-                            }
-                    }
-                for (int i = 0; i < polygon.Length; i++)
-                {
-                    var a = polygon[i]; var c = polygon[(i + 1) % polygon.Length];
-                    for (int step = 0; step < divisions; step++)
-                    {
-                        var p = Vector2.Lerp(a, c, step / (float)divisions); var q = Vector2.Lerp(a, c, (step + 1) / (float)divisions);
-                        Tri(Point(p, 0), Point(q, 0), Point(p, 1)); Tri(Point(q, 0), Point(q, 1), Point(p, 1));
-                    }
-                }
-            }
-
-            static List<int> Triangulate(Vector2[] polygon)
-            {
-                var remaining = new List<int>(); var result = new List<int>();
-                for (int i = 0; i < polygon.Length; i++) remaining.Add(i);
-                float Cross(Vector2 a, Vector2 b) => a.x * b.y - a.y * b.x;
-                while (remaining.Count > 3)
-                {
-                    bool clipped = false;
-                    for (int i = 0; i < remaining.Count; i++)
-                    {
-                        int a = remaining[(i + remaining.Count - 1) % remaining.Count], c = remaining[i], d = remaining[(i + 1) % remaining.Count];
-                        if (Cross(polygon[c] - polygon[a], polygon[d] - polygon[c]) <= 1e-9f) continue;
-                        bool contains = false;
-                        foreach (int index in remaining)
+                int start = vertices.Count, count = (radial + 1) * (across + 1);
+                for (int layer = 0; layer < 2; layer++)
+                    for (int u = 0; u <= radial; u++)
+                        for (int t = 0; t <= across; t++)
                         {
-                            if (index == a || index == c || index == d) continue;
-                            var p = polygon[index];
-                            if (Cross(polygon[c] - polygon[a], p - polygon[a]) >= -1e-9f && Cross(polygon[d] - polygon[c], p - polygon[c]) >= -1e-9f && Cross(polygon[a] - polygon[d], p - polygon[d]) >= -1e-9f) { contains = true; break; }
+                            float weight = u / (float)radial, along = t / (float)across;
+                            var p = point(weight, along);
+                            p.z += (layer == 0 ? -1 : 1) * Mathf.Lerp(0.018f, 0.002f, Mathf.Sqrt(weight));
+                            Vertex(p, FinColor(color, weight), new Vector2(weight, kind), new Vector2(weight, along));
                         }
-                        if (contains) continue;
-                        result.Add(a); result.Add(c); result.Add(d); remaining.RemoveAt(i); clipped = true; break;
-                    }
-                    if (!clipped) throw new System.InvalidOperationException("Cannot triangulate fish fin contour.");
+                void Face(int a, int c, int d, int layer)
+                {
+                    float z = Vector3.Cross(vertices[c] - vertices[a], vertices[d] - vertices[a]).z;
+                    if ((z < 0) == (layer == 0)) Tri(a, c, d); else Tri(a, d, c);
                 }
-                result.AddRange(remaining); return result;
+                for (int layer = 0; layer < 2; layer++)
+                    for (int u = 0; u < radial; u++)
+                        for (int t = 0; t < across; t++)
+                        {
+                            int a = start + layer * count + u * (across + 1) + t, c = a + across + 1;
+                            Face(a, c, a + 1, layer); Face(a + 1, c, c + 1, layer);
+                        }
+                // Thin side walls give the rim a real thickness through oblique turns.
+                for (int u = 0; u < radial; u++)
+                {
+                    Edge(start + u * (across + 1), start + (u + 1) * (across + 1), count);
+                    Edge(start + (u + 1) * (across + 1) + across, start + u * (across + 1) + across, count);
+                }
+                for (int t = 0; t < across; t++)
+                {
+                    Edge(start + t + 1, start + t, count);
+                    Edge(start + radial * (across + 1) + t, start + radial * (across + 1) + t + 1, count);
+                }
             }
             public void Edge(int a, int c, int offset) { Tri(a, c, a + offset); Tri(c, c + offset, a + offset); }
 
