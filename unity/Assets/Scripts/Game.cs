@@ -1,0 +1,1251 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using UnityEngine;
+
+namespace DeepFeast
+{
+    static class Bootstrap
+    {
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void Boot()
+        {
+            if (UnityEngine.Object.FindAnyObjectByType<Game>() == null) new GameObject("DeepFeast").AddComponent<Game>();
+        }
+    }
+
+    /// <summary>The whole game loop: state machine, player, AI, spawning, camera and rendering glue.</summary>
+    public sealed class Game : MonoBehaviour
+    {
+        enum GState { Menu, Play, Paused, Over }
+
+        // ------------------------------------------------------------------ systems
+        Camera cam3;
+        World world;
+        SceneFx fx;
+        Hud hud;
+        Sfx sfx;
+        Particles parts;
+        Transform worldRoot, fishRoot, haloRoot, fxRoot;
+        Mesh jellyMesh;
+        readonly MeshBuilder jmb = new MeshBuilder();
+
+        // ------------------------------------------------------------------ state
+        GState state = GState.Menu;
+        int score, lives = 3, combo, eaten, tier, best;
+        float comboT, playTime, sharkT = 30, pearlT = 18, slowT, shake, dieT, time;
+        readonly HashSet<string> hints = new HashSet<string>();
+
+        Vector2 cam = new Vector2(7000, 1500);
+        float zoom = 1, menuCamX = 7000, menuDir = 1;
+        float pxPerRef = 1, refW = 1400, refH = 820;
+
+        readonly Fish player = new Fish { sp = null };
+        bool pActive, pAlive, pTired, pDashing;
+        float pInvuln, pStamina = 1, pBlink, pBlinkT = 3, pShield, pStun, pStungCool;
+        FishView playerView;
+        SpriteRenderer playerGlow, shieldRing, shieldFill, shieldShine;
+        readonly SpriteRenderer[] stunStars = new SpriteRenderer[3];
+
+        readonly List<Fish> fish = new List<Fish>();
+        readonly List<School> schools = new List<School>();
+        readonly List<Jelly> jellies = new List<Jelly>();
+        readonly List<Pearl> pearls = new List<Pearl>();
+        readonly Stack<FishView> viewPool = new Stack<FishView>();
+        readonly List<Hole> holes = new List<Hole>();
+        readonly List<Alert> alerts = new List<Alert>();
+        readonly Dictionary<float, Sprite> bellSprites = new Dictionary<float, Sprite>();
+        Sprite pearlSprite, pearlStar;
+        int nextId = 1;
+
+        // ------------------------------------------------------------------ input
+        bool kbMode, pointerMode, touchMode;
+        Vector2 pointer;
+        Vector3 lastMouse;
+
+        // ------------------------------------------------------------------ test harness (command line)
+        bool autoplay, noPause;
+        string shotDir;
+        float shotEvery = 15, nextShot, quitAfter, startSize, firstShark = -1, realTime, statT, botWanderDir = 1, restartT = -1;
+        int shotN;
+        bool menuShotDone;
+
+        float FocusR => pActive ? player.r : 22;
+        float ViewW => refW / zoom;
+        float ViewH => refH / zoom;
+        bool Playing => state == GState.Play && pActive && pAlive;
+
+        // ================================================================== setup
+        void Awake()
+        {
+            ParseArgs();
+            Application.runInBackground = true;
+#if !UNITY_WEBGL
+            Application.targetFrameRate = 60;
+#endif
+            QualitySettings.vSyncCount = 1;
+
+            var camGo = new GameObject("Camera");
+            cam3 = camGo.AddComponent<Camera>();
+            cam3.orthographic = true;
+            cam3.clearFlags = CameraClearFlags.SolidColor;
+            cam3.backgroundColor = U.Hex("#03121f");
+            cam3.nearClipPlane = 0.1f; cam3.farClipPlane = 100;
+            camGo.AddComponent<AudioListener>();
+
+            worldRoot = new GameObject("WorldRoot").transform;
+            world = new World(worldRoot);
+            fx = new SceneFx(cam3, worldRoot);
+            fishRoot = new GameObject("Fish").transform; fishRoot.SetParent(worldRoot, false);
+            haloRoot = new GameObject("Halos").transform; haloRoot.SetParent(worldRoot, false);
+            fxRoot = new GameObject("Fx").transform; fxRoot.SetParent(worldRoot, false);
+            jellyMesh = Gfx.MeshObject("JellyTentacles", fxRoot, Layer.Jelly - 1).mesh;
+            parts = new Particles(fxRoot);
+            FishArt.Prewarm();
+            BuildPlayerView();
+            BuildPearlArt();
+
+            sfx = new Sfx(gameObject, autoplay || Has("-mute"));
+            hud = new Hud();
+            hud.OnPlay = StartGame;
+            hud.OnResume = () => TogglePause(false);
+            hud.OnMute = ToggleMute;
+            hud.SetMuted(sfx.Muted);
+
+            best = PlayerPrefs.GetInt("deepfeast.best", 0);
+            hud.ShowMenu(best);
+
+            Resize();
+            menuCamX = world.FindStart().x;
+            cam = new Vector2(menuCamX, world.FloorY(menuCamX) - 480);
+            zoom = Data.ZoomFor(22);
+            for (int i = 0; i < 60; i++) SpawnOne(true);
+            lastMouse = Input.mousePosition;
+        }
+
+        void BuildPlayerView()
+        {
+            player.sp = Data.Player;
+            playerView = new FishView(fishRoot, haloRoot);
+            playerView.SetSpecies(Data.Player);
+            playerView.SetActive(false);
+            playerGlow = Gfx.SpriteObject("PlayerGlow", fxRoot, Gfx.Glow, Layer.Glow, true);
+            shieldFill = Gfx.SpriteObject("ShieldFill", fxRoot, Gfx.Disc, Layer.Shield);
+            shieldRing = Gfx.SpriteObject("ShieldRing", fxRoot, Gfx.Ring, Layer.Shield + 1);
+            shieldShine = Gfx.SpriteObject("ShieldShine", fxRoot, Gfx.Disc, Layer.Shield + 2);
+            for (int i = 0; i < 3; i++) stunStars[i] = Gfx.SpriteObject("Stun", fxRoot, Gfx.Disc, Layer.Shield + 3);
+        }
+
+        void BuildPearlArt()
+        {
+            var r = new Raster(-1.05f, -1.05f, 1.05f, 1.05f, 48);
+            Color a = Color.white, b = U.Hex("#ffe6f5"), c = U.Hex("#c9a8e8");
+            r.Paint(r.Circle(0, 0, 1), (x, y) =>
+            {
+                float t = Mathf.Clamp01(Vector2.Distance(new Vector2(x, y), new Vector2(-0.35f, -0.35f)) / 1.3f);
+                return t < 0.5f ? Color.Lerp(a, b, t * 2) : Color.Lerp(b, c, t * 2 - 1);
+            });
+            pearlSprite = r.ToSprite(Vector2.zero, 48);
+            var s = new Raster(-2.3f, -2.3f, 2.3f, 2.3f, 32);
+            var m = s.Mask();
+            for (int i = 0; i < 4; i++)
+            {
+                float ang = i * Mathf.PI / 2, cs = Mathf.Cos(ang), sn = Mathf.Sin(ang);
+                Vector2 R(float x, float y) => new Vector2(x * cs - y * sn, x * sn + y * cs);
+                Vector2 p0 = R(0, -0.15f), p1 = R(2.2f, 0), p2 = R(0, 0.15f);
+                s.Fill(new Path().Move(p0.x, p0.y).Line(p1.x, p1.y).Line(p2.x, p2.y), m);
+            }
+            s.Paint(m, new Color(1, 1, 1, 0.9f));
+            pearlStar = s.ToSprite(Vector2.zero, 32);
+        }
+
+        Sprite BellSprite(float hue)
+        {
+            if (bellSprites.TryGetValue(hue, out var spr)) return spr;
+            float bw = 1, bh = 0.75f;
+            var r = new Raster(-1.08f, -0.83f, 1.08f, 0.25f, 64);
+            var p = new Path().Move(-bw, 0);
+            for (int i = 1; i <= 24; i++) { float a = Mathf.PI + Mathf.PI * i / 24f; p.Line(Mathf.Cos(a) * bw, Mathf.Sin(a) * bh); }
+            const int sc = 6;
+            for (int i = 0; i < sc; i++)
+            {
+                float xa = bw - (i + 0.5f) * (2 * bw / sc), xb = bw - (i + 1) * (2 * bw / sc);
+                p.Quad(xa, bh * 0.22f, xb, 0, 6);
+            }
+            var m = r.Fill(p);
+            Color c0 = U.Hsl(hue, 1, 0.93f, 0.92f), c1 = U.Hsl(hue, 0.9f, 0.7f, 0.6f), c2 = U.Hsl(hue, 0.85f, 0.55f, 0.3f);
+            r.Paint(m, (x, y) =>
+            {
+                float t = Mathf.Clamp01(Vector2.Distance(new Vector2(x, y), new Vector2(0, -bh * 0.4f)) / bw);
+                return t < 0.55f ? Color.Lerp(c0, c1, t / 0.55f) : Color.Lerp(c1, c2, (t - 0.55f) / 0.45f);
+            });
+            r.Paint(r.InnerRing(m, 2), U.Hsl(hue, 1, 0.92f, 0.6f));
+            spr = r.ToSprite(Vector2.zero, 64);
+            bellSprites[hue] = spr;
+            return spr;
+        }
+
+        // ================================================================== args / harness
+        static string[] args;
+        static bool Has(string k) => Array.IndexOf(args, k) >= 0;
+        static string Arg(string k) { int i = Array.IndexOf(args, k); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; }
+        static float ArgF(string k, float d) => float.TryParse(Arg(k), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : d;
+
+        void ParseArgs()
+        {
+            args = Environment.GetCommandLineArgs();
+            autoplay = Has("-autoplay");
+            noPause = autoplay || Has("-nopause");
+            shotDir = Arg("-shots");
+            shotEvery = ArgF("-shotevery", 15);
+            quitAfter = ArgF("-quitafter", 0);
+            startSize = ArgF("-size", 0);
+            firstShark = ArgF("-shark", -1);
+            float ts = ArgF("-timescale", 1);
+            if (ts != 1) Time.timeScale = ts;
+            if (shotDir != null) System.IO.Directory.CreateDirectory(shotDir);
+        }
+
+        void Shot(string name)
+        {
+            if (shotDir == null) return;
+            ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(shotDir, name + ".png"));
+            Debug.Log($"[DeepFeast] shot {name}");
+        }
+
+        void Harness(float rdt)
+        {
+            realTime += rdt;
+            if (quitAfter > 0 && realTime >= quitAfter)
+            {
+                Debug.Log("[DeepFeast] quit after " + quitAfter);
+                Application.Quit();
+            }
+            if (!autoplay && shotDir == null) return;
+            if (state == GState.Menu && realTime > 2.5f)
+            {
+                if (!menuShotDone) { menuShotDone = true; Shot("menu"); return; }
+                if (autoplay && realTime > 3) { StartGame(); nextShot = 4; }
+            }
+            if (state == GState.Play && shotDir != null && playTime >= nextShot)
+            {
+                Shot($"play_{shotN++:00}_t{(int)playTime}_r{(int)player.r}");
+                nextShot = playTime + shotEvery;
+            }
+            if (state == GState.Play && autoplay)
+            {
+                statT -= rdt;
+                if (statT <= 0)
+                {
+                    statT = 10;
+                    Debug.Log($"[DeepFeast] stat t={(int)playTime} r={player.r:0.0} tier={Data.Tiers[tier].name} lives={lives} score={score} eaten={eaten} fish={fish.Count} fps={1f / Mathf.Max(1e-4f, Time.smoothDeltaTime):0}");
+                }
+            }
+            if (state == GState.Over && autoplay)
+            {
+                if (restartT < 0) { restartT = 2.5f; }
+                restartT -= rdt;
+                if (restartT <= 1.2f && restartT + rdt > 1.2f) Shot($"over_{shotN++:00}");
+                if (restartT <= 0) { restartT = -1; StartGame(); nextShot = playTime + 2; }
+            }
+        }
+
+        // ================================================================== flow
+        void StartGame()
+        {
+            foreach (var f in fish) ReleaseView(f);
+            fish.Clear(); schools.Clear();
+            foreach (var j in jellies) DestroyJelly(j);
+            jellies.Clear();
+            foreach (var p in pearls) DestroyPearl(p);
+            pearls.Clear();
+            parts.Clear(); hud.ClearTexts();
+            state = GState.Play; score = 0; lives = 3; combo = 0; comboT = 0; eaten = 0; playTime = 0; tier = 0;
+            sharkT = firstShark > 0 ? firstShark : U.Rand(32, 40); pearlT = U.Rand(14, 20); slowT = 0; shake = 0; dieT = 0;
+            hints.Clear();
+            var s = world.FindStart();
+            player.x = s.x; player.y = s.y; player.vx = player.vy = 0; player.r = 12; player.face = player.faceS = 1;
+            player.tilt = 0; player.mouth = 0; player.chomp = 0; player.state = FState.Wander;
+            if (startSize > 0)
+            {
+                player.r = startSize;
+                for (int i = 0; i < Data.Tiers.Length; i++) if (player.r >= Data.Tiers[i].r) tier = i;
+            }
+            pInvuln = 2; pStamina = 1; pTired = false; pDashing = false; pActive = true; pAlive = true; pShield = 0; pStun = 0; pStungCool = 0;
+            zoom = Data.ZoomFor(player.r);
+            cam = new Vector2(player.x, player.y);
+            for (int i = 0; i < 70; i++) SpawnOne(true);
+            hud.StartPlay();
+            Banner("EAT OR BE EATEN", "Smaller fish are food · bigger fish are danger", new Color(80 / 255f, 240 / 255f, 220 / 255f));
+        }
+
+        void TogglePause(bool? force = null)
+        {
+            if (state == GState.Play && force != false) { state = GState.Paused; hud.ShowPause(true); }
+            else if (state == GState.Paused && force != true) { state = GState.Play; hud.ShowPause(false); }
+        }
+
+        void ToggleMute()
+        {
+            sfx.SetMuted(!sfx.Muted);
+            hud.SetMuted(sfx.Muted);
+        }
+
+        void GameOver()
+        {
+            state = GState.Over;
+            pActive = false;
+            bool isBest = score > best;
+            if (isBest) { best = score; PlayerPrefs.SetInt("deepfeast.best", best); PlayerPrefs.Save(); }
+            hud.ShowOver(score, Data.Tiers[tier].name, eaten, playTime, isBest, best);
+            menuCamX = cam.x;
+            Debug.Log($"[DeepFeast] game over t={(int)playTime} score={score} tier={Data.Tiers[tier].name} eaten={eaten}");
+        }
+
+        void Banner(string title, string sub, Color glow) => hud.Banner(title, sub, glow);
+
+        void Hint(string key, string title, string sub, Color glow)
+        {
+            if (hints.Contains(key)) return;
+            hints.Add(key);
+            Banner(title, sub, glow);
+        }
+
+        void CheckTier()
+        {
+            int t = 0;
+            for (int i = 0; i < Data.Tiers.Length; i++) if (player.r >= Data.Tiers[i].r) t = i;
+            if (t <= tier) return;
+            tier = t;
+            bool extra = lives < 5;
+            if (extra) lives++;
+            Banner(Data.Tiers[t].name.ToUpperInvariant() + "!", Data.Tiers[t].blurb + (extra ? "  +1 life" : ""), new Color(1, 212 / 255f, 71 / 255f));
+            sfx.TierUp();
+            parts.Add(new Particle { type = PType.Ring, x = player.x, y = player.y, life = 0.8f, max = 0.8f, size = player.r * 5, col = new Color(1, 220 / 255f, 120 / 255f) });
+            Sparkle(player.x, player.y, player.r, 26, U.Hex("#ffe38a"));
+        }
+
+        void EatFish(int i)
+        {
+            var f = fish[i];
+            fish.RemoveAt(i);
+            ReleaseView(f);
+            float pr = player.r;
+            player.chomp = 0.22f;
+            player.r = Mathf.Sqrt(pr * pr + f.r * f.r * Data.GROW);
+            combo = comboT > 0 ? Mathf.Min(combo + 1, 12) : 1;
+            comboT = 1.8f;
+            int pts = Mathf.RoundToInt((f.r * 1.5f + 5) * (f.shark ? 5 : 1)) * combo;
+            score += pts;
+            eaten++;
+            Burst(f.x, f.y, f.r, f.sp.c0);
+            hud.AddText(f.x, f.y - f.r, "+" + pts, combo > 1 ? U.Hex("#ffd447") : Color.white, combo > 2 ? 28 : 22);
+            if (combo == 5 || combo == 10)
+                Banner(combo == 10 ? "MEGA FRENZY!" : "FEEDING FRENZY!", $"×{combo} combo", new Color(1, 170 / 255f, 40 / 255f));
+            sfx.Chomp(f.r / pr, combo);
+            shake = Mathf.Max(shake, 2 + (f.r / pr) * 3);
+            CheckTier();
+        }
+
+        void KillPlayer(Fish killer)
+        {
+            pAlive = false;
+            dieT = 1.5f;
+            lives--;
+            if (killer != null) { killer.chomp = 0.5f; killer.state = FState.Wander; killer.cool = 6; }
+            Burst(player.x, player.y, player.r * 1.4f, Data.Player.c0);
+            Sparkle(player.x, player.y, player.r, 16, U.Hex("#ffd447"));
+            shake = 16; slowT = 0.7f; combo = 0; comboT = 0;
+            sfx.Hurt();
+        }
+
+        void Respawn()
+        {
+            pAlive = true; pInvuln = 3; pStamina = 1; pTired = false; player.vx = player.vy = 0; pStun = 0;
+            float sight = ViewW;
+            foreach (var f in fish)
+            {
+                if (f.r >= player.r * Data.DANGER && Dist(f.x - player.x, f.y - player.y) < sight)
+                {
+                    f.state = f.shark ? FState.Leave : FState.Wander;
+                    f.cool = 6;
+                    f.dir = f.x < player.x ? -1 : 1;
+                    if (f.shark) { f.life = 0; f.leaveDir = f.dir; }
+                }
+            }
+            Banner($"{lives} {(lives == 1 ? "LIFE" : "LIVES")} LEFT", "Shake it off and keep feeding", new Color(80 / 255f, 240 / 255f, 220 / 255f));
+        }
+
+        static float Dist(float x, float y) => Mathf.Sqrt(x * x + y * y);
+
+        // ================================================================== spawning
+        Fish MakeFish(Species sp, float r, float x, float y, int dir)
+        {
+            var f = new Fish
+            {
+                id = nextId++, sp = sp, r = r, x = x, y = y, vx = dir * 20, face = dir, faceS = dir, wag = U.Rand(0, U.TAU),
+                dir = dir, phase = U.Rand(0, U.TAU), cruise = U.Rand(0.3f, 0.5f), homeY = y, homeT = U.Rand(2, 7),
+                state = FState.Wander, cool = U.Rand(1.5f, 4), eatCool = 2, aggro = U.Rand(0.5f, 1.2f),
+            };
+            return f;
+        }
+
+        void SpawnSchool(float x, float y, int dir, float r, int n)
+        {
+            var key = r <= 13 ? "minnow" : Data.SpeciesFor(r, true);
+            var s = new School { dir = dir, turnT = U.Rand(6, 14), cx = x, cy = y };
+            schools.Add(s);
+            for (int i = 0; i < n; i++)
+            {
+                float fr = r * U.Rand(0.85f, 1.12f);
+                float fx = x + U.Rand(-1, 1) * r * 5, fy = Mathf.Clamp(y + U.Rand(-1, 1) * r * 3, 80, world.FloorY(fx) - fr - 30);
+                var f = MakeFish(Data.SpeciesMap[key], fr, fx, fy, dir);
+                f.school = s; f.slotX = U.Rand(-1, 1) * r * 5; f.slotY = U.Rand(-1, 1) * r * 3; f.cruise = 0.42f;
+                fish.Add(f);
+            }
+        }
+
+        void SpawnOne(bool initial)
+        {
+            float pr = FocusR, vw = ViewW, vh = ViewH;
+            float threatP = tier >= 5 ? 0.08f : 0.2f + Mathf.Min(tier, 3) * 0.03f;
+            float r; bool threat = false, school = false;
+            if (U.Rand() < threatP) { r = pr * U.Rand(1.25f, 2.3f); threat = true; }
+            else
+            {
+                float v = U.Rand();
+                if (v < 0.22f) { r = pr * U.Rand(0.28f, 0.5f); school = true; }
+                else if (v < 0.36f) r = pr * U.Rand(0.18f, 0.34f);
+                else r = pr * U.Rand(0.4f, 0.86f);
+            }
+            if (threat)
+            {
+                int threats = 0;
+                foreach (var f in fish) if (f.r >= pr * Data.DANGER) threats++;
+                if (threats >= 7) { r = pr * U.Rand(0.4f, 0.86f); threat = false; }
+            }
+            r = Mathf.Max(3, r);
+            float x, y; int dir;
+            if (initial)
+            {
+                x = cam.x + U.Rand(-0.95f, 0.95f) * vw;
+                y = cam.y + U.Rand(-0.85f, 0.85f) * vh;
+                dir = U.Chance(0.5f) ? 1 : -1;
+                if (pActive && Dist(x - player.x, y - player.y) < vw * (threat ? 0.55f : 0.12f)) return;
+            }
+            else
+            {
+                int side = U.Chance(0.5f) ? -1 : 1;
+                x = cam.x + side * (vw * 0.5f + U.Rand(r * 2.5f + 30, vw * 0.32f));
+                y = cam.y + U.Rand(-0.6f, 0.6f) * vh;
+                dir = U.Chance(0.78f) ? -side : side;
+            }
+            y = Mathf.Min(y, world.FloorY(x) - r * 2 - 40);
+            if (!world.InWater(x, y, r)) return;
+            if (school) SpawnSchool(x, y, dir, r, 5 + U.RandInt(0, 5));
+            else fish.Add(MakeFish(Data.SpeciesMap[Data.SpeciesFor(r, false)], r, x, y, dir));
+        }
+
+        void SpawnJelly()
+        {
+            float pr = FocusR, vw = ViewW, vh = ViewH;
+            int side = U.Chance(0.5f) ? -1 : 1;
+            float x = cam.x + side * (vw * 0.5f + U.Rand(60, vw * 0.4f));
+            float r = Mathf.Max(9, pr * U.Rand(0.75f, 1.35f));
+            float y = Mathf.Clamp(cam.y + U.Rand(-0.5f, 0.5f) * vh, 650, world.FloorY(x) - r * 4 - 60);
+            if (!world.InWater(x, y, r * 2)) return;
+            var j = new Jelly
+            {
+                x = x, y = y, r = r, vx = U.Rand(-0.04f, 0.04f) * Data.SpeedFor(pr), phase = U.Rand(0, U.TAU), pf = U.Rand(1.6f, 2.4f),
+                hue = U.Pick(new float[] { 300, 320, 190, 270, 200 }),
+            };
+            j.bell = Gfx.SpriteObject("Jelly", fxRoot, BellSprite(j.hue), Layer.Jelly + jellies.Count);
+            j.glow = Gfx.SpriteObject("JellyGlow", fxRoot, Gfx.Glow, Layer.Glow, true);
+            j.glow.color = U.Hsl(j.hue, 1, 0.7f, 0.24f);
+            jellies.Add(j);
+        }
+
+        void DestroyJelly(Jelly j) { Destroy(j.bell.gameObject); Destroy(j.glow.gameObject); }
+        void DestroyPearl(Pearl p) { Destroy(p.body.gameObject); Destroy(p.star.gameObject); Destroy(p.glow.gameObject); }
+
+        void SpawnShark()
+        {
+            float pr = player.r, vw = ViewW;
+            bool edible = tier >= 5;
+            int side = -(int)Mathf.Sign(player.face);
+            if (side == 0) side = 1;
+            float r = edible ? pr * 0.75f : pr * 3.2f;
+            float x = Mathf.Clamp(player.x + side * (vw * 0.62f + r * 2), 200, World.W - 200);
+            float y = Mathf.Clamp(player.y + U.Rand(-150, 150), 120 + r, world.FloorY(x) - r - 60);
+            var s = MakeFish(Data.Shark, r, x, y, -side);
+            s.shark = true; s.life = 14; s.state = FState.Chase; s.leaveDir = side; s.alertT = 1.4f;
+            fish.Add(s);
+            if (edible) Banner("SHARK!", "You are the Leviathan now — hunt it down!", new Color(1, 200 / 255f, 60 / 255f));
+            else Banner("SHARK!", "Hold click / Space to dash away", new Color(1, 60 / 255f, 80 / 255f));
+            sfx.Shark();
+        }
+
+        void SpawnPearl()
+        {
+            float pr = player.r, vw = ViewW, vh = ViewH;
+            for (int t = 0; t < 12; t++)
+            {
+                float x = cam.x + U.Rand(-0.38f, 0.38f) * vw, y = cam.y + U.Rand(-0.36f, 0.36f) * vh;
+                if (!world.InWater(x, y, pr) || Dist(x - player.x, y - player.y) < pr * 5) continue;
+                var p = new Pearl { x = x, y = y, r = Mathf.Max(6, pr * 0.32f), life = 16, ph = U.Rand(0, U.TAU) };
+                p.glow = Gfx.SpriteObject("PearlGlow", fxRoot, Gfx.Glow, Layer.Glow, true);
+                p.glow.color = new Color(1, 220 / 255f, 250 / 255f, 0.4f);
+                p.body = Gfx.SpriteObject("Pearl", fxRoot, pearlSprite, Layer.Pearl);
+                p.star = Gfx.SpriteObject("PearlStar", fxRoot, pearlStar, Layer.Pearl + 1);
+                pearls.Add(p);
+                return;
+            }
+        }
+
+        // ================================================================== particles
+        void Bubble(float x, float y, float s, float? vy = null)
+            => parts.Add(new Particle { type = PType.Bubble, x = x, y = y, vx = U.Rand(-0.3f, 0.3f) * s, vy = vy ?? -U.Rand(2.5f, 5) * s, life = U.Rand(1.2f, 2.6f), max = 2.6f, size = s * U.Rand(0.5f, 1.2f), ph = U.Rand(0, U.TAU) });
+
+        void Burst(float x, float y, float r, Color col)
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                float a = U.Rand(0, U.TAU), sp = U.Rand(0.6f, 2.4f) * r;
+                parts.Add(new Particle { type = PType.Bit, x = x, y = y, vx = Mathf.Cos(a) * sp, vy = Mathf.Sin(a) * sp, life = U.Rand(0.5f, 1), max = 1, size = r * U.Rand(0.1f, 0.22f), col = col });
+            }
+            for (int i = 0; i < 7; i++) Bubble(x + U.Rand(-r, r) * 0.6f, y + U.Rand(-r, r) * 0.6f, r * 0.22f);
+            parts.Add(new Particle { type = PType.Ring, x = x, y = y, life = 0.45f, max = 0.45f, size = r * 1.1f, col = Color.white });
+        }
+
+        void Sparkle(float x, float y, float r, int n, Color col)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                float a = U.Rand(0, U.TAU), sp = U.Rand(0.5f, 2) * r;
+                parts.Add(new Particle { type = PType.Spark, x = x, y = y, vx = Mathf.Cos(a) * sp, vy = Mathf.Sin(a) * sp, life = U.Rand(0.5f, 1.1f), max = 1.1f, size = r * U.Rand(0.08f, 0.18f), col = col });
+            }
+        }
+
+        // ================================================================== main loop
+        void Update()
+        {
+            float rdt = Mathf.Min(0.1f, Time.unscaledDeltaTime);
+            float dt = Mathf.Min(0.05f, Time.deltaTime);
+            Resize();
+            ReadInput();
+            Harness(rdt);
+            if (state != GState.Paused)
+            {
+                if (slowT > 0) { slowT -= dt; dt *= 0.35f; }
+                Step(dt);
+            }
+            Render(state == GState.Paused ? 0 : dt, rdt);
+        }
+
+        void OnApplicationFocus(bool focus) { if (!focus && !noPause) { TogglePause(true); } }
+
+        void Resize()
+        {
+            float w = Mathf.Max(1, Screen.width), h = Mathf.Max(1, Screen.height);
+            pxPerRef = Mathf.Min(w, h) / 820f;
+            refW = w / pxPerRef; refH = h / pxPerRef;
+            hud?.Resize(pxPerRef);
+        }
+
+        void Step(float dt)
+        {
+            time += dt;
+            if (state == GState.Play)
+            {
+                if (pAlive) UpdatePlayer(dt);
+                UpdateEvents(dt);
+            }
+            UpdateFish(dt);
+            UpdateJellies(dt);
+            UpdateSpawner(dt);
+            parts.Step(dt);
+            UpdateCamera(dt);
+        }
+
+        // ------------------------------------------------------------------ input
+        bool moveUp, moveDown, moveLeft, moveRight, dashKey, mouseDown;
+
+        void ReadInput()
+        {
+            moveUp = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
+            moveDown = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
+            moveLeft = Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow);
+            moveRight = Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow);
+            dashKey = Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.D) ||
+                Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.RightArrow))
+                kbMode = true;
+
+            if (Input.touchCount > 0)
+            {
+                touchMode = true;
+                pointerMode = false;
+                for (int i = 0; i < Input.touchCount; i++)
+                {
+                    var t = Input.GetTouch(i);
+                    if (hud.PointerOverUI(t.fingerId)) continue;
+                    pointer = new Vector2(t.position.x / pxPerRef, (Screen.height - t.position.y) / pxPerRef);
+                    pointerMode = true; kbMode = false;
+                    break;
+                }
+                mouseDown = false;
+            }
+            else
+            {
+                if (touchMode) pointerMode = false;
+                var mp = Input.mousePosition;
+                bool moved = (mp - lastMouse).sqrMagnitude > 0.5f;
+                lastMouse = mp;
+                if (!touchMode)
+                {
+                    pointer = new Vector2(mp.x / pxPerRef, (Screen.height - mp.y) / pxPerRef);
+                    if (moved || Input.GetMouseButtonDown(0)) { pointerMode = true; kbMode = false; }
+                }
+                mouseDown = !touchMode && Input.GetMouseButton(0) && !hud.PointerOverUI();
+            }
+            hud.ShowTouch(touchMode && state == GState.Play);
+
+            if (Input.GetKeyDown(KeyCode.P) || Input.GetKeyDown(KeyCode.Escape)) TogglePause();
+            if (Input.GetKeyDown(KeyCode.M)) ToggleMute();
+            if ((Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) && (state == GState.Menu || state == GState.Over)) StartGame();
+        }
+
+        // ------------------------------------------------------------------ player
+        void AnimateFish(Fish f, float dt)
+        {
+            float sp = Dist(f.vx, f.vy);
+            if (f.vx > 6) f.face = 1; else if (f.vx < -6) f.face = -1;
+            f.faceS += (f.face - f.faceS) * Mathf.Min(1, dt * 9);
+            float tilt = Mathf.Clamp(Mathf.Atan2(f.vy, Mathf.Abs(f.vx) + 1e-3f), -1.05f, 1.05f);
+            f.tilt += (tilt - f.tilt) * Mathf.Min(1, dt * 6);
+            f.wag += dt * Mathf.Clamp(3.5f + (sp / f.r) * 0.55f, 3.5f, 20);
+            f.chomp = Mathf.Max(0, f.chomp - dt);
+            f.mouth += ((f.chomp > 0 ? 1 : 0) - f.mouth) * Mathf.Min(1, dt * 16);
+        }
+
+        void UpdatePlayer(float dt)
+        {
+            float bas = Data.SpeedFor(player.r);
+            pInvuln = Mathf.Max(0, pInvuln - dt);
+            pShield = Mathf.Max(0, pShield - dt);
+            pStun = Mathf.Max(0, pStun - dt);
+            pStungCool = Mathf.Max(0, pStungCool - dt);
+            player.chomp = Mathf.Max(0, player.chomp - dt);
+
+            float dx = 0, dy = 0, mag = 0;
+            bool wantDash;
+            if (autoplay) { var v = BotSteer(out wantDash); dx = v.x; dy = v.y; mag = v.sqrMagnitude > 0 ? 1 : 0; }
+            else
+            {
+                if (kbMode)
+                {
+                    dx = (moveRight ? 1 : 0) - (moveLeft ? 1 : 0);
+                    dy = (moveDown ? 1 : 0) - (moveUp ? 1 : 0);
+                    float n = Dist(dx, dy);
+                    if (n > 0) { dx /= n; dy /= n; mag = 1; }
+                }
+                else if (pointerMode)
+                {
+                    var s = ToScreen(player.x, player.y);
+                    float ddx = pointer.x - s.x, ddy = pointer.y - s.y, d = Dist(ddx, ddy);
+                    if (d > 6) { dx = ddx / d; dy = ddy / d; mag = Mathf.Clamp01((d - 6) / 110); }
+                }
+                wantDash = dashKey || mouseDown || hud.DashHeld;
+            }
+
+            bool want = wantDash && mag > 0.2f;
+            if (pTired && pStamina > 0.35f) pTired = false;
+            bool was = pDashing;
+            pDashing = want && !pTired && pStun <= 0;
+            if (pDashing)
+            {
+                pStamina -= dt * 0.85f;
+                if (pStamina <= 0) { pStamina = 0; pTired = true; pDashing = false; }
+                if (U.Rand() < dt * 30) Bubble(player.x - player.face * player.r, player.y + U.Rand(-0.4f, 0.4f) * player.r, player.r * 0.18f, -U.Rand(0.5f, 1.5f) * player.r);
+            }
+            else pStamina = Mathf.Min(1, pStamina + dt * 0.3f);
+            if (pDashing && !was) sfx.Dash();
+
+            float spd = bas * mag * (pDashing ? 1.85f : 1) * (pStun > 0 ? 0.3f : 1);
+            float k = Mathf.Min(1, dt * (pDashing ? 9 : 6));
+            player.vx += (dx * spd - player.vx) * k;
+            player.vy += (dy * spd - player.vy) * k;
+            player.x = Mathf.Clamp(player.x + player.vx * dt, player.r, World.W - player.r);
+            float fy = world.FloorY(player.x);
+            player.y = Mathf.Clamp(player.y + player.vy * dt, player.r * 0.4f, fy - player.r * 0.6f);
+
+            bool open = false;
+            foreach (var f in fish)
+            {
+                if (f.r > player.r * Data.EAT) continue;
+                float ox = f.x - player.x, oy = f.y - player.y;
+                if (ox * player.face < -player.r * 0.3f) continue;
+                if (Dist(ox, oy) < (player.r + f.r) * 2.3f) { open = true; break; }
+            }
+            pBlinkT -= dt;
+            if (pBlinkT < 0) { pBlink = 0.12f; pBlinkT = U.Rand(2.5f, 5); }
+            pBlink = Mathf.Max(0, pBlink - dt);
+
+            AnimateFish(player, dt);
+            float target = player.chomp > 0 ? 0.15f : open ? 1 : 0;
+            player.mouth += (target - player.mouth) * Mathf.Min(1, dt * 14);
+
+            float pr = player.r;
+            for (int i = fish.Count - 1; i >= 0; i--)
+            {
+                var f = fish[i];
+                float ox = f.x - player.x, oy = f.y - player.y, d = Dist(ox, oy);
+                if (d > pr + f.r) continue;
+                float ratio = f.r / pr;
+                if (ratio <= Data.EAT)
+                {
+                    if (d < (pr + f.r * 0.5f) * 0.9f) EatFish(i);
+                }
+                else if (ratio >= Data.DANGER)
+                {
+                    if (d < pr * 0.55f + f.r * 0.72f)
+                    {
+                        if (pShield > 0 || pInvuln > 0)
+                        {
+                            float nx = ox / (d > 0 ? d : 1), ny = oy / (d > 0 ? d : 1);
+                            player.vx -= nx * bas * 1.2f; player.vy -= ny * bas * 1.2f;
+                            f.vx += nx * bas * 0.6f; f.vy += ny * bas * 0.6f;
+                            int bt = Mathf.FloorToInt(time * 4);
+                            if (pShield > 0 && f.bumpT != bt) { f.bumpT = bt; sfx.Bump(); }
+                        }
+                        else { KillPlayer(f); return; }
+                    }
+                }
+                else if (d < (pr + f.r) * 0.8f)
+                {
+                    float nx = ox / (d > 0 ? d : 1), ny = oy / (d > 0 ? d : 1), push = ((pr + f.r) * 0.8f - d) * 0.5f;
+                    player.x -= nx * push; player.y -= ny * push; f.x += nx * push; f.y += ny * push;
+                }
+            }
+
+            foreach (var j in jellies)
+            {
+                if (pStungCool > 0 || pShield > 0 || pInvuln > 0) break;
+                float d1 = Dist(j.x - player.x, j.y - player.y);
+                float d2 = Dist(j.x - player.x, j.y + j.r * 1.4f - player.y);
+                if (d1 < pr * 0.7f + j.r * 0.85f || d2 < pr * 0.7f + j.r * 0.55f)
+                {
+                    pStun = 1.1f; pStungCool = 2.2f; pStamina = 0; pTired = true;
+                    float nx = (player.x - j.x) / (d1 > 0 ? d1 : 1), ny = (player.y - j.y) / (d1 > 0 ? d1 : 1);
+                    player.vx = nx * bas * 1.4f; player.vy = ny * bas * 1.4f;
+                    Sparkle(player.x, player.y, pr, 14, U.Hsl(j.hue, 1, 0.75f));
+                    hud.AddText(player.x, player.y - pr * 1.4f, "ZAP!", U.Hex("#ff9cf0"), 26);
+                    shake = Mathf.Max(shake, 7);
+                    sfx.Zap();
+                    Hint("jelly", "OUCH!", "Jellyfish sting at any size — swim around them", new Color(1, 120 / 255f, 230 / 255f));
+                }
+            }
+
+            for (int i = pearls.Count - 1; i >= 0; i--)
+            {
+                var p = pearls[i];
+                if (Dist(p.x - player.x, p.y - player.y) < pr + p.r)
+                {
+                    pearls.RemoveAt(i);
+                    DestroyPearl(p);
+                    pShield = 7; pStamina = 1; pTired = false;
+                    int pts = 100 * (tier + 1);
+                    score += pts;
+                    hud.AddText(p.x, p.y - p.r * 2, "SHIELD +" + pts, U.Hex("#bff6ff"), 24);
+                    Sparkle(p.x, p.y, pr, 22, Color.white);
+                    parts.Add(new Particle { type = PType.Ring, x = p.x, y = p.y, life = 0.6f, max = 0.6f, size = pr * 3, col = new Color(190 / 255f, 250 / 255f, 1) });
+                    sfx.Pearl();
+                    Hint("pearl", "BUBBLE SHIELD", "Predators bounce off you for a few seconds", new Color(140 / 255f, 240 / 255f, 1));
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------ AI
+        void UpdateFish(float dt)
+        {
+            float pr = FocusR, bas = Data.SpeedFor(pr);
+            bool active = Playing;
+            float sight = Mathf.Min(ViewW, ViewH) * 0.62f;
+
+            foreach (var s in schools) { s.cx = 0; s.cy = 0; s.n = 0; s.vx = 0; }
+            foreach (var f in fish) if (f.school != null) { f.school.cx += f.x; f.school.cy += f.y; f.school.vx += f.vx; f.school.n++; }
+            schools.RemoveAll(s => s.n == 0);
+            foreach (var s in schools)
+            {
+                s.cx /= s.n; s.cy /= s.n;
+                s.fleeT = Mathf.Max(0, s.fleeT - dt);
+                s.turnT -= dt;
+                if (s.fleeT <= 0 && s.wasFleeing) s.dir = s.vx >= 0 ? 1 : -1;
+                s.wasFleeing = s.fleeT > 0;
+                if (s.turnT <= 0) { s.turnT = U.Rand(7, 15); if (U.Chance(0.4f)) s.dir *= -1; }
+                if (s.cx < 300) s.dir = 1; else if (s.cx > World.W - 300) s.dir = -1;
+            }
+
+            foreach (var f in fish)
+            {
+                f.cool = Mathf.Max(0, f.cool - dt);
+                f.alertT = Mathf.Max(0, f.alertT - dt);
+                f.eatCool = Mathf.Max(0, f.eatCool - dt);
+                float dx = player.x - f.x, dy = player.y - f.y, d = Dist(dx, dy);
+                if (d <= 0) d = 1;
+                float ratio = f.r / pr;
+                float tx, ty, spd, agility;
+
+                if (f.shark)
+                {
+                    f.life -= dt;
+                    bool prey = ratio <= Data.EAT;
+                    if (f.life > 0 && active && !prey)
+                    {
+                        float lead = Mathf.Min(d / bas, 0.5f);
+                        float ax = player.x + player.vx * lead - f.x, ay = player.y + player.vy * lead - f.y, ad = Dist(ax, ay);
+                        if (ad <= 0) ad = 1;
+                        tx = ax / ad; ty = ay / ad; spd = bas * 1.1f; agility = 1.7f; f.state = FState.Chase;
+                    }
+                    else if (f.life > 0 && active && prey)
+                    {
+                        tx = -dx / d; ty = -dy / d * 0.7f; spd = bas * 0.82f; agility = 2.4f; f.state = FState.Flee;
+                    }
+                    else
+                    {
+                        f.state = FState.Leave;
+                        tx = f.leaveDir; ty = -0.15f; spd = bas * 1.1f; agility = 1.5f;
+                    }
+                }
+                else
+                {
+                    if (active && ratio >= Data.DANGER && f.state != FState.Chase && f.cool <= 0 && d < sight &&
+                        pInvuln <= 0 && pShield <= 0 && U.Rand() < dt * 0.7f * f.aggro)
+                    {
+                        f.state = FState.Chase; f.chaseT = U.Rand(3, 5.5f); f.alertT = 1.1f;
+                        sfx.Alert();
+                        Hint("pred", "WATCH OUT!", "Bigger fish will hunt you — outswim them or dash", new Color(1, 80 / 255f, 90 / 255f));
+                    }
+                    if (f.state == FState.Chase)
+                    {
+                        f.chaseT -= dt;
+                        if (!active || ratio < Data.DANGER || pInvuln > 0 || pShield > 0 || f.chaseT <= 0 || d > sight * 1.7f)
+                        {
+                            f.state = FState.Wander; f.cool = U.Rand(4, 8); f.dir = f.vx >= 0 ? 1 : -1;
+                        }
+                    }
+                    bool fleeing = active && ratio <= Data.EAT && d < sight * 0.5f;
+                    if (f.state == FState.Chase)
+                    {
+                        float lead = Mathf.Min(d / bas, 0.6f);
+                        float ax = player.x + player.vx * lead - f.x, ay = player.y + player.vy * lead - f.y, ad = Dist(ax, ay);
+                        if (ad <= 0) ad = 1;
+                        tx = ax / ad; ty = ay / ad; spd = bas * 0.9f; agility = 2.1f;
+                    }
+                    else if (fleeing || (f.school != null && f.school.fleeT > 0))
+                    {
+                        if (fleeing && f.school != null) f.school.fleeT = 0.8f;
+                        tx = -dx / d + Mathf.Sin(time * 3 + f.phase) * 0.35f;
+                        ty = (-dy / d) * 0.8f + Mathf.Cos(time * 2.3f + f.phase) * 0.25f;
+                        spd = bas * (f.school != null ? 0.68f : 0.6f); agility = 3.2f;
+                        f.dir = tx >= 0 ? 1 : -1;
+                    }
+                    else if (f.school != null)
+                    {
+                        var s = f.school;
+                        tx = s.dir + (s.cx + f.slotX - f.x) / (f.r * 10);
+                        ty = (s.cy + f.slotY - f.y) / (f.r * 10) + Mathf.Sin(time * 1.1f + s.cx * 0.001f) * 0.2f;
+                        spd = bas * f.cruise; agility = 2.2f;
+                    }
+                    else
+                    {
+                        f.homeT -= dt;
+                        if (f.homeT <= 0)
+                        {
+                            f.homeT = U.Rand(3, 8);
+                            f.homeY = Mathf.Clamp(f.y + U.Rand(-1, 1) * f.r * 14, 90 + f.r, world.FloorY(f.x) - f.r - 40);
+                            if (U.Chance(0.12f)) f.dir *= -1;
+                        }
+                        tx = f.dir;
+                        ty = Mathf.Clamp((f.homeY - f.y) / (f.r * 20), -0.4f, 0.4f) + Mathf.Sin(time * 0.9f + f.phase) * 0.12f;
+                        spd = bas * f.cruise; agility = 1.5f;
+                    }
+                }
+
+                if (!f.shark || f.state != FState.Leave)
+                {
+                    if (f.x < 160) { f.dir = 1; tx = Mathf.Abs(tx) + 0.6f; }
+                    else if (f.x > World.W - 160) { f.dir = -1; tx = -Mathf.Abs(tx) - 0.6f; }
+                }
+                float fy = world.FloorY(f.x);
+                if (f.y < 70 + f.r) ty = Mathf.Abs(ty) + 0.4f;
+                else if (f.y > fy - f.r - 30) ty = -Mathf.Abs(ty) - 0.4f;
+                float tn = Dist(tx, ty);
+                if (tn <= 0) tn = 1;
+                float k = Mathf.Min(1, dt * agility);
+                f.vx += (tx / tn * spd - f.vx) * k;
+                f.vy += (ty / tn * spd - f.vy) * k;
+                f.x += f.vx * dt; f.y += f.vy * dt;
+                f.y = Mathf.Clamp(f.y, 30 + f.r * 0.5f, world.FloorY(f.x) - f.r * 0.6f);
+                AnimateFish(f, dt);
+            }
+
+            // the food chain runs without you, too (on screen only so you can see it)
+            float vx0 = cam.x - ViewW / 2, vx1 = cam.x + ViewW / 2;
+            for (int i = 0; i < fish.Count; i++)
+            {
+                var a = fish[i];
+                if (a.school != null || a.eatCool > 0 || a.x < vx0 || a.x > vx1) continue;
+                for (int j = fish.Count - 1; j >= 0; j--)
+                {
+                    var b = fish[j];
+                    if (b == a || b.shark || a.r < b.r * 1.45f) continue;
+                    if (Dist(a.x - b.x, a.y - b.y) < (a.r + b.r) * 0.55f)
+                    {
+                        fish.RemoveAt(j);
+                        ReleaseView(b);
+                        if (j < i) i--;
+                        a.chomp = 0.3f; a.eatCool = U.Rand(3, 6);
+                        Burst(b.x, b.y, b.r * 0.8f, b.sp.c0);
+                        break;
+                    }
+                }
+            }
+        }
+
+        void UpdateJellies(float dt)
+        {
+            foreach (var j in jellies)
+            {
+                j.phase += dt * j.pf;
+                float pulse = Mathf.Sin(j.phase);
+                float target = pulse > 0.55f ? -j.r * 1.7f : j.r * 0.22f;
+                j.vy += (target - j.vy) * Mathf.Min(1, dt * 2.2f);
+                j.x += j.vx * dt; j.y += j.vy * dt;
+                j.y = Mathf.Clamp(j.y, 500, world.FloorY(j.x) - j.r * 3.5f);
+            }
+        }
+
+        void UpdateSpawner(float dt)
+        {
+            float vw = ViewW, vh = ViewH;
+            for (int i = fish.Count - 1; i >= 0; i--)
+            {
+                var f = fish[i];
+                bool far = Mathf.Abs(f.x - cam.x) > vw * 1.1f + f.r * 3 || Mathf.Abs(f.y - cam.y) > vh * 1.15f + f.r * 3;
+                if (far && !(f.shark && f.life > 0)) { fish.RemoveAt(i); ReleaseView(f); }
+            }
+            for (int i = jellies.Count - 1; i >= 0; i--)
+            {
+                var j = jellies[i];
+                if (Mathf.Abs(j.x - cam.x) > vw * 1.4f || Mathf.Abs(j.y - cam.y) > vh * 1.6f) { DestroyJelly(j); jellies.RemoveAt(i); }
+            }
+            for (int i = pearls.Count - 1; i >= 0; i--)
+            {
+                pearls[i].life -= dt;
+                if (pearls[i].life <= 0) { DestroyPearl(pearls[i]); pearls.RemoveAt(i); }
+            }
+            for (int n = 0; n < 3 && fish.Count < 78; n++) SpawnOne(false);
+            int jTarget = cam.y > 900 ? 4 : 2;
+            if (jellies.Count < jTarget && U.Rand() < dt * 0.5f) SpawnJelly();
+
+            if (U.Rand() < dt * 6)
+            {
+                float x = cam.x + U.Rand(-0.5f, 0.5f) * vw, fy = world.FloorY(x);
+                if (fy < cam.y + vh / 2) Bubble(x, fy - 4, U.Rand(2, 5) / zoom, -U.Rand(25, 60) / zoom);
+            }
+        }
+
+        void UpdateEvents(float dt)
+        {
+            playTime += dt;
+            comboT = Mathf.Max(0, comboT - dt);
+            if (comboT <= 0) combo = 0;
+            if (!pAlive)
+            {
+                dieT -= dt;
+                if (dieT <= 0) { if (lives > 0) Respawn(); else GameOver(); }
+                return;
+            }
+            sharkT -= dt;
+            if (sharkT <= 0)
+            {
+                if (!fish.Exists(f => f.shark)) SpawnShark();
+                sharkT = U.Rand(35, 55);
+            }
+            pearlT -= dt;
+            if (pearlT <= 0) { if (pearls.Count == 0) SpawnPearl(); pearlT = U.Rand(24, 38); }
+        }
+
+        void UpdateCamera(float dt)
+        {
+            float tz = Data.ZoomFor(pActive ? player.r : 22);
+            zoom += (tz - zoom) * Mathf.Min(1, dt * 1.6f);
+            float fx, fy;
+            if (pActive) { fx = player.x + player.vx * 0.3f; fy = player.y + player.vy * 0.2f; }
+            else
+            {
+                menuCamX += menuDir * 70 * dt;
+                if (menuCamX > World.W - 1500) menuDir = -1; else if (menuCamX < 1500) menuDir = 1;
+                fx = menuCamX; fy = world.FloorY(menuCamX) - 480;
+            }
+            float k = Mathf.Min(1, dt * (pActive ? 4 : 1.2f));
+            cam.x += (fx - cam.x) * k; cam.y += (fy - cam.y) * k;
+            float hw = refW / 2 / zoom, hh = refH / 2 / zoom;
+            cam.x = Mathf.Clamp(cam.x, hw, World.W - hw);
+            cam.y = Mathf.Clamp(cam.y, hh - Mathf.Min(170, hh * 0.28f), World.H - hh);
+            shake *= Mathf.Exp(-dt * 7);
+        }
+
+        // ------------------------------------------------------------------ bot (for -autoplay testing)
+        Vector2 BotSteer(out bool dash)
+        {
+            dash = false;
+            float pr = player.r;
+            Vector2 avoid = Vector2.zero, seek = Vector2.zero;
+            float bestV = 0;
+            foreach (var f in fish)
+            {
+                float dx = f.x - player.x, dy = f.y - player.y, d = Mathf.Max(1, Dist(dx, dy));
+                if (f.r >= pr * Data.DANGER)
+                {
+                    bool hunting = f.state == FState.Chase;
+                    float R = f.r * (hunting ? 4.5f : 2.6f) + pr * 5;
+                    if (d < R)
+                    {
+                        float w = (1 - d / R); w *= w * (hunting ? 9 : 4);
+                        avoid -= new Vector2(dx, dy) / d * w;
+                        if (hunting && d < f.r * 2.4f + pr * 4) dash = true;
+                    }
+                }
+                else if (f.r <= pr * Data.EAT)
+                {
+                    float v = (f.r / pr) / (d + pr * 3);
+                    if (v > bestV) { bestV = v; seek = new Vector2(dx, dy) / d; }
+                }
+            }
+            foreach (var j in jellies)
+            {
+                float dx = j.x - player.x, dy = j.y + j.r * 0.7f - player.y, d = Mathf.Max(1, Dist(dx, dy));
+                float R = j.r * 3 + pr * 3;
+                if (d < R) { float w = 1 - d / R; avoid -= new Vector2(dx, dy) / d * w * w * 6; }
+            }
+            foreach (var p in pearls)
+            {
+                float dx = p.x - player.x, dy = p.y - player.y, d = Mathf.Max(1, Dist(dx, dy));
+                seek = new Vector2(dx, dy) / d * 1.5f;
+            }
+            if (bestV <= 0 && pearls.Count == 0)
+            {
+                if (player.x < 600) botWanderDir = 1; else if (player.x > World.W - 600) botWanderDir = -1;
+                seek = new Vector2(botWanderDir, 0);
+            }
+            var v2 = seek + avoid;
+            float fy = world.FloorY(player.x);
+            if (fy - player.y < pr * 4) v2.y -= 1.5f;
+            if (player.y < pr * 3 + 60) v2.y += 1;
+            if (v2.sqrMagnitude < 1e-4f) v2 = new Vector2(botWanderDir, 0);
+            return v2.normalized;
+        }
+
+        // ================================================================== rendering glue
+        Vector2 ToScreen(float x, float y) => new Vector2((x - cam.x) * zoom + refW / 2, (y - cam.y) * zoom + refH / 2);
+
+        FishView GetView()
+        {
+            var v = viewPool.Count > 0 ? viewPool.Pop() : new FishView(fishRoot, haloRoot);
+            v.SetActive(true);
+            return v;
+        }
+
+        void ReleaseView(Fish f)
+        {
+            if (f.view == null) return;
+            f.view.SetActive(false);
+            viewPool.Push(f.view);
+            f.view = null;
+        }
+
+        readonly List<Fish> sorted = new List<Fish>();
+
+        void Render(float dt, float rdt)
+        {
+            float shk = state == GState.Paused ? 0 : shake;
+            float shx = (U.Rand() - 0.5f) * shk * 2 / zoom, shy = (U.Rand() - 0.5f) * shk * 2 / zoom;
+            cam3.orthographicSize = refH / 2 / zoom;
+            var camPos = new Vector3(cam.x + shx, -(cam.y + shy), -10);
+            cam3.transform.position = camPos;
+
+            float hw = refW / 2 / zoom, hh = refH / 2 / zoom;
+            float x0 = cam.x - hw, x1 = cam.x + hw, yTop = cam.y - hh, yBot = cam.y + hh;
+            float pr = FocusR;
+
+            // fish, biggest at the back, sharks above everything else
+            sorted.Clear();
+            foreach (var f in fish)
+            {
+                bool vis = f.x > x0 - f.r * 3 && f.x < x1 + f.r * 3 && f.y > yTop - f.r * 3 && f.y < yBot + f.r * 3;
+                if (!vis) { ReleaseView(f); continue; }
+                sorted.Add(f);
+            }
+            sorted.Sort((a, b) => a.shark != b.shark ? (a.shark ? 1 : -1) : b.r != a.r ? b.r.CompareTo(a.r) : a.id.CompareTo(b.id));
+            for (int i = 0; i < sorted.Count; i++)
+            {
+                var f = sorted[i];
+                if (f.view == null) f.view = GetView();
+                f.view.SetSpecies(f.sp);
+                f.view.Pose(f, f.shark ? Layer.Shark + i : Layer.FishBase + i, f.state == FState.Chase ? FishView.EyeMode.Angry : FishView.EyeMode.Normal);
+                var halo = f.view.halo;
+                bool threat = pActive && f.r >= pr * Data.DANGER;
+                halo.enabled = threat;
+                if (threat)
+                {
+                    float hot = f.state == FState.Chase ? 1 : 0;
+                    float a = 0.2f + hot * (0.15f + 0.1f * Mathf.Sin(time * 10));
+                    halo.transform.localPosition = U.V3(f.x, f.y);
+                    float d = f.r * 2.3f * 2;
+                    halo.transform.localScale = new Vector3(d, d, 1);
+                    halo.color = new Color(1, 40 / 255f, 60 / 255f, a * 1.6f);
+                }
+            }
+
+            // player
+            bool pv = pActive && pAlive;
+            playerView.SetActive(pv);
+            playerGlow.enabled = pv;
+            if (pv)
+            {
+                bool blinkOut = pInvuln > 0 && Mathf.FloorToInt(time * 12) % 2 == 0;
+                playerView.SetVisible(!blinkOut);
+                var mode = pBlink > 0 ? FishView.EyeMode.Blink : player.chomp > 0 ? FishView.EyeMode.Happy : FishView.EyeMode.Normal;
+                playerView.Pose(player, Layer.Player, mode);
+                float deep = Mathf.Clamp01((player.y - 1200) / 2500);
+                playerGlow.transform.localPosition = U.V3(player.x, player.y);
+                float gd = player.r * 8;
+                playerGlow.transform.localScale = new Vector3(gd, gd, 1);
+                playerGlow.color = new Color(80 / 255f, 1, 220 / 255f, 0.07f + deep * 0.16f);
+            }
+            bool sh = pv && pShield > 0;
+            shieldRing.enabled = shieldFill.enabled = shieldShine.enabled = sh;
+            if (sh)
+            {
+                float a = pShield < 2 ? 0.3f + 0.3f * Mathf.Sin(time * 20) : 0.6f;
+                float R = player.r * 1.9f + Mathf.Sin(time * 4) * player.r * 0.08f;
+                var pos = U.V3(player.x, player.y);
+                shieldRing.transform.localPosition = pos; shieldRing.transform.localScale = Vector3.one * (2 * R / 0.9f);
+                shieldRing.color = new Color(170 / 255f, 245 / 255f, 1, a);
+                shieldFill.transform.localPosition = pos; shieldFill.transform.localScale = Vector3.one * (2 * R);
+                shieldFill.color = new Color(170 / 255f, 245 / 255f, 1, a * 0.15f);
+                shieldShine.transform.localPosition = U.V3(player.x - R * 0.45f, player.y - R * 0.5f);
+                shieldShine.transform.localScale = new Vector3(R * 0.44f, R * 0.2f, 1);
+                shieldShine.transform.localRotation = Quaternion.Euler(0, 0, 0.7f * Mathf.Rad2Deg);
+                shieldShine.color = new Color(1, 1, 1, a);
+            }
+            for (int i = 0; i < 3; i++)
+            {
+                bool on = pv && pStun > 0;
+                stunStars[i].enabled = on;
+                if (!on) continue;
+                float a = time * 6 + i * U.TAU / 3;
+                stunStars[i].transform.localPosition = U.V3(player.x + Mathf.Cos(a) * player.r * 0.9f, player.y - player.r * 1.3f + Mathf.Sin(a) * player.r * 0.25f);
+                stunStars[i].transform.localScale = Vector3.one * player.r * 0.24f;
+                stunStars[i].color = U.Hex("#fff6a8");
+            }
+
+            // jellies
+            jmb.Clear();
+            for (int ji = 0; ji < jellies.Count; ji++)
+            {
+                var j = jellies[ji];
+                float pulse = 0.5f + 0.5f * Mathf.Sin(j.phase);
+                float bw = j.r * (1 + pulse * 0.14f), bh = j.r * (0.82f - pulse * 0.14f);
+                j.bell.transform.localPosition = U.V3(j.x, j.y);
+                j.bell.transform.localScale = new Vector3(bw, bh / 0.75f, 1);
+                j.bell.sortingOrder = Layer.Jelly + ji;
+                j.glow.transform.localPosition = U.V3(j.x, j.y);
+                j.glow.transform.localScale = Vector3.one * j.r * 6;
+                var tc = U.Hsl(j.hue, 0.9f, 0.78f, 0.5f);
+                float tw = Mathf.Max(1 / zoom, j.r * 0.05f);
+                var pts = new List<Vector2>(10);
+                for (int i = 0; i < 7; i++)
+                {
+                    float tx0 = j.x + (i / 6f - 0.5f) * bw * 1.5f;
+                    pts.Clear();
+                    pts.Add(new Vector2(tx0, j.y));
+                    for (int s = 1; s <= 9; s++)
+                        pts.Add(new Vector2(tx0 + Mathf.Sin(time * 2.4f + s * 0.65f + i * 1.3f) * j.r * 0.12f * (s / 4f), j.y + s * j.r * 0.3f));
+                    Draw.Stroke(jmb, pts, tw, tw * 0.6f, tc);
+                }
+                var oc = U.Hsl(j.hue, 0.9f, 0.85f, 0.7f);
+                float ow = Mathf.Max(1.5f / zoom, j.r * 0.13f);
+                for (int i = 0; i < 3; i++)
+                {
+                    float tx0 = j.x + (i - 1) * bw * 0.22f;
+                    var c = Draw.CubicPts(tx0, j.y, tx0 + Mathf.Sin(time * 1.6f + i) * j.r * 0.3f, j.y + j.r * 0.8f,
+                        tx0 - Mathf.Sin(time * 1.3f + i) * j.r * 0.3f, j.y + j.r * 1.4f, tx0, j.y + j.r * 1.9f, 10);
+                    Draw.Stroke(jmb, c, ow, ow * 0.5f, oc, true);
+                }
+            }
+            jmb.Apply(jellyMesh);
+
+            // pearls
+            foreach (var p in pearls)
+            {
+                float bob = Mathf.Sin(time * 2 + p.ph) * p.r * 0.4f;
+                bool hidden = p.life < 3 && Mathf.FloorToInt(time * 8) % 2 == 1;
+                p.body.enabled = p.star.enabled = !hidden;
+                var pos = U.V3(p.x, p.y + bob);
+                p.body.transform.localPosition = pos; p.body.transform.localScale = Vector3.one * p.r;
+                p.star.transform.localPosition = pos; p.star.transform.localScale = Vector3.one * p.r;
+                p.star.transform.localRotation = Quaternion.Euler(0, 0, -time * 1.5f * Mathf.Rad2Deg);
+                p.glow.transform.localPosition = pos; p.glow.transform.localScale = Vector3.one * p.r * 10;
+            }
+
+            parts.Render();
+
+            // light holes in the abyss
+            holes.Clear();
+            if (pv) holes.Add(new Hole(player.x, player.y, player.r * 8, 0.9f));
+            foreach (var j in jellies) holes.Add(new Hole(j.x, j.y + j.r * 0.5f, j.r * 4, 0.75f));
+            foreach (var p in pearls) holes.Add(new Hole(p.x, p.y, p.r * 8, 0.8f));
+            foreach (var a in world.glowAnemones)
+                if (a.x > x0 - 300 && a.x < x1 + 300) holes.Add(new Hole(a.x, a.y - a.s * 0.4f, a.s * 2.4f, 0.7f));
+
+            fx.Update(time, cam, camPos, zoom, refW, refH, holes);
+            world.UpdateView(time, x0, x1, yBot);
+
+            // HUD
+            alerts.Clear();
+            if (Playing)
+            {
+                foreach (var f in fish)
+                {
+                    bool threat = f.r >= player.r * Data.DANGER && f.state == FState.Chase;
+                    if (!threat && f.alertT <= 0) continue;
+                    var s = ToScreen(f.x, f.y);
+                    bool on = s.x > 0 && s.x < refW && s.y > 0 && s.y < refH;
+                    if (on && f.alertT > 0)
+                    {
+                        float b = Mathf.Abs(Mathf.Sin((1.1f - f.alertT) * 8)) * 8;
+                        alerts.Add(new Alert { onScreen = true, screen = new Vector2(s.x, s.y - f.r * 1.2f * zoom - 22), bounce = b });
+                    }
+                    else if (!on && threat)
+                    {
+                        float dx = s.x - refW / 2, dy = s.y - refH / 2;
+                        float m = Mathf.Min((refW / 2 - 34) / Mathf.Max(1e-3f, Mathf.Abs(dx)), (refH / 2 - 34) / Mathf.Max(1e-3f, Mathf.Abs(dy)));
+                        alerts.Add(new Alert { onScreen = false, screen = new Vector2(refW / 2 + dx * m, refH / 2 + dy * m), angle = Mathf.Atan2(dy, dx), pulse = 0.6f + 0.4f * Mathf.Sin(time * 10) });
+                    }
+                }
+            }
+            if (state == GState.Play || state == GState.Paused)
+            {
+                var cur = Data.Tiers[tier];
+                bool hasNext = tier + 1 < Data.Tiers.Length;
+                float prog = hasNext ? Mathf.Clamp01((player.r - cur.r) / (Data.Tiers[tier + 1].r - cur.r)) : 1;
+                hud.UpdateHud(score, combo, comboT > 0, cur.name, prog, hasNext ? "next: " + Data.Tiers[tier + 1].name.ToUpperInvariant() : "MAXIMUM SIZE",
+                    lives, pStamina, pTired, Mathf.Max(0, Mathf.RoundToInt(player.y / 8)));
+            }
+            hud.Tick(dt, rdt, (x, y) => ToScreen(x, y), alerts, Time.unscaledTime);
+        }
+    }
+}
