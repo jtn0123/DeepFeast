@@ -1,0 +1,1112 @@
+{
+  "baselineCommit": "542a24fd2e1f8bc636d80918a3c7b7b6cfccf4d8",
+  "baselinePatch": "baseline-harness.patch",
+  "implementationRevision": "Commit containing this evidence document",
+  "unity": "6000.3.25f1",
+  "build": {
+    "result": "Succeeded",
+    "errors": 0,
+    "sizeMB": 137.7
+  },
+  "capture": {
+    "type": "Native macOS Unity Metal camera RenderTexture with uGUI",
+    "resolution": [
+      1280,
+      720
+    ],
+    "narrowInterfaceResolution": [
+      960,
+      720
+    ],
+    "activeDisplays": 0,
+    "fixedSceneryVisualTime": 2,
+    "cameraAndReviewFishPlacementMatched": true,
+    "ambientSchoolsAndGalleryPhaseMayVary": true,
+    "environmentBaselineProvenance": "Unchanged copies of art-drafts/v3/after at baselineCommit; see v3/evidence.json",
+    "otherBaselineProvenance": "Fresh native baseline build with capture-only patch"
+  },
+  "atlasPNGsUnchangedFromBaseline": true,
+  "paintedVegetationInstances": {
+    "before": 203,
+    "after": 142
+  },
+  "motionRegression": {
+    "failBefore": {
+      "exitCode": 1,
+      "species": "minnow",
+      "facing": -0.1,
+      "renderedWidthRatio": 0.1
+    },
+    "passAfter": {
+      "exitCode": 0,
+      "species": 12,
+      "facingSamplesPerSpecies": 7,
+      "requiredMinimumWidth": 0.8
+    },
+    "nativeMidpointWidths": {
+      "before": 0.06,
+      "after": 0.842
+    },
+    "implementedMinimumWidth": 0.84
+  },
+  "animation": {
+    "fish": {
+      "frames": 51,
+      "fps": 12,
+      "duration": 4.25
+    },
+    "habitat": {
+      "frames": 44,
+      "fps": 12,
+      "duration": 3.6666666666666665
+    },
+    "fullNativeVideoDecode": "Both ffmpeg decode checks exit 0"
+  },
+  "review": {
+    "staticViews": 9,
+    "exportedBoards": 9,
+    "sliderClip": "inset(0px 0px 0px 35%)",
+    "habitatBrowserMedia": {
+      "width": 1280,
+      "height": 720,
+      "duration": 3.6666666666666665,
+      "readyState": 4,
+      "seekResult": "seeked",
+      "currentTime": 1.2,
+      "error": null
+    },
+    "fishBrowserMedia": {
+      "width": 1280,
+      "height": 720,
+      "duration": 4.25,
+      "readyState": 4,
+      "seekResult": "seeked",
+      "currentTime": 2,
+      "error": null
+    }
+  },
+  "installedBundle": {
+    "regularFilesCompared": 147,
+    "byteIdentical": true,
+    "signatureCheck": "codesign --verify --deep --strict passed",
+    "nativeSmokeExitCode": 0,
+    "previousApp": "~/Documents/Github/DeepFeast/unity/Builds/Mac/DeepFeast-before-542a24f.app",
+    "files": {
+      "Contents/Info.plist": "8c41573475dbaf093fb3a4d64c1fdc34c755c444e878dedef3e6e89a80cbd3d5",
+      "Contents/_CodeSignature/CodeResources": "1df606b1d3549808065aa25b6e9578ad9eb685667d5eb797d00f29f4664b6a85",
+      "Contents/MacOS/Deep Feast": "77b5be249865ccbaeae0f5f2501975b3e402d3346550a17d88878723b78bb330",
+      "Contents/Resources/DefaultPreferences.plist": "ded1c9b6f74702f812abb4d80bc08528fd8426e17808a04cde015b4d34b498f3",
+      "Contents/Resources/PrivacyInfo.xcprivacy": "0a513a93916b158eaa3af7311e84eac43604ac52a6530afb33184a77805c0970",
+      "Contents/Frameworks/libMonoPosixHelper.dylib": "2d50f387968f3a00732fc432c06393fd2c98dd5f27ba4841a20bd6a6708771d7",
+      "Contents/Frameworks/libmono-native.dylib": "575c9dbd419a72031c490e53f91dbfe6d61f63290e439c89a923572b3b1926bb",
+      "Contents/Frameworks/UnityPlayer.dylib": "39bca138006f611d42639efc4298dd796976dd59d6d36ec9e8a283e34cf4cad3",
+      "Contents/Frameworks/libmonobdwgc-2.0.dylib": "9aab73d9d5a75819a651fd0a5d7cc610aff81e4d9a0ad7df554f0009c2765d9f",
+      "Contents/MonoBleedingEdge/etc/mono/config": "5776169973a26a387b8b3e5c0f2301a7ab9a6dd7c7d3efa22a96abc47fbf8662",
+      "Contents/MonoBleedingEdge/etc/mono/browscap.ini": "4ddd50f31fb968f30bedefc253a46dc3f2890192d05cdaa9e0a64a056eee807e",
+      "Contents/MonoBleedingEdge/etc/mono/2.0/web.config": "cf2b54339e069b9e42f7d6795eecbf562c50c1011f4ca8f65f578fe52d97ff92",
+      "Contents/MonoBleedingEdge/etc/mono/2.0/machine.config": "e91782a27fa39fc6c1d6ee8b08529f5d35052310d0006034b878eb04b8f2af30",
+      "Contents/MonoBleedingEdge/etc/mono/2.0/DefaultWsdlHelpGenerator.aspx": "751861040b69ea63a3827507b7c8da9c7f549dc181c1c8af4b7ca78cc97d710a",
+      "Contents/MonoBleedingEdge/etc/mono/2.0/settings.map": "49c6160f9d54af4270a3b4e997fc4a8301f79b9e2070118fa46ddbcbbc44f9a2",
+      "Contents/MonoBleedingEdge/etc/mono/4.5/web.config": "c4cbddd4fd9347b58cc5a72b36dc4ba1ad2bb699e65869d05cd3fb9865f0d824",
+      "Contents/MonoBleedingEdge/etc/mono/4.5/machine.config": "ee950004b576fb28dc85f4b0435ed04bf96612de2e8b53be84d07afe85a0de6c",
+      "Contents/MonoBleedingEdge/etc/mono/4.5/DefaultWsdlHelpGenerator.aspx": "751861040b69ea63a3827507b7c8da9c7f549dc181c1c8af4b7ca78cc97d710a",
+      "Contents/MonoBleedingEdge/etc/mono/4.5/settings.map": "ce1db1ad8a9512073164e3eccdc193f7eda036e1a9733caec4635de21b2865c8",
+      "Contents/MonoBleedingEdge/etc/mono/mconfig/config.xml": "0c56e34c69124510fa8c19e7b4c2ca6c1c4ff460ae19f798dd0ca035809e396d",
+      "Contents/MonoBleedingEdge/etc/mono/4.0/web.config": "e38bb8cc68fe5b4edecdfd288d094b9e8ced7629039b2a347682aba0d8bd7492",
+      "Contents/MonoBleedingEdge/etc/mono/4.0/machine.config": "e60aec2c5115d65b3acb3c55ea21576dbd770f579166c017125571e46ae560ed",
+      "Contents/MonoBleedingEdge/etc/mono/4.0/DefaultWsdlHelpGenerator.aspx": "751861040b69ea63a3827507b7c8da9c7f549dc181c1c8af4b7ca78cc97d710a",
+      "Contents/MonoBleedingEdge/etc/mono/4.0/settings.map": "ce1db1ad8a9512073164e3eccdc193f7eda036e1a9733caec4635de21b2865c8",
+      "Contents/MonoBleedingEdge/etc/mono/4.0/Browsers/Compat.browser": "8a1082057ac5681dcd4e9c227ed7fb8eb42ac1618963b5de3b65739dd77e2741",
+      "Contents/MonoBleedingEdge/etc/mono/4.5/Browsers/Compat.browser": "8a1082057ac5681dcd4e9c227ed7fb8eb42ac1618963b5de3b65739dd77e2741",
+      "Contents/MonoBleedingEdge/etc/mono/2.0/Browsers/Compat.browser": "8a1082057ac5681dcd4e9c227ed7fb8eb42ac1618963b5de3b65739dd77e2741",
+      "Contents/Resources/MainMenu.nib/keyedobjects.nib": "1fae5b7c6ee9b17a767b1636867a41b3e44eaf8f654b1c5e2cafa3261463104d",
+      "Contents/Resources/MainMenu.nib/designable.nib": "57188221ba9dc889be4c9e03f0c867bce820726491e32a2fa4928681f006f308",
+      "Contents/Resources/Data/globalgamemanagers": "56d166fdbd95e5128c8172c2979993bcb3084518931cbd5b8763f097e4d3f698",
+      "Contents/Resources/Data/app.info": "d4af8ff0f7e01a814cea8defbc8b5f3f6fcf6959d20a661ade8bfeca68e7ebf7",
+      "Contents/Resources/Data/boot.config": "c9113d2feb796f6c1d3b98cdb099060a735aff5c02a1eb4737f5f7b876b26a1d",
+      "Contents/Resources/Data/RuntimeInitializeOnLoads.json": "76df319f281383d4637b85aa2f2e01ef36f53ab7efc0f0f0672c1fa0db4d6afe",
+      "Contents/Resources/Data/resources.assets": "ee144e0fc383c19459888bdf6787d66c0618fd06826c54c05bf8e756505c645d",
+      "Contents/Resources/Data/ScriptingAssemblies.json": "3baa8834a43b732aa2017541c4083dff152be9f511137b5305bedfe23d805993",
+      "Contents/Resources/Data/sharedassets0.assets.resS": "cf6e38a0de541c99451ad50a963447203651aaa30fa33fd5cc99a6ca12e0c968",
+      "Contents/Resources/Data/sharedassets0.assets": "2cbcfb1100ac1633488b67db93a471c4097dc47cba261ebd6aa40b8e3f74d964",
+      "Contents/Resources/Data/level0": "26f581d62cbb3856619ddc122819700726310e95e54bb7aecf63e98385f433b0",
+      "Contents/Resources/Data/resources.assets.resS": "ecc355c9efb7e79b94429995b5c772d97fe536f998c00778aa9fe3b88990b515",
+      "Contents/Resources/Data/globalgamemanagers.assets": "3fa6e2fa4f4df266b82493566c984d0da472549b1dfa58902b5a1b2e6f49db38",
+      "Contents/Resources/Data/Managed/UnityEngine.TerrainPhysicsModule.dll": "34f8ccab5d393062c61cf3da5667459ee74fde6298aa13cc87c32a2b90892f5e",
+      "Contents/Resources/Data/Managed/System.Xml.Linq.dll": "b7dd6cb5269e5fd42061a918409377d6e3ba3709d7812a530ca6af1a2f0a22ac",
+      "Contents/Resources/Data/Managed/UnityEngine.MultiplayerModule.dll": "369bd358592819c8eb1d502587584912b96130f1eb29f0643f8d3701c13a21f5",
+      "Contents/Resources/Data/Managed/UnityEngine.SpriteMaskModule.dll": "f348e88add5471caf28bf4daee168feee15df13a7e53421111a1ae8b6ea4ccff",
+      "Contents/Resources/Data/Managed/UnityEngine.CrashReportingModule.dll": "654a898c2e1e1913f252404b5b98454ed419beb22ddcf452905372074b8daf78",
+      "Contents/Resources/Data/Managed/System.IO.Compression.FileSystem.dll": "730e271ba54861cd4997586a4fad36c714922ec76cf0a172e27fbd6402ef8557",
+      "Contents/Resources/Data/Managed/UnityEngine.UnityAnalyticsModule.dll": "73100a4301d5bff768c0095fd3794e8fe8b5a7ea88d913ec0c4aa07a0a7ec84c",
+      "Contents/Resources/Data/Managed/UnityEngine.UmbraModule.dll": "cb9db3d350ec9abe4b670c50c7b4b5bf55a97a316ac8920f2d029ba35402edde",
+      "Contents/Resources/Data/Managed/UnityEngine.RuntimeInitializeOnLoadManagerInitializerModule.dll": "4d0e1b72216595557da1a97aa49b54e80e14f2351c0b61d75652aa4c7070ae16",
+      "Contents/Resources/Data/Managed/netstandard.dll": "bf0b7eac9010b75413e4ec1a07a3453bc6a68eeb8e916fbed7c1f2777841f7c7",
+      "Contents/Resources/Data/Managed/UnityEngine.VirtualTexturingModule.dll": "bdb2641ac540d83dd0932e2b57e4c100c65fc7b38f016b878b548a34431fb98f",
+      "Contents/Resources/Data/Managed/UnityEngine.UnityWebRequestWWWModule.dll": "f169fb0c2f405ee221c667fb572ed629da18de8cb2146eb9a68899d98c47d940",
+      "Contents/Resources/Data/Managed/UnityEngine.ARModule.dll": "87d6ba6f8220c7eee7790f95b7cda02b2d46c904c7d816f152b709cccaaeb7b2",
+      "Contents/Resources/Data/Managed/UnityEngine.AccessibilityModule.dll": "5806a17a6b5b23d907b94e1f20fa73f46e12e3c514a6251f00cc24aa465cd113",
+      "Contents/Resources/Data/Managed/System.Configuration.dll": "7cab23df0b92ce496436da14328e5252b89de613d34021e0a0e26859484a4585",
+      "Contents/Resources/Data/Managed/UnityEngine.IdentifiersModule.dll": "7deac4d6645145506a240c1c637211645ae38cdba7ed29e8ef21d5b8d74f84ac",
+      "Contents/Resources/Data/Managed/UnityEngine.GIModule.dll": "4d22bb4987ac9362e807319bc22406f83ac2a4300a56ff591805939bdad8403a",
+      "Contents/Resources/Data/Managed/UnityEngine.SpriteShapeModule.dll": "cc9599a36ebd499d59011b318502916fb2b8c7d9beac5510aa723a90b0ca4c33",
+      "Contents/Resources/Data/Managed/UnityEngine.TextRenderingModule.dll": "7bb97629f6843f8c44fda75dea24fbe12e68e0fa6fccc7dee26568a5dd65d4a5",
+      "Contents/Resources/Data/Managed/System.Net.Http.dll": "e2bb72a219ae046ec06434a6441fdcd17b72ef9b5940a875c62317579e7d819d",
+      "Contents/Resources/Data/Managed/Assembly-CSharp.dll": "b98202dba3e4d561850a9509871e8a34f500b4b0879ca2a0b638502d401f6975",
+      "Contents/Resources/Data/Managed/UnityEngine.DSPGraphModule.dll": "6a7258d7f3380407f7209d8a38ae141dd45eb99f1b20ee774cd3cc737e4b43f5",
+      "Contents/Resources/Data/Managed/UnityEngine.LocalizationModule.dll": "de23553f309fdb5425a95faacf4c414dc1339d3e8ee6bc7de327481f63038b56",
+      "Contents/Resources/Data/Managed/UnityEngine.UnityWebRequestTextureModule.dll": "12513f11fbaee6b00d2b11cffed941d7b371e6ada2a614df89ccd0b12fbc9da4",
+      "Contents/Resources/Data/Managed/UnityEngine.AssetBundleModule.dll": "f812e1aa7fc56eb36691cfd7b526edfeb82e9bfcd87d7836424fa03ae3122088",
+      "Contents/Resources/Data/Managed/System.Runtime.Serialization.dll": "4f584c3b5f53f63b1efb1f9f1d4cab75fb193fcef2906b557a5b5574bd8f71fb",
+      "Contents/Resources/Data/Managed/System.IO.Compression.dll": "72521161ddf49a3ae240bad0a86e998e4ec1f28a8506f78755765d87150c1880",
+      "Contents/Resources/Data/Managed/System.Data.DataSetExtensions.dll": "59f23bac7b2fe4ccc5f33efd754db08287432269817e346328648731746a4a9d",
+      "Contents/Resources/Data/Managed/UnityEngine.AnimationModule.dll": "28b4f947ec14bfa030c5d3829f93007f383e99988d0c33d725d87b0fc0bb9e00",
+      "Contents/Resources/Data/Managed/UnityEngine.AudioModule.dll": "46083727d0fbc9169fe8733d365d40fb6386684d3b6fd5770659b0aaf8a72ea0",
+      "Contents/Resources/Data/Managed/UnityEngine.XRModule.dll": "3b9e41400e5bac2dc1eea91cea64b5771ff6dcaa66b351ea5c2e1891417dd6d2",
+      "Contents/Resources/Data/Managed/Unity.InternalAPIEngineBridge.004.dll": "55637cd8c84e4eab94a2db15e7c25d59ad3feb74951450d9fba2a743aa164e91",
+      "Contents/Resources/Data/Managed/UnityEngine.ClusterInputModule.dll": "e27306308baffc3e2c686fac7b95b6e217528a757e780cd521288a3cae115827",
+      "Contents/Resources/Data/Managed/UnityEngine.VFXModule.dll": "7fe4b0bdcb9ae9bcceb3ac3e167b4e261c124dde98cf55f4d18d3a1e2a041367",
+      "Contents/Resources/Data/Managed/UnityEngine.InputLegacyModule.dll": "23458fe5c37669135b941617e77737855208c2af9553bdf0c73c7120dcf2a51c",
+      "Contents/Resources/Data/Managed/UnityEngine.InputModule.dll": "70643def85695762745fbaf0bdebda236df3412985741c28b95961b816b937d5",
+      "Contents/Resources/Data/Managed/UnityEngine.UnityConsentModule.dll": "bcf411f99f2f9d7f31189d693eb0815fb424bf9a1c461bb47d167237f20c694f",
+      "Contents/Resources/Data/Managed/UnityEngine.DirectorModule.dll": "12ac700871856fa2be636a95d5e6e9ed5f05bd6462179f0042ff5335c5973af2",
+      "Contents/Resources/Data/Managed/Unity.TextMeshPro.dll": "3a8da9479427c8c5a418d23fd98a6f22783e83c702bc87d118ab5d52cf21301c",
+      "Contents/Resources/Data/Managed/mscorlib.dll": "3f558810146d275cfb04eec96d382426c4b6fee71183aa80ab2d23a09cfb684a",
+      "Contents/Resources/Data/Managed/UnityEngine.InputForUIModule.dll": "13d72c77d55944f7066cd27a9a7ee302d8889a75ecea6a6b48bd376860b1cec7",
+      "Contents/Resources/Data/Managed/UnityEngine.ContentLoadModule.dll": "93135165e6c75657bc39f9e056e522f0f864e48b96fe1760525ce7a7812f9320",
+      "Contents/Resources/Data/Managed/UnityEngine.GameCenterModule.dll": "40b644df9f4cbf177164064a53d1e1b887a7547a8cc91dc17ffb8000c2ecfd3d",
+      "Contents/Resources/Data/Managed/System.EnterpriseServices.dll": "0fdded4cedb2a28d4e2999fcf155d90f7bb222c56db1e6448ad774e68c39f08f",
+      "Contents/Resources/Data/Managed/UnityEngine.TextCoreTextEngineModule.dll": "96bd2681bc4baef71c42ff7d6beb66c80099c7d3f503c4c18648ea71d23a5033",
+      "Contents/Resources/Data/Managed/UnityEngine.StreamingModule.dll": "6f079fd66aaba61355235f7ecc0bd6b7afe5da815db7a944cb9f2e164f2a1cd1",
+      "Contents/Resources/Data/Managed/UnityEngine.Physics2DModule.dll": "95a8fa8eab4588b2389948f8ca903f5976a51c6a9f11fc04e8ad049ce958f302",
+      "Contents/Resources/Data/Managed/UnityEngine.UnityConnectModule.dll": "fdb7dd5750015ceb3424f0886802691c465a294e6bda48142d734eb7e1bcbf82",
+      "Contents/Resources/Data/Managed/UnityEngine.dll": "e99aac31a6e7486eeb049465f52c4438de16d91ba839e6f91fd3ff6ddcc654ce",
+      "Contents/Resources/Data/Managed/UnityEngine.GraphicsStateCollectionSerializerModule.dll": "221ba40920d6da127487df98b201c4d9ea16a98cf5e8d85bf3db201cce95b2dc",
+      "Contents/Resources/Data/Managed/UnityEngine.UnityWebRequestAssetBundleModule.dll": "4eab2c75ab1e4480b51fc5bf35a44808d814515937607c72a133d25f6597eacf",
+      "Contents/Resources/Data/Managed/UnityEngine.ShaderVariantAnalyticsModule.dll": "e6973ef36570ca6163c76ab52a8cc3f8a48f680e92692d6d7e684adfb44141a9",
+      "Contents/Resources/Data/Managed/UnityEngine.ShaderRuntimeModule.dll": "6a3d7a5efd469a137540333fd8e577765fd529bc055a44c96f8eff21c5c8e2da",
+      "Contents/Resources/Data/Managed/UnityEngine.UIElementsModule.dll": "7f12de4fedb1bc12185a36a9f54cd6535392fa2483963c6ac5323b249c564c8f",
+      "Contents/Resources/Data/Managed/UnityEngine.VectorGraphicsModule.dll": "bce4f62a642755b1fa5e00981692cbf7214eebc41ca38a2aef3d4a91172d3422",
+      "Contents/Resources/Data/Managed/UnityEngine.UIModule.dll": "e0aaae6d1f66a663f769d9ac051d8cb157c55fbe114f611f55e8a53304956099",
+      "Contents/Resources/Data/Managed/UnityEngine.UI.dll": "7314953eca862604ec20be53e209e9b8de77e352f611abe8b33115a472009b17",
+      "Contents/Resources/Data/Managed/UnityEngine.UnityCurlModule.dll": "15fb9e7765ce596f8b05006ac497d73ec579c5163a2c382264b624f8d3773593",
+      "Contents/Resources/Data/Managed/UnityEngine.SubstanceModule.dll": "2ccb36cd7e2404b9e82b77c4e30944329dd2d21f55c75ca731634f4b09a26c4b",
+      "Contents/Resources/Data/Managed/UnityEngine.HotReloadModule.dll": "c8a16cb5785ddd9d4a0a0d06dcc00588e62f57e96ac25dbf58991a87f225fe9f",
+      "Contents/Resources/Data/Managed/System.ServiceModel.Internals.dll": "33e0f808cc35789be930614b487b76e5216128d5e6003e0d4b09b5ff0f6acada",
+      "Contents/Resources/Data/Managed/System.Transactions.dll": "1bceafd5ead0227002e31ec9012238f3a498838d05b5289f27e9c31dcba369ba",
+      "Contents/Resources/Data/Managed/UnityEngine.GridModule.dll": "38d030922dc18a66626af19d11500783517a13f146dfdfe2bc156d554e13cde4",
+      "Contents/Resources/Data/Managed/UnityEngine.TerrainModule.dll": "acee5c8b4c33909e568a486041533b3e3e96100a345f507a092b9ec8c123fc12",
+      "Contents/Resources/Data/Managed/UnityEngine.InsightsModule.dll": "a121f4d06f794b14ef51f81cd28c2ecccf9f8ff16174ec07e787362eddf31e1a",
+      "Contents/Resources/Data/Managed/UnityEngine.VRModule.dll": "d36076b155da4fe2dc625d8affd929805b4808a01e29fc50d173331c8b7a5f81",
+      "Contents/Resources/Data/Managed/UnityEngine.AdaptivePerformanceModule.dll": "9ac7498b2ceda93bbeaefa3413ff2ad2e2c3ff10930a5de274f657e531c86d62",
+      "Contents/Resources/Data/Managed/UnityEngine.JSONSerializeModule.dll": "f3adfd73eb734b12fd18f97fa5d1898abe617520731eb671ef57330eb8b22318",
+      "Contents/Resources/Data/Managed/UnityEngine.PropertiesModule.dll": "36f26ac971ebc6aa90195cd934dd4d5c80f6cbd7973b069e80ed2b9cb0927eea",
+      "Contents/Resources/Data/Managed/Mono.Security.dll": "45f3b91993e7ab51dfd41bd7f9eea0427cf7d178534c3655524ad9e54cd2ebcf",
+      "Contents/Resources/Data/Managed/System.Data.dll": "6837500e0d1fa4aef6fbfe4c3e8cf5f85bd31b68c7150a3e82c845fdf531df7f",
+      "Contents/Resources/Data/Managed/System.dll": "420f36bf09df58e2eae3b7083cef7bf1f63f6f3b9656044fe5639c2d4e0d05b8",
+      "Contents/Resources/Data/Managed/UnityEngine.SharedInternalsModule.dll": "dc5e70e66b6e21b6066703448a9539448cffccad8469450d81dbcc7570ff0bd0",
+      "Contents/Resources/Data/Managed/UnityEngine.ImageConversionModule.dll": "cb87d45085faedf457585e14cabc3f40dab2c5b706f650f59a948ebe627ecb66",
+      "Contents/Resources/Data/Managed/UnityEngine.TilemapModule.dll": "7c2fca57f92e94e91f0ffe8d3d2c5b1572885d474de2f3cbf0e03e636b69e229",
+      "Contents/Resources/Data/Managed/UnityEngine.ParticleSystemModule.dll": "0255bed0715be520dd7538b4dc164fecb3dad67d7db2dd515982a7dc6640b223",
+      "Contents/Resources/Data/Managed/UnityEngine.VehiclesModule.dll": "dc3b46c3e88e1bd99ff94f6f7f12881318f4a644f6ac0e9a11032435c288f55e",
+      "Contents/Resources/Data/Managed/UnityEngine.MarshallingModule.dll": "13750e13e282878e01f7c3d9fab884d6ada36b73cdcb5234697ba0510d30f588",
+      "Contents/Resources/Data/Managed/UnityEngine.TextCoreFontEngineModule.dll": "b9f7926e414f435b60512348fc0d2833c3e2bfdc471b899f0fa4ade5ac1c693e",
+      "Contents/Resources/Data/Managed/UnityEngine.PhysicsModule.dll": "cb329c19c5ebe64a90f7d1de265fed7be8f0cf4b59db402a810ed6f7d4bbdfee",
+      "Contents/Resources/Data/Managed/UnityEngine.CoreModule.dll": "625d7416dc03a8d7efb56dc8017d9629b9bfdbbd0f1431deb2df5306caeecacf",
+      "Contents/Resources/Data/Managed/UnityEngine.PerformanceReportingModule.dll": "532850f8c5cde2d2d2fe18c78f063a18207580471db79fd1269eae1179f72c68",
+      "Contents/Resources/Data/Managed/UnityEngine.SubsystemsModule.dll": "6f146cffaa94e4cec252f8fb44b49b02a50a27aa706ddd45205ec2a1f93dcbcf",
+      "Contents/Resources/Data/Managed/System.Numerics.dll": "76e1155a8a815a639e9db052e8bbfe2f148c6ac6aecb244348bb8f3f09d901d7",
+      "Contents/Resources/Data/Managed/System.Xml.dll": "17b7052e028118b8f1a5ffbfd7913f419232e844aaf3aa2d0c577cab482d85ce",
+      "Contents/Resources/Data/Managed/UnityEngine.WindModule.dll": "32bc7e3cb324105a48b464fc77aaaf6dfafd6f7ca6cb12c357a6eccd0ada1053",
+      "Contents/Resources/Data/Managed/System.ComponentModel.Composition.dll": "28373e7ec049fe0cd84bf9a52614e37371e7ef8551d5c71065c08b4a1e3b3b93",
+      "Contents/Resources/Data/Managed/UnityEngine.UnityAnalyticsCommonModule.dll": "57d0f79c97085c6dfb92e1e7bde035ae71b5ff050adb82cd415be44a12841b96",
+      "Contents/Resources/Data/Managed/UnityEngine.ScreenCaptureModule.dll": "c51a70ecbd02dd0c6bb847e4ea72874a75a5c2031c320c453c63480e593186d7",
+      "Contents/Resources/Data/Managed/UnityEngine.ClusterRendererModule.dll": "635c49ef5801e2c6ecfc125018d87b288d1ddd427aa35d77a77e17ebe05ef43b",
+      "Contents/Resources/Data/Managed/UnityEngine.UnityWebRequestModule.dll": "49368bae6937d69a48bf82e5772bb5025d404291a912a41536cc1e1009b78647",
+      "Contents/Resources/Data/Managed/UnityEngine.UnityWebRequestAudioModule.dll": "74a9b0651031ced0ff05b84cfe1541616438da7e2c990ca346273588b56eada4",
+      "Contents/Resources/Data/Managed/UnityEngine.RenderAs2DModule.dll": "c2d14c1c592413455c6e08ee4e6b1a1cb04eefd92463c6342d91ba3db88973d1",
+      "Contents/Resources/Data/Managed/System.Drawing.dll": "ba305834640b0261297a1e478180504dceb4d26f656a247321a1578039421abc",
+      "Contents/Resources/Data/Managed/UnityEngine.ClothModule.dll": "573606091d99739154ce299c7f108f1be3f17511da8c8a592c90b2069ab63a99",
+      "Contents/Resources/Data/Managed/UnityEngine.AndroidJNIModule.dll": "6d277dae56fcea75bd33bcd0e2bd9a3e82001939f11a2a51f9a9bd9256afc49b",
+      "Contents/Resources/Data/Managed/System.Security.dll": "27d7136069c3fe5a5486eee369957b6dff911853d8f2d885e61f44babf7038f8",
+      "Contents/Resources/Data/Managed/UnityEngine.AIModule.dll": "d67e18b1efc566701b62a8adee5aabebc0abc8cd22b2550cf8891b52634b3519",
+      "Contents/Resources/Data/Managed/UnityEngine.PhysicsBackendPhysXModule.dll": "cf566edc78fcf8289b5d3d6caed0ac35f70eac315608986ff9bce9e53e36d031",
+      "Contents/Resources/Data/Managed/UnityEngine.TLSModule.dll": "310f382439101e4a4f1bc93fead440a3ab1bd713dff6d38be3b5ac2596c0fbec",
+      "Contents/Resources/Data/Managed/UnityEngine.HierarchyModule.dll": "f4c7872b6850b67939c24e2f06569c7a2c391533a138f7f2b83c55f17347a3eb",
+      "Contents/Resources/Data/Managed/UnityEngine.IMGUIModule.dll": "74ab4bb21ed97e895f4416688d2f4f5ee70e8f7ea50a78f82ef5d50c652e22ad",
+      "Contents/Resources/Data/Managed/System.Core.dll": "aa476c8e4e2c4bf0c15177a3129ec6c6a21e33ba0e8c35f164d687526adcf240",
+      "Contents/Resources/Data/Managed/UnityEngine.HierarchyCoreModule.dll": "2951663ced09f581dddbbc03874fdffa7dd6b165504e84e7e837a166dad52a2d",
+      "Contents/Resources/Data/Managed/UnityEngine.VideoModule.dll": "add2b4d980ab95d188ab6856b21da6adc23aec9a92b164eb81ed5ba5754e6d83",
+      "Contents/Resources/Data/Resources/unity default resources": "5ee90771e2a99d6a5e6db8f2cdfcfb3a34188ba9808f3e90685d6f3064e67b65",
+      "Contents/Resources/Data/Resources/unity_builtin_extra": "b6734424449c3bdc441d2a77418d971c2b61039394fef3ebb197276371f6023b"
+    }
+  },
+  "runs": [
+    {
+      "log": "art-drafts/v4/logs/after-abyss.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/after-flow.log",
+      "exitCode": 0,
+      "shots": [
+        "menu",
+        "pause",
+        "resumed",
+        "over"
+      ],
+      "stats": [],
+      "flowAssertions": [
+        "[DeepFeast] UI flow play submit passed: state=Play, overlay=none.",
+        "[DeepFeast] UI flow pause passed: state=Paused, overlay=pause.",
+        "[DeepFeast] UI flow resume submit passed: state=Play, overlay=none.",
+        "[DeepFeast] UI flow game over passed: state=Over, overlay=over.",
+        "[DeepFeast] UI flow retry submit passed: state=Play, overlay=none.",
+        "[DeepFeast] complete native UI flow passed."
+      ]
+    },
+    {
+      "log": "art-drafts/v4/logs/after-gallery.log",
+      "exitCode": 0,
+      "shots": [
+        "gallery",
+        "gallery_bite"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/after-habitat-motion.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery_000",
+        "scenery_001",
+        "scenery_002",
+        "scenery_003",
+        "scenery_004",
+        "scenery_005",
+        "scenery_006",
+        "scenery_007",
+        "scenery_008",
+        "scenery_009",
+        "scenery_010",
+        "scenery_011",
+        "scenery_012",
+        "scenery_013",
+        "scenery_014",
+        "scenery_015",
+        "scenery_016",
+        "scenery_017",
+        "scenery_018",
+        "scenery_019",
+        "scenery_020",
+        "scenery_021",
+        "scenery_022",
+        "scenery_023",
+        "scenery_024",
+        "scenery_025",
+        "scenery_026",
+        "scenery_027",
+        "scenery_028",
+        "scenery_029",
+        "scenery_030",
+        "scenery_031",
+        "scenery_032",
+        "scenery_033",
+        "scenery_034",
+        "scenery_035",
+        "scenery_036",
+        "scenery_037",
+        "scenery_038",
+        "scenery_039",
+        "scenery_040",
+        "scenery_041",
+        "scenery_042",
+        "scenery_043"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/after-kelp.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/after-menu.log",
+      "exitCode": 0,
+      "shots": [
+        "interface"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/after-motion.log",
+      "exitCode": 0,
+      "shots": [
+        "pose_000",
+        "pose_001",
+        "pose_002",
+        "pose_003",
+        "pose_004",
+        "pose_005",
+        "pose_006",
+        "pose_007",
+        "pose_008",
+        "pose_009",
+        "pose_010",
+        "pose_011",
+        "pose_012",
+        "pose_013",
+        "pose_014",
+        "pose_015",
+        "pose_016",
+        "pose_017",
+        "pose_018",
+        "pose_019",
+        "pose_020",
+        "pose_021",
+        "pose_022",
+        "pose_023",
+        "pose_024",
+        "pose_025",
+        "pose_026",
+        "pose_027",
+        "pose_028",
+        "pose_029",
+        "pose_030",
+        "pose_031",
+        "pose_032",
+        "pose_033",
+        "pose_034",
+        "pose_035",
+        "pose_036",
+        "pose_037",
+        "pose_038",
+        "pose_039",
+        "pose_040",
+        "pose_041",
+        "pose_042",
+        "pose_043",
+        "pose_044",
+        "pose_045",
+        "pose_046",
+        "pose_047",
+        "pose_048",
+        "pose_049",
+        "pose_050"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/after-narrow-menu.log",
+      "exitCode": 0,
+      "shots": [
+        "interface"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/after-over.log",
+      "exitCode": 0,
+      "shots": [
+        "interface"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/after-pause.log",
+      "exitCode": 0,
+      "shots": [
+        "interface"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/after-reef.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/after-surface.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/after-turn.log",
+      "exitCode": 0,
+      "shots": [
+        "turn"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/before-gallery.log",
+      "exitCode": 0,
+      "shots": [
+        "gallery",
+        "gallery_bite"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/before-menu.log",
+      "exitCode": 0,
+      "shots": [
+        "interface"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/before-over.log",
+      "exitCode": 0,
+      "shots": [
+        "interface"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/before-pause.log",
+      "exitCode": 0,
+      "shots": [
+        "interface"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/before-turn.log",
+      "exitCode": 0,
+      "shots": [
+        "turn"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/fry.log",
+      "exitCode": 0,
+      "shots": [
+        "menu",
+        "play_00_t4_r12",
+        "play_01_t8_r13",
+        "play_02_t12_r14",
+        "play_03_t16_r14",
+        "play_04_t20_r14",
+        "play_05_t24_r15",
+        "play_06_t28_r15"
+      ],
+      "stats": [
+        "[DeepFeast] stat t=0 r=12.0 tier=Fry lives=3 score=0 eaten=0 fish=148 fps=59",
+        "[DeepFeast] stat t=9 r=14.2 tier=Fry lives=3 score=223 eaten=6 fish=85 fps=58",
+        "[DeepFeast] stat t=19 r=14.6 tier=Fry lives=3 score=277 eaten=8 fish=78 fps=58",
+        "[DeepFeast] stat t=29 r=16.1 tier=Fry lives=3 score=422 eaten=10 fish=87 fps=59"
+      ],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/gameplay.log",
+      "exitCode": 0,
+      "shots": [
+        "menu",
+        "play_00_t4_r30",
+        "play_01_t8_r30",
+        "play_02_t12_r30",
+        "play_03_t16_r30"
+      ],
+      "stats": [
+        "[DeepFeast] stat t=0 r=30.0 tier=Hunter lives=3 score=0 eaten=0 fish=90 fps=59",
+        "[DeepFeast] stat t=9 r=30.0 tier=Hunter lives=3 score=0 eaten=0 fish=78 fps=57"
+      ],
+      "flowAssertions": []
+    },
+    {
+      "log": "art-drafts/v4/logs/installed-smoke.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery"
+      ],
+      "stats": [],
+      "flowAssertions": []
+    }
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 4837,
+      "sha256": "57815bb2f5d6fdec2489eda78be5f57cb8674ede9a6a1579ccc392b5e3aa85dd"
+    },
+    {
+      "path": "unity/Assets/Editor/ArtValidation.cs",
+      "bytes": 5868,
+      "sha256": "325e48253f0ce7edc7df92e0645e12b2c41784536d72de041ece4ea3b25eccf5"
+    },
+    {
+      "path": "unity/Assets/Editor/MotionValidation.cs",
+      "bytes": 1519,
+      "sha256": "bb868ab4000a986ef1fff1aee1d790d85435f78788454fa5b7ae216649c03147"
+    },
+    {
+      "path": "unity/Assets/Resources/Shaders/FishSwim.shader",
+      "bytes": 2577,
+      "sha256": "975196e262dbd16a35fdddd9bec545299d04789e08dd733780398e7bd9c577fc"
+    },
+    {
+      "path": "unity/Assets/Resources/Shaders/PaintedLighting.cginc",
+      "bytes": 426,
+      "sha256": "8e48533a3cd7d3333ac40c033c1d36d5467e69f8385b8dae286c77ac79c1f9f1"
+    },
+    {
+      "path": "unity/Assets/Resources/Shaders/PaintedScenery.shader",
+      "bytes": 1320,
+      "sha256": "a8d8b762c3459d3e9d9ae82e923bb33ae3b78e1e548c5f20fa77926379a08c88"
+    },
+    {
+      "path": "unity/Assets/Resources/Shaders/PlantSway.shader",
+      "bytes": 2084,
+      "sha256": "7ca0e78992cb468ecf76431b515d4ba0191945a40a31b33789e031ba61fa8b3e"
+    },
+    {
+      "path": "unity/Assets/Scripts/FishArt.cs",
+      "bytes": 35319,
+      "sha256": "f02a7cf726dd40dd170d766e32162192e52e0912e61b274e9be0f88fb9138fe1"
+    },
+    {
+      "path": "unity/Assets/Scripts/Game.cs",
+      "bytes": 73695,
+      "sha256": "3240c28bad7c40a7522f1d397a4d1cb1b535b9aaf66dc5657e91eaa044d28c4c"
+    },
+    {
+      "path": "unity/Assets/Scripts/Habitat.cs",
+      "bytes": 1261,
+      "sha256": "cd95d374bb2f6be7feb083d0f6b23fb4c6267ec75ecc3a7af9307c05eb2a1a0f"
+    },
+    {
+      "path": "unity/Assets/Scripts/Hud.cs",
+      "bytes": 38656,
+      "sha256": "5655d06ec52a879f388509b07f9b651a9f82ca4d3707fc7fd7ecd8a5e12212a0"
+    },
+    {
+      "path": "unity/Assets/Scripts/PaintedArt.cs",
+      "bytes": 6011,
+      "sha256": "81c9eba37376702bd6306e10fa9bda2739445503f743e5807d0b90d50db8e550"
+    },
+    {
+      "path": "unity/Assets/Scripts/SceneFx.cs",
+      "bytes": 27805,
+      "sha256": "4fed5368c95833cc70f65dcdd5c651fef4eb81c5cacad336c74baa7020231851"
+    },
+    {
+      "path": "unity/Assets/Scripts/World.cs",
+      "bytes": 45610,
+      "sha256": "4deb93c77e9871a0e66d7ae4bf154ae5919e828d8209590af4409432a0c84175"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/atlas-original-v2.png",
+      "bytes": 2142005,
+      "sha256": "fd3210763a7293880fd84c06a8a524668e67c40887a6b7f480f1e3ddc7c3b7a8"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/atlas-plants-v3.png",
+      "bytes": 2233699,
+      "sha256": "577a6ff21982d7f58b57a1ab030d9a188abbb7dd660f672db6f84cab6e984b1f"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/atlas-props-v2.png",
+      "bytes": 2151792,
+      "sha256": "90dd65bd900c0b4dcb2bfd55b7b914b4c4ff0173395ae6cf69ff6314153aacba"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/atlas-reefs-v3.png",
+      "bytes": 2512515,
+      "sha256": "55c3a5d01520c1e6b666d1b47a9abfa267e7e305a2bbee831c4eedf8726399a9"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/atlas-remaining-v2.png",
+      "bytes": 2301837,
+      "sha256": "32716a19192f5800d2f53a2783db8e7cb945593231c4909b969a93f462da8901"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_angel_body.png",
+      "bytes": 137793,
+      "sha256": "a4d4f23827a161ec4863119f19b038eb861fe5f8487e7c550ff3a5f7efd38bf9"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_angel_open.png",
+      "bytes": 136882,
+      "sha256": "4225e2d7efe8753ede7a732a970035f4e2d008626281ef9e2bc129feac24f1f2"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_angel_tail.png",
+      "bytes": 17553,
+      "sha256": "d5cfa7189dbfe0acc893f1fc73868d5eb4fbe30cc95c3f666fa6208fd7088b0a"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_clown_body.png",
+      "bytes": 94709,
+      "sha256": "c44f78544bd10d98cfd3b89b91100d1f1a0abaa1ce65d588b37e2334ab27a996"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_clown_open.png",
+      "bytes": 93188,
+      "sha256": "1cace71aa2cba2b50667901f3c17304f0dacc0e6602967f2c51ee8d6d5f14e2f"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_clown_tail.png",
+      "bytes": 21517,
+      "sha256": "1b37d843806da16153ea8da46f9c622d0d1d09918503a7ff22e7d3a9a0cf6e93"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_player_body.png",
+      "bytes": 108993,
+      "sha256": "9e1e7fca9a6eac0d41fe3aa713a8e2f34f31b4d219e58d06081d586149f907d0"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_player_open.png",
+      "bytes": 107125,
+      "sha256": "0ef8ec4256bd6097dda54674d0937df31c6a86cdbc2b2f2e32b5ee91e0f63851"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_player_tail.png",
+      "bytes": 25078,
+      "sha256": "2813ed0e09ebe4d254c4198f05978b8ba485ad73999d0273a9dec6eb9ded0c33"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_puffer_body.png",
+      "bytes": 116516,
+      "sha256": "445fee4aae0910a9f1657938bc84a5e128927fe9c181981dc2de7c0eeac72683"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_puffer_open.png",
+      "bytes": 114445,
+      "sha256": "a7a0879cb12ac2a8952c38e149a905a9f87b55b9abfec92af496cc232a2eaf87"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_puffer_tail.png",
+      "bytes": 18148,
+      "sha256": "8e5577492680e166efc82c3a85652e6009bcc9f75f788d1d2f00d1dfbb59a5b0"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_shark_body.png",
+      "bytes": 75603,
+      "sha256": "2cef0ea082a6cde4d155483a20cd90581c1dc63561bafc8b63f25f58b1b7c554"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_shark_tail.png",
+      "bytes": 22564,
+      "sha256": "f65bfcb7f6f6a2ca39908f0989bcb7e14245ac3af0682c14b230390c6791bbeb"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_tang_body.png",
+      "bytes": 105598,
+      "sha256": "7ac45c6ab506616fc807d2f61ff8d12cd64df838066686d3c2087305025bdfd1"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_tang_open.png",
+      "bytes": 103777,
+      "sha256": "f0b54a5e4fb0db0d0d0841da73b26fda95a20e6e3f2605110604c910b4f7d3c1"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/fish_tang_tail.png",
+      "bytes": 20096,
+      "sha256": "242594b64ef646a2256a0e438dcd95ce7da5fcbb897f5640c3bf1c7ae430517f"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/jelly_bell_190.png",
+      "bytes": 58345,
+      "sha256": "68e42518afd84534af6df5ba9d08c45d6faa942847dd7b6bd91024521b124123"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/jelly_bell_200.png",
+      "bytes": 58208,
+      "sha256": "cc0dc0f0dd4fdf595c19db4e3cbff71e8e22d12c3caafd77314e596a937b711e"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/jelly_bell_270.png",
+      "bytes": 58837,
+      "sha256": "fc1831e1dbc031d41606dd1b9a5272d66f40a4427f61e2a0ede0d6a94a153d1c"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/jelly_bell_300.png",
+      "bytes": 58660,
+      "sha256": "06aa3248667f146c7f9f30bed7bcb15e7bd6a9c0ae2fe113bf3e9a2a44e8b6b0"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/jelly_bell_320.png",
+      "bytes": 58288,
+      "sha256": "0978a68e397cee7fb3f6974ddf3654cedcd4e54be7ec68fd7d873753e1e3cd5e"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/reef_cluster.png",
+      "bytes": 262576,
+      "sha256": "4f9d1a1e17b4a37f35113fa7172bef22cc55a51144fad4eeeebf0aa62390171d"
+    },
+    {
+      "path": "art-drafts/v4/before/abyss/scenery.png",
+      "bytes": 823001,
+      "sha256": "7854d7457d342d47a0d58db4fdc8a7389d4240428147fde7ddbec0ca44118ff2"
+    },
+    {
+      "path": "art-drafts/v4/before/gallery/gallery.png",
+      "bytes": 871107,
+      "sha256": "c9013d88ac8c1ab4899d08304afcc8aade8e146c1720b32694261b913d88b922"
+    },
+    {
+      "path": "art-drafts/v4/before/gallery/gallery_bite.png",
+      "bytes": 873825,
+      "sha256": "13736126274a352f1643c7706a470eb6f4a1d3ea5d2bc3c1e25dc0d46fffb967"
+    },
+    {
+      "path": "art-drafts/v4/before/kelp/scenery.png",
+      "bytes": 1328475,
+      "sha256": "6d6d21fab57d20ba70ce9788d720ee9e8458d1fa4ca7eb99c78bb1623f6c234d"
+    },
+    {
+      "path": "art-drafts/v4/before/menu/interface.png",
+      "bytes": 765395,
+      "sha256": "a1bbb43bde1fba112313d1e43ca20e65e06e7fdc287a93ba662092da8ede1c30"
+    },
+    {
+      "path": "art-drafts/v4/before/over/interface.png",
+      "bytes": 773772,
+      "sha256": "25bb68543194dd4a689bc4864eb4e647bb6064a2652e258791c676ec8b2c6893"
+    },
+    {
+      "path": "art-drafts/v4/before/pause/interface.png",
+      "bytes": 822767,
+      "sha256": "d5fcf9e3d4026b3b04987328c394172491ca50a8c59dd1896ad478377ebbad75"
+    },
+    {
+      "path": "art-drafts/v4/before/reef/scenery.png",
+      "bytes": 830935,
+      "sha256": "6fe5f11af727c7e6d0c11a735a3a3e9f4177cf073d3fc79a911fd2fd446c728c"
+    },
+    {
+      "path": "art-drafts/v4/before/surface/scenery.png",
+      "bytes": 740721,
+      "sha256": "8bde688d1dec329bfc2c4fe9ccd04a2eee0ec83a4c96db8371e33940a9ee21c0"
+    },
+    {
+      "path": "art-drafts/v4/before/turn/turn.png",
+      "bytes": 1319673,
+      "sha256": "b55453e375a8e7cd077ac5d5ded04698fdbcc08007cee2c405c451d6527e907a"
+    },
+    {
+      "path": "art-drafts/v4/after/kelp/scenery.png",
+      "bytes": 1213735,
+      "sha256": "a03ac5473f04460e2eeddacd7c15351cce9865f86377a122e5b0cb5f287866dd"
+    },
+    {
+      "path": "art-drafts/v4/after/reef/scenery.png",
+      "bytes": 863278,
+      "sha256": "8a7c454d05e55c0fbea0c7629b4d7e1b8b4b5d17f15971837172c4e40c12a95f"
+    },
+    {
+      "path": "art-drafts/v4/after/abyss/scenery.png",
+      "bytes": 833019,
+      "sha256": "80bc0adf593e9a4609ee0b7978ecc00ef7b651ffc77293d293306078ad37fb25"
+    },
+    {
+      "path": "art-drafts/v4/after/surface/scenery.png",
+      "bytes": 661097,
+      "sha256": "335cd1ae05096eb19f436cbba85f0355756c2ed80d56cd340163769284697a94"
+    },
+    {
+      "path": "art-drafts/v4/after/gallery/gallery.png",
+      "bytes": 815214,
+      "sha256": "76a5e267120e31979dce4f0b306c46ead1765c53b6a638aa684c2a38ebba4d40"
+    },
+    {
+      "path": "art-drafts/v4/after/gallery/gallery_bite.png",
+      "bytes": 816997,
+      "sha256": "2a23e1540300d1f5d6d7db2a675f21f5abf2c75abccf6dcd90ffaaca2d1224d0"
+    },
+    {
+      "path": "art-drafts/v4/after/menu/interface.png",
+      "bytes": 646943,
+      "sha256": "a246149778b9f0c685142886e3887e7590cd990fad1ec064e6516d25123dfb30"
+    },
+    {
+      "path": "art-drafts/v4/after/pause/interface.png",
+      "bytes": 763600,
+      "sha256": "25ad78b969817a5ed11216147a78e6581759bf126252d84f41530818e72d70d9"
+    },
+    {
+      "path": "art-drafts/v4/after/over/interface.png",
+      "bytes": 625741,
+      "sha256": "f0e032572cc10242dac73a831ac086a7e07947d6348a89ef6c17ef1d7702d480"
+    },
+    {
+      "path": "art-drafts/v4/after/turn/turn.png",
+      "bytes": 1212421,
+      "sha256": "3cccf27475b7ed764e924783d2469c0ba21216d3cfb94f4e1e807c39edbc5813"
+    },
+    {
+      "path": "art-drafts/v4/after/flow/menu.png",
+      "bytes": 646211,
+      "sha256": "847376087225379ccae3bcadf59e5623aacb9836237cb61cc7ae312f561b34e2"
+    },
+    {
+      "path": "art-drafts/v4/after/flow/over.png",
+      "bytes": 571049,
+      "sha256": "8cd877ffdb053f92e78a94d2d5effded8e27a1e99d115f586328eedf0eeea86f"
+    },
+    {
+      "path": "art-drafts/v4/after/flow/pause.png",
+      "bytes": 696585,
+      "sha256": "569bd4bfca7ae9749607f09571a22f38564dcdfa0e9d017099a390258aef892f"
+    },
+    {
+      "path": "art-drafts/v4/after/flow/resumed.png",
+      "bytes": 717672,
+      "sha256": "664981fcfe9138b886566970d638292dbccfcbcb0a40adabb0eace2c33c7d662"
+    },
+    {
+      "path": "art-drafts/v4/after/narrow-menu/interface.png",
+      "bytes": 478634,
+      "sha256": "2088c264723784b976e7066e79b26de6086299b6d2117b743b18a3999937cac1"
+    },
+    {
+      "path": "art-drafts/v4/comparisons/abyss.png",
+      "bytes": 976290,
+      "sha256": "c68be5f356c38a17d830f8eaff6f29a8f1e42d258e1b2f4642d08ef03365ac63"
+    },
+    {
+      "path": "art-drafts/v4/comparisons/gallery.png",
+      "bytes": 1043273,
+      "sha256": "ec434786f33f472d303193d48f7b8320b6f9091f16cefb69b0f8e46150c825ce"
+    },
+    {
+      "path": "art-drafts/v4/comparisons/kelp.png",
+      "bytes": 1392642,
+      "sha256": "6cfdd846c36cd7ea02308148c3df54936b3050e8be6b3e99d14c9dbe5493c105"
+    },
+    {
+      "path": "art-drafts/v4/comparisons/menu.png",
+      "bytes": 850962,
+      "sha256": "f7d1cbbdc1c13c4e8f5cd8e1100fa535536c0d21f7dca6c405bc6fdeb7296022"
+    },
+    {
+      "path": "art-drafts/v4/comparisons/over.png",
+      "bytes": 841326,
+      "sha256": "18884648d8741c5e2dc20461d88a52dd82e4ff9a5c2b490fe1daae5219a3f0a4"
+    },
+    {
+      "path": "art-drafts/v4/comparisons/pause.png",
+      "bytes": 921634,
+      "sha256": "db882fa2449551f20a159fb68f6b7ff22a3cf229fe6f3711b2ebb3a3a10b09bf"
+    },
+    {
+      "path": "art-drafts/v4/comparisons/reef.png",
+      "bytes": 966429,
+      "sha256": "512358ec3e250ca33d4801c2830bab7a05c6eb734dff158965dd56394c53ba47"
+    },
+    {
+      "path": "art-drafts/v4/comparisons/surface.png",
+      "bytes": 889397,
+      "sha256": "e4dfa1b567bdb61baf8420ea4c8df49e401b617302568badf49cbcc58c5aea3a"
+    },
+    {
+      "path": "art-drafts/v4/comparisons/turn.png",
+      "bytes": 1389639,
+      "sha256": "2114f19c3b9a175d3ff00024f8e2a95d263486b6753e544121047d3c6f0dd1b4"
+    },
+    {
+      "path": "art-drafts/v4/fish-motion.mp4",
+      "bytes": 1266915,
+      "sha256": "f712a0971ff35884b514e82b19de6ed3ef90bfd09f6b679e425087d5d9adddc9"
+    },
+    {
+      "path": "art-drafts/v4/habitat-motion.mp4",
+      "bytes": 786762,
+      "sha256": "ab6e45a6d8eaf2f232fed7f83254ddcca659648c066fd1cd222a1c8464f41754"
+    },
+    {
+      "path": "art-drafts/v4/baseline-harness.patch",
+      "bytes": 2384,
+      "sha256": "e659860343c2dabc9558163fd31d5864edd892a74d26bfd101b09d95ca2905ee"
+    },
+    {
+      "path": "art-drafts/v4/HANDOVER.md",
+      "bytes": 8976,
+      "sha256": "c0ce0f58785026017795e639605477658964a724837c731ac7f4699f87579320"
+    },
+    {
+      "path": "art-drafts/v4/index.html",
+      "bytes": 10881,
+      "sha256": "82023248c2472f679dea3df8232176466348acf485225fc2bdf9e663cd97bc09"
+    },
+    {
+      "path": "art-drafts/v4/export-board.js",
+      "bytes": 1560,
+      "sha256": "11370b892e41b8410909f3b20ffe9ce101da3091a33a3aa1867f5982ad9c4df9"
+    },
+    {
+      "path": "art-drafts/v4/fry/play_01_t8_r13.png",
+      "bytes": 983313,
+      "sha256": "2ebc6717f2d6286906cea81a178136506f7b1588fe5f0ab215e949f57fbab143"
+    },
+    {
+      "path": "art-drafts/v4/gameplay/play_00_t4_r30.png",
+      "bytes": 965712,
+      "sha256": "3936a5665e2d463eac3a7067f273ac6b1ca5f8759b22769ffd98bea61c14ed2f"
+    },
+    {
+      "path": "art-drafts/v4/logs/after-abyss.log",
+      "bytes": 1999,
+      "sha256": "a28bd2d0ec27af625ca6ebffea9575e6671c0c61459cd1fa4142c8fdffd4b1c0"
+    },
+    {
+      "path": "art-drafts/v4/logs/after-flow.log",
+      "bytes": 2561,
+      "sha256": "1d3eb3ee8ecf06a4c4d0989692fff491cac825272da3f44c29cf261ee9e561dc"
+    },
+    {
+      "path": "art-drafts/v4/logs/after-gallery.log",
+      "bytes": 1967,
+      "sha256": "1a032f27f25f00f91b83c528f95f2358d9051d68b3a8610644b132a9d697b343"
+    },
+    {
+      "path": "art-drafts/v4/logs/after-habitat-motion.log",
+      "bytes": 4323,
+      "sha256": "080d3277eb5bc6fbf3c25fde20f9d725a8087f87c3a4e0338f19d8f4854bb1c6"
+    },
+    {
+      "path": "art-drafts/v4/logs/after-kelp.log",
+      "bytes": 1997,
+      "sha256": "73d0ec0ae597ccac86b84185f20feeab1539012bd8bdea56adb2694d47a2f351"
+    },
+    {
+      "path": "art-drafts/v4/logs/after-menu.log",
+      "bytes": 1998,
+      "sha256": "de53b4c241b4d3c135434d49572fa27d7b75bc650f491e85c0fe3ed4ceae2f45"
+    },
+    {
+      "path": "art-drafts/v4/logs/after-motion.log",
+      "bytes": 4463,
+      "sha256": "f1ecd45f3cc43255c269bc72e267c132b8063b7c031ae7d1c6284fc51fd83e4c"
+    },
+    {
+      "path": "art-drafts/v4/logs/after-narrow-menu.log",
+      "bytes": 1997,
+      "sha256": "ed7ef5a6db5d429566d7ee63ee87f7bb35cbba1b1ba4441776ca146ce1a9f183"
+    },
+    {
+      "path": "art-drafts/v4/logs/after-over.log",
+      "bytes": 1998,
+      "sha256": "092920d554dc08117d889fad3ac946c1ee5961804d71f1ff8ec47ff61df347e2"
+    },
+    {
+      "path": "art-drafts/v4/logs/after-pause.log",
+      "bytes": 1998,
+      "sha256": "784500a3d52912d7d9fb72e0c1561972202bc81ae3011a2ca2994aca70c42bee"
+    },
+    {
+      "path": "art-drafts/v4/logs/after-reef.log",
+      "bytes": 1996,
+      "sha256": "a0594e55763bd4bfd882ceb111b334334acf19fbc913242741862ac5ff0b1658"
+    },
+    {
+      "path": "art-drafts/v4/logs/after-surface.log",
+      "bytes": 1999,
+      "sha256": "60ed0aebb9b3a43022e58ab6427a72ca2e5d9125fa34dd1ac8fafb20b3e40218"
+    },
+    {
+      "path": "art-drafts/v4/logs/after-turn.log",
+      "bytes": 2045,
+      "sha256": "935a2f8516bf79653a8bbfb26c117ac6f630f1ebc5f54f47e9b76c6f9ed15f4a"
+    },
+    {
+      "path": "art-drafts/v4/logs/before-gallery.log",
+      "bytes": 1967,
+      "sha256": "a3d78524c5cd5f59bdb464c8b8b8ded1ec4c38e244020fb1ea4100cc9e4b793d"
+    },
+    {
+      "path": "art-drafts/v4/logs/before-menu.log",
+      "bytes": 1998,
+      "sha256": "3a6338b388934c89b0d88bd21dc9a292aca1f4b7320b819354987c1d2634119f"
+    },
+    {
+      "path": "art-drafts/v4/logs/before-over.log",
+      "bytes": 1998,
+      "sha256": "67c93b02d2dbe2c06c768622362128835f5ff026f0ea9b31c992e13ebc2e90ab"
+    },
+    {
+      "path": "art-drafts/v4/logs/before-pause.log",
+      "bytes": 1998,
+      "sha256": "d815045f26b8bf5449cc1c7596bf7b7e0cd71b51c22e22a67453e0bc7af8249f"
+    },
+    {
+      "path": "art-drafts/v4/logs/before-turn.log",
+      "bytes": 2045,
+      "sha256": "a4aba3751e466644a456899edd0f2ea07760e3d9854adbd3f9245fa477328f53"
+    },
+    {
+      "path": "art-drafts/v4/logs/build-baseline.log",
+      "bytes": 499,
+      "sha256": "8c599ee42da109a176bd05eb37cf55df779867d7195f2484a4c8c628eee3c1a7"
+    },
+    {
+      "path": "art-drafts/v4/logs/build-final.log",
+      "bytes": 612,
+      "sha256": "56148a5f02bd40a60b1fd997995cd8ced995d533bd9b5e3a0378eb76157d6c58"
+    },
+    {
+      "path": "art-drafts/v4/logs/fry.log",
+      "bytes": 2653,
+      "sha256": "a877cc399e72f95c3c489070eeae0c8814d3f12d61538d6c4a1069dad837c477"
+    },
+    {
+      "path": "art-drafts/v4/logs/gameplay.log",
+      "bytes": 2323,
+      "sha256": "a685b370df9f5809404c0f6e8ac9a4b1647176b7df491539f4da82ada9ba9133"
+    },
+    {
+      "path": "art-drafts/v4/logs/installed-smoke.log",
+      "bytes": 1958,
+      "sha256": "161a4bb9da7202df49fdcd6194d376b4e106586a300a264dc279f88435dad985"
+    },
+    {
+      "path": "art-drafts/v4/logs/turn-fail-before.log",
+      "bytes": 323,
+      "sha256": "a6c032442360c8326259b12233780e77fda3f392b3ca4ef56f46d7e184e03578"
+    },
+    {
+      "path": "art-drafts/v4/logs/turn-pass-after.log",
+      "bytes": 302,
+      "sha256": "3838a4ba6c5dbd9aebbbcc85f54acc5dde3329ad6595fda3f6d682ff64714698"
+    }
+  ],
+  "limitations": [
+    "Zero active displays: no physical windowed keyboard/pointer/audio/resize verification",
+    "No WebGL or mobile build",
+    "No target hardware performance benchmark",
+    "Native UI callback harness freezes gameplay simulation and uses fixed sample values"
+  ]
+}

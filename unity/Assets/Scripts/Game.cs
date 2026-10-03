@@ -67,10 +67,10 @@ namespace DeepFeast
 
         // ------------------------------------------------------------------ test harness (command line)
         bool autoplay, noPause, gallery, animateGallery;
-        string shotDir, scenery;
+        string shotDir, scenery, interfaceReview;
         float shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, realTime, statT, botWanderDir = 1, restartT = -1;
-        int shotN;
-        bool menuShotDone;
+        int shotN, uiFlowStage;
+        bool menuShotDone, turnReviewLogged;
 
         float FocusR => pActive ? player.r : 22;
         float ViewW => refW / zoom;
@@ -133,6 +133,7 @@ namespace DeepFeast
             lastMouse = Input.mousePosition;
             if (gallery) SetupGallery();
             if (scenery != null) SetupScenery();
+            if (interfaceReview != null) SetupInterface();
         }
 
         void BuildPlayerView()
@@ -232,8 +233,10 @@ namespace DeepFeast
             args = Environment.GetCommandLineArgs();
             autoplay = Has("-autoplay");
             gallery = Has("-gallery");
-            animateGallery = Has("-animate-gallery");
+            animateGallery = Has("-animate-gallery") || Has("-animate-turns");
             scenery = Arg("-scenery");
+            interfaceReview = Arg("-interface");
+            if (interfaceReview != null && scenery == null) scenery = "reef";
             noPause = autoplay || scenery != null || Has("-nopause");
             shotDir = Arg("-shots");
             shotEvery = ArgF("-shotevery", 15);
@@ -356,6 +359,7 @@ namespace DeepFeast
                     poseTime < 0.98f ? 1 : poseTime < 1.17f ? 1 - Mathf.InverseLerp(0.98f, 1.17f, poseTime) : 0;
                 foreach (var f in fish)
                 {
+                    if (Has("-animate-turns")) { f.faceS = Mathf.Cos(time * Mathf.PI / 1.6f); f.face = f.faceS < 0 ? -1 : 1; }
                     f.mouth = mouth;
                     f.chomp = poseTime >= 0.98f && poseTime < 1.2f ? 1.2f - poseTime : 0;
                     f.state = mouth > 0.4f && f.sp != Data.Player ? FState.Chase : FState.Wander;
@@ -394,16 +398,58 @@ namespace DeepFeast
         void Scenery(float rdt)
         {
             realTime += rdt;
+            if (interfaceReview == "flow")
+            {
+                time = 2;
+                InterfaceFlow();
+                if (quitAfter > 0 && realTime >= quitAfter) Application.Quit();
+                return;
+            }
             bool animate = Has("-animate-scenery");
             time = 2 + (animate ? shotN * shotEvery : 0);
             foreach (var f in fish) f.wag = time * 5;
             player.wag = time * 5;
+            if (Has("-turn-review"))
+            {
+                player.face = -1; player.faceS = ArgF("-turn", 0.01f);
+                foreach (var f in fish) { f.face = -1; f.faceS = player.faceS; }
+            }
             if (realTime > 3.1f && (shotN == 0 || animate && realTime >= nextShot))
             {
-                Shot(animate ? $"scenery_{shotN:000}" : "scenery");
+                Shot(animate ? $"scenery_{shotN:000}" : interfaceReview != null ? "interface" : Has("-turn-review") ? "turn" : "scenery");
                 shotN++; nextShot = realTime + shotEvery;
             }
             if (quitAfter > 0 && realTime >= quitAfter) Application.Quit();
+        }
+
+        void SetupInterface()
+        {
+            if (interfaceReview == "menu" || interfaceReview == "flow") { state = GState.Menu; pActive = false; hud.ShowMenu(4240); }
+            else if (interfaceReview == "pause") { state = GState.Paused; hud.ShowPause(true); }
+            else { state = GState.Over; pActive = false; hud.ShowOver(2340, "Predator", 42, 164, false, 4240); }
+        }
+
+        void InterfaceFlow()
+        {
+            void Check(GState expected, string overlay, string action)
+            {
+                if (state != expected || hud.ActiveOverlay != overlay)
+                    throw new InvalidOperationException($"UI flow {action} failed: state={state}, overlay={hud.ActiveOverlay}.");
+                Debug.Log($"[DeepFeast] UI flow {action} passed: state={state}, overlay={overlay}.");
+            }
+            switch (uiFlowStage)
+            {
+                case 0 when realTime > 3.2f: Shot("menu"); uiFlowStage++; break;
+                case 1 when realTime > 3.8f: hud.SubmitPrimary(); pInvuln = 0; Check(GState.Play, "none", "play submit"); uiFlowStage++; break;
+                case 2 when realTime > 4.4f: TogglePause(true); Check(GState.Paused, "pause", "pause"); uiFlowStage++; break;
+                case 3 when realTime > 4.8f: Shot("pause"); uiFlowStage++; break;
+                case 4 when realTime > 5.4f: hud.SubmitPrimary(); Check(GState.Play, "none", "resume submit"); uiFlowStage++; break;
+                case 5 when realTime > 5.8f: Shot("resumed"); uiFlowStage++; break;
+                case 6 when realTime > 6.4f: GameOver(); Check(GState.Over, "over", "game over"); uiFlowStage++; break;
+                case 7 when realTime > 7: Shot("over"); uiFlowStage++; break;
+                case 8 when realTime > 7.4f: hud.SubmitPrimary(); Check(GState.Play, "none", "retry submit"); uiFlowStage++; break;
+                case 9 when realTime > 8: Debug.Log("[DeepFeast] complete native UI flow passed."); uiFlowStage++; break;
+            }
         }
 
         void StartGame()
@@ -701,7 +747,16 @@ namespace DeepFeast
             float rdt = Mathf.Min(0.1f, Time.unscaledDeltaTime);
             float dt = Mathf.Min(0.05f, Time.deltaTime);
             Resize();
-            if (scenery != null) { Scenery(rdt); Render(0, rdt); return; }
+            if (scenery != null)
+            {
+                Scenery(rdt); Render(0, rdt);
+                if (Has("-turn-review") && !turnReviewLogged && realTime > 3.2f)
+                {
+                    turnReviewLogged = true;
+                    Debug.Log($"[DeepFeast] turn review: player width ratio={Mathf.Abs(playerView.root.transform.localScale.x):0.000}.");
+                }
+                return;
+            }
             if (gallery) { Gallery(rdt); Render(rdt, rdt); return; }
             ReadInput();
             Harness(rdt);
@@ -1261,6 +1316,9 @@ namespace DeepFeast
 
         void Render(float dt, float rdt)
         {
+            var habitat = Habitat.At(cam.y);
+            Shader.SetGlobalColor("_SceneLight", habitat.light);
+            hud.SetHabitat(habitat.name, habitat.accent);
             float shk = state == GState.Paused ? 0 : shake;
             float shx = (U.Rand() - 0.5f) * shk * 2 / zoom, shy = (U.Rand() - 0.5f) * shk * 2 / zoom;
             cam3.orthographicSize = refH / 2 / zoom;
@@ -1448,7 +1506,7 @@ namespace DeepFeast
                 hud.UpdateHud(score, combo, comboT > 0, cur.name, prog, hasNext ? "next: " + Data.Tiers[tier + 1].name.ToUpperInvariant() : "MAXIMUM SIZE",
                     lives, pStamina, pTired, Mathf.Max(0, Mathf.RoundToInt(player.y / 8)));
             }
-            hud.Tick(dt, rdt, (x, y) => ToScreen(x, y), alerts, Time.unscaledTime);
+            hud.Tick(dt, rdt, (x, y) => ToScreen(x, y), alerts, interfaceReview != null ? time : Time.unscaledTime);
         }
     }
 }

@@ -35,7 +35,7 @@ namespace DeepFeast
         static bool loaded;
         static readonly Dictionary<string, Texture2D> textures = new Dictionary<string, Texture2D>();
         static readonly Dictionary<string, Sprite> props = new Dictionary<string, Sprite>();
-        static Material swim;
+        static Material swim, scenery;
         sealed class PendingMesh { public UnityEngine.Sprite sprite; public Vector2[] vertices; public ushort[] triangles; }
         static readonly List<PendingMesh> pending = new List<PendingMesh>();
         public static int PendingMeshCount => pending.Count;
@@ -69,6 +69,7 @@ namespace DeepFeast
         }
 
         public static Material SwimMaterial => swim ??= new Material(Resources.Load<Shader>("Shaders/FishSwim"));
+        public static Material SceneryMaterial => scenery ??= new Material(Resources.Load<Shader>("Shaders/PaintedScenery"));
 
         static Sprite Sprite(string atlas, Frame f, float ppu, bool deform)
         {

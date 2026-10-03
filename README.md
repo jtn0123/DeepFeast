@@ -32,6 +32,9 @@ Headless build:
 | `-dumpart <dir>` | Write every baked sprite texture to `dir` as a PNG |
 | `-gallery` | Art review: every species, two jellies and a pearl in a grid; with `-shots` saves `gallery` and `gallery_bite` |
 | `-gallery -animate-gallery` | Capture swimming and a repeating anticipation/open/recovery cycle; `-shotevery` sets the frame interval |
+| `-gallery -animate-turns` | Add direction changes to the animated species gallery |
+| `-interface <menu\|pause\|over\|flow>` | Fixed native menu/results review; `flow` verifies play, pause, resume and retry through Unity Submit events |
+| `-scenery kelp -turn-review -turn <facing>` | Hold facing interpolation near the midpoint for native turn-visibility regression captures |
 | `-scenery <reef\|kelp\|abyss\|surface>` | Fixed camera, fish placement and visual time for native environment comparisons; saves `scenery.png` after 3.1 seconds |
 | `-scenery kelp -animate-scenery` | Capture rooted plant motion; `-shotevery` sets the frame interval, with a 3.1-second HUD settling period |
 | `-batchmode -shots <dir>` | Render native camera/HUD captures offscreen when no active display is available; omit `-nographics` |
@@ -44,7 +47,8 @@ Headless build:
 - `FishArt.cs` — species/shape data and the baked fish sprites + fish rig
 - `PaintedArt.cs` / `Resources/Concept/painted-atlas.json` — twelve painted species, aligned pose keys, deformable meshes and reef props
 - `EnvironmentArt.cs` / `Shaders/PlantSway.shader` — shared painted plant/reef meshes, rooted current deformation and water fog
-- `World.cs` — seabed, kelp, rocks, coral, anemones
+- `Habitat.cs` / `Shaders/PaintedLighting.cginc` — continuous habitat palette, light, HUD accent and shared painted shading
+- `World.cs` — seabed, kelp, rocks, coral, anemones and grounded habitat landmarks
 - `SceneFx.cs` — water gradient, parallax ridges, god rays, surface, depth darkness, snow
 - `Hud.cs` — uGUI HUD, banners and menus built in code
 - `Sfx.cs` — synthesised sound effects and ambience
@@ -52,4 +56,4 @@ Headless build:
 
 The display font is [Lilita One](https://fonts.google.com/specimen/Lilita+One) by Juan Montoreano, used under the SIL Open Font License (`unity/Assets/Resources/Fonts/OFL.txt`).
 
-The [latest environment handover](art-drafts/v3/HANDOVER.md) and [interactive comparisons](art-drafts/v3/index.html) cover backgrounds, plants and seabed polish. The [fish implementation handover](art-drafts/v2/implemented/HANDOVER.md) covers the previous fish, props and HUD pass. `Deep Feast → Validate Production Art` checks all twelve species, both poses, sixteen props, environment meshes, transparency, import settings and both animation shaders before builds. Re-run `python3 tools/catalog_atlases.py` after changing an atlas layout (requires Pillow); it updates metadata without modifying the PNGs.
+The [latest visual handover](art-drafts/v4/HANDOVER.md) and [interactive comparisons](art-drafts/v4/index.html) cover composition, shared lighting, fish movement, habitat identity and menus. The [environment handover](art-drafts/v3/HANDOVER.md) covers the preceding painted plant/background pass. The [fish implementation handover](art-drafts/v2/implemented/HANDOVER.md) covers the previous fish, props and HUD pass. `Deep Feast → Validate Production Art` checks all twelve species, both poses, sixteen props, environment meshes, transparency, import settings, all three painted shaders and turn visibility before builds. `Deep Feast → Validate Fish Turns` runs the 12-species turn regression separately. Re-run `python3 tools/catalog_atlases.py` after changing an atlas layout (requires Pillow); it updates metadata without modifying the PNGs.

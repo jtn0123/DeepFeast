@@ -21,8 +21,9 @@ Shader "DeepFeast/PlantSway"
             #pragma vertex vert
             #pragma fragment frag
             #include "UnityCG.cginc"
+            #include "PaintedLighting.cginc"
             struct appdata { float4 vertex : POSITION; float2 uv : TEXCOORD0; fixed4 color : COLOR; };
-            struct v2f { float4 vertex : SV_POSITION; float2 uv : TEXCOORD0; fixed4 color : COLOR; };
+            struct v2f { float4 vertex : SV_POSITION; float2 uv : TEXCOORD0; fixed4 color : COLOR; float height : TEXCOORD1; };
             sampler2D _MainTex;
             fixed4 _Color, _FogColor;
             float _Phase, _Bend, _Height, _Fog;
@@ -36,12 +37,13 @@ Shader "DeepFeast/PlantSway"
                 v.vertex.y += sin(_Phase * 1.4 + v.vertex.x * 8.0) * rooted * _Bend * _Height * 0.12;
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv = v.uv; o.color = v.color * _Color;
+                o.height = h;
                 return o;
             }
             fixed4 frag(v2f i) : SV_Target
             {
                 fixed4 c = tex2D(_MainTex, i.uv) * i.color;
-                c.rgb = lerp(c.rgb, _FogColor.rgb, _Fog);
+                c.rgb = lerp(PaintedLighting(c.rgb, i.height), _FogColor.rgb, _Fog);
                 return c;
             }
             ENDCG

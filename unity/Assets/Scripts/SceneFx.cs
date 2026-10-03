@@ -231,15 +231,15 @@ namespace DeepFeast
                 float fx0 = cx - hw / z - 60, fx1 = cx + hw / z + 60;
                 if (L.paintings.Count > 0)
                 {
-                    float fog = 0.89f - L.seed * 0.09f;
+                    float fog = 0.87f - L.seed * 0.06f;
                     var water = World.WaterAt(cam.y + 180);
                     foreach (var p in L.paintings)
                     {
                         bool visible = p.reef.x + p.reef.radius > fx0 && p.reef.x - p.reef.radius < fx1;
                         p.reef.renderer.enabled = visible && deep < 0.999f;
                         p.abyss.renderer.enabled = visible && deep > 0.001f;
-                        if (p.reef.renderer.enabled) p.reef.Pose(0, new Color(1, 1, 1, (0.28f + L.seed * 0.05f) * (1 - deep)), fog, water);
-                        if (p.abyss.renderer.enabled) p.abyss.Pose(0, new Color(1, 1, 1, (0.28f + L.seed * 0.05f) * deep), fog, water);
+                        if (p.reef.renderer.enabled) p.reef.Pose(0, new Color(1, 1, 1, (0.23f + L.seed * 0.05f) * (1 - deep)), fog, water);
+                        if (p.abyss.renderer.enabled) p.abyss.Pose(0, new Color(1, 1, 1, (0.23f + L.seed * 0.05f) * deep), fog, water);
                     }
                     continue;
                 }
@@ -435,14 +435,18 @@ namespace DeepFeast
 
             // marine snow
             mb.Clear();
+            var habitat = Habitat.At(cam.y);
             float SW = refW + 40, SH = refH + 40;
             for (int i = 0; i < snow.Length; i++)
             {
                 var p = snow[i];
                 float fx = Mod(p.x - cam.x * zoom * p.z, SW) - 20;
-                float fy = Mod(p.y - cam.y * zoom * p.z + time * 8 * p.z, SH) - 20;
+                float fy = Mod(p.y - cam.y * zoom * p.z + time * Mathf.Lerp(8, 3, habitat.kelp) * p.z, SH) - 20;
                 float rad = 0.6f + p.z * 1.6f;
-                mb.TexQuad(new Vector3(fx + Mathf.Sin(time + p.ph) * 4 - hw, fy - hh, 0), rad, rad, new Color(220 / 255f, 245 / 255f, 1, 0.12f + p.z * 0.3f));
+                var drift = Color.Lerp(new Color(0.86f, 0.96f, 1), new Color(0.75f, 0.88f, 0.61f), habitat.kelp);
+                drift = Color.Lerp(drift, new Color(0.67f, 0.78f, 1), habitat.abyss);
+                drift.a = 0.09f + p.z * Mathf.Lerp(0.24f, 0.35f, habitat.abyss);
+                mb.TexQuad(new Vector3(fx + Mathf.Sin(time + p.ph) * (4 + habitat.kelp * 7) - hw, fy - hh, 0), rad, rad, drift);
             }
             mb.Apply(snowMesh);
 

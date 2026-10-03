@@ -553,6 +553,23 @@ namespace DeepFeast
         Species sp;
         readonly MaterialPropertyBlock swimProperties = new MaterialPropertyBlock();
         static readonly int PhaseId = Shader.PropertyToID("_Phase"), EnergyId = Shader.PropertyToID("_Energy"), MouthId = Shader.PropertyToID("_Mouth");
+        static readonly int TailFlexId = Shader.PropertyToID("_TailFlex"), FinFlutterId = Shader.PropertyToID("_FinFlutter"),
+            LightHeightId = Shader.PropertyToID("_LightHeight"), FogId = Shader.PropertyToID("_Fog"), FogColorId = Shader.PropertyToID("_FogColor");
+        Vector4 motion;
+
+        // Rate, tail flex, pectoral flutter and body drift distinguish propulsive fish from hovering ones.
+        static Vector4 Motion(string shape) => shape switch
+        {
+            "round" => new Vector4(0.7f, 0.035f, 0.045f, 0.018f),
+            "long" => new Vector4(1.25f, 0.06f, 0.018f, 0.004f),
+            "torpedo" => new Vector4(1.15f, 0.095f, 0.012f, 0.004f),
+            "shark" => new Vector4(0.7f, 0.105f, 0.009f, 0.006f),
+            "tall" => new Vector4(0.7f, 0.06f, 0.042f, 0.012f),
+            "fat" => new Vector4(0.82f, 0.06f, 0.016f, 0.008f),
+            "slim" => new Vector4(1.35f, 0.085f, 0.022f, 0.005f),
+            "disc" => new Vector4(0.92f, 0.07f, 0.03f, 0.009f),
+            _ => new Vector4(1, 0.11f, 0.025f, 0.01f),
+        };
 
         public FishView(Transform parent, Transform haloParent)
         {
@@ -578,6 +595,7 @@ namespace DeepFeast
             if (sp == s) return;
             sp = s;
             art = FishArt.Get(s);
+            motion = Motion(s.shape);
             body.sprite = art.body;
             body.sharedMaterial = art.whole ? PaintedArt.SwimMaterial : Gfx.Alpha;
             body.SetPropertyBlock(null);
@@ -600,15 +618,20 @@ namespace DeepFeast
 
         public void Pose(Fish f, int order, EyeMode eyeMode)
         {
-            float fs = f.faceS;
-            if (Mathf.Abs(fs) < 0.06f) fs = fs < 0 ? -0.06f : 0.06f;
+            // Facing interpolation is a turn progress signal, not the fish's physical width.
+            float facing = Mathf.Clamp(f.faceS, -1, 1), turn = 1 - Mathf.Abs(facing);
+            float direction = facing < 0 ? -1 : facing > 0 ? 1 : f.face < 0 ? -1 : 1;
+            float fs = direction * Mathf.Lerp(1, 0.84f, turn);
             var t = root.transform;
             t.localPosition = U.V3(f.x, f.y);
             t.localScale = new Vector3(fs, 1, 1);
-            pivot.localRotation = Quaternion.Euler(0, 0, -f.tilt * Mathf.Rad2Deg);
+            float bank = Mathf.Sin(turn * Mathf.PI) * 5 * f.face;
+            pivot.localRotation = Quaternion.Euler(0, 0, -f.tilt * Mathf.Rad2Deg + bank);
+            float phase = f.wag * motion.x;
+            pivot.localPosition = new Vector3(0, Mathf.Sin(phase * 0.65f) * motion.w * f.r, 0);
             // Anticipation, open jaw and a short recovery squash use the aligned authored keys.
-            float anticipation = Mathf.Sin(Mathf.Clamp01(f.mouth) * Mathf.PI) * 0.025f;
-            float recovery = Mathf.Clamp01(f.chomp / 0.22f) * 0.035f;
+            float anticipation = Mathf.Sin(Mathf.Clamp01(f.mouth) * Mathf.PI) * 0.035f;
+            float recovery = Mathf.Sin(Mathf.Clamp01(f.chomp / 0.22f) * Mathf.PI) * 0.065f;
             pivot.localScale = new Vector3(f.r * (1 - anticipation + recovery), f.r * (1 + anticipation - recovery), 1);
             group.sortingOrder = order;
 
@@ -619,9 +642,14 @@ namespace DeepFeast
             body.sprite = f.mouth > 0.4f ? art.bodyOpen : art.body;
             if (art.whole)
             {
-                swimProperties.SetFloat(PhaseId, f.wag);
+                swimProperties.SetFloat(PhaseId, phase);
                 swimProperties.SetFloat(EnergyId, Mathf.Clamp(0.6f + new Vector2(f.vx, f.vy).magnitude / Mathf.Max(1, f.r) * 0.02f, 0.6f, 1.25f));
                 swimProperties.SetFloat(MouthId, f.mouth);
+                swimProperties.SetFloat(TailFlexId, motion.y);
+                swimProperties.SetFloat(FinFlutterId, motion.z);
+                swimProperties.SetFloat(LightHeightId, art.hh * 2);
+                swimProperties.SetFloat(FogId, sp == Data.Player ? 0.025f : 0.035f + Mathf.Clamp01((f.y - 900) / 3500) * 0.045f);
+                swimProperties.SetColor(FogColorId, World.WaterAt(f.y));
                 body.SetPropertyBlock(swimProperties);
             }
             if (HasFin)

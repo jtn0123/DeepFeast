@@ -18,7 +18,7 @@ namespace DeepFeast
 
         static readonly Color[] WATER_C =
         {
-            C(40, 172, 220), C(18, 128, 188), C(10, 88, 148), C(9, 62, 114), C(6, 36, 78), C(4, 20, 46),
+            C(45, 184, 201), C(20, 139, 177), C(18, 91, 116), C(13, 49, 82), C(12, 24, 61), C(6, 14, 37),
         };
         static readonly float[] WATER_Y = { 0, 700, 1700, 2800, 3800, 4600 };
         static Color C(int r, int g, int b, float a = 1) => new Color(r / 255f, g / 255f, b / 255f, a);
@@ -75,6 +75,7 @@ namespace DeepFeast
         public readonly List<Vector2> vents = new List<Vector2>();
         readonly List<Swayer> swayers = new List<Swayer>();
         readonly List<EnvironmentArt.Instance> plants = new List<EnvironmentArt.Instance>();
+        readonly List<EnvironmentArt.Instance> landmarks = new List<EnvironmentArt.Instance>();
         bool paintedKelp, paintedGrass, paintedAnemones;
 
         // kelp palettes, [0] sea green and [1] olive
@@ -148,6 +149,7 @@ namespace DeepFeast
             void PlaceRock(float x, float s)
             {
                 var sr = Gfx.SpriteObject("Rock", rocksT, paintedRock ?? R.Pick(rockSprites), Layer.Rocks + ri++);
+                if (paintedRock != null) sr.sharedMaterial = PaintedArt.SceneryMaterial;
                 float y = Mathf.Max(FloorY(x), (FloorY(x - s) + FloorY(x + s)) * 0.5f);
                 sr.transform.localPosition = U.V3(x, y + (paintedRock == null ? s * 0.3f : 3));
                 sr.transform.localScale = new Vector3(R.Next() < 0.5f ? -s : s, s, 1);
@@ -185,6 +187,8 @@ namespace DeepFeast
                 float fy = FloorY(x);
                 if (fy > 2950 || R.Next() < 0.22f) continue;
                 float k = R.Next(), s = 40 + R.Next() * 95, y = fy + 6;
+                float patch = Mathf.PerlinNoise(x / 540f, 2.7f);
+                s *= Mathf.Lerp(0.62f, 1.05f, Mathf.SmoothStep(0, 1, patch));
                 float rs = 50 + R.Next() * 30;
                 if (reef != null && k > 0.9f && x - lastReef > 900 && Mathf.Abs(FloorY(x + rs) - FloorY(x - rs)) < rs * 0.5f)
                 {
@@ -202,6 +206,7 @@ namespace DeepFeast
                 else if (k < 0.8f) { spr = Painted("brain", brain); y += 4; s *= 0.75f; }
                 else spr = Painted("tube", tube);
                 var sr = Gfx.SpriteObject("Coral", coralT, spr, Layer.Coral + ci++);
+                if (spr.name.Contains("atlas-")) sr.sharedMaterial = PaintedArt.SceneryMaterial;
                 sr.transform.localPosition = U.V3(x, y);
                 sr.transform.localScale = new Vector3(R.Next() < 0.5f ? -s : s, s, 1);
                 sr.color = Color.Lerp(Color.white, WaterAt(fy), Mathf.Clamp01((fy - 1100) / 2500) * 0.28f);
@@ -218,6 +223,7 @@ namespace DeepFeast
                     if (fy < 3050) continue;
                     float s = 75 + R.Next() * 50;
                     var sr = Gfx.SpriteObject("AbyssReef", coralT, deepReef, Layer.Coral + ci++);
+                    sr.sharedMaterial = PaintedArt.SceneryMaterial;
                     sr.transform.localPosition = U.V3(x, fy + 4);
                     sr.transform.localScale = new Vector3(R.Next() < 0.5f ? -s : s, s, 1);
                     ContactShadow(coralT, x, fy + 3, s, s * 0.14f);
@@ -274,14 +280,19 @@ namespace DeepFeast
             paintedGrass = EnvironmentArt.Geometry("seagrass") != null;
             paintedAnemones = EnvironmentArt.Geometry("anemone-rose") != null && EnvironmentArt.Geometry("anemone-deep") != null;
             if (paintedKelp)
+            {
+                float lastX = -1000;
                 foreach (var k in kelps)
                 {
-                    float height = k.h * 0.88f, rootRadius = height * 0.14f;
+                    if (k.x - lastX < 92) continue;
+                    lastX = k.x;
+                    float height = Mathf.Min(680, k.h * (0.64f + U.Hash(k.x * 0.73f) * 0.12f)), rootRadius = height * 0.14f;
                     // Bury the wide painted footing to the lower side of a slope, behind the terrain mesh.
                     float y = Mathf.Max(k.y, Mathf.Max(FloorY(k.x - rootRadius), FloorY(k.x + rootRadius))) + 2;
                     plants.Add(EnvironmentArt.Place(k.tone < 0.5f ? "kelp-teal" : "kelp-olive", vegetation, Layer.Kelp,
                         k.x, y, height, k.phase > Mathf.PI, k.phase, 0.055f));
                 }
+            }
             if (paintedGrass)
                 foreach (var g in grasses)
                     plants.Add(EnvironmentArt.Place("seagrass", vegetation, Layer.Front, g.x, g.y, g.s * 1.15f,
@@ -305,6 +316,15 @@ namespace DeepFeast
                 }
             }
             Debug.Log($"[DeepFeast] painted vegetation: {plants.Count} rooted instances, shared meshes and atlas materials.");
+            void Landmark(string key, float x, float size)
+            {
+                float baseY = Mathf.Max(FloorY(x), Mathf.Max(FloorY(x - size), FloorY(x + size))) + 6;
+                var instance = EnvironmentArt.Place(key, vegetation, Layer.Kelp - 1, x, baseY, size, false, 0, 0);
+                if (instance != null) landmarks.Add(instance);
+            }
+            Landmark("reef-arch", 5480, 290);
+            Landmark("reef-terrace", 7270, 250);
+            Landmark("reef-abyss", 11120, 300);
         }
 
         static readonly Color[] FLOOR_C = { new Color32(0xf0, 0xdc, 0xa4, 255), new Color32(0xc9, 0xae, 0x74, 255), new Color32(0x7d, 0x68, 0x44, 255), new Color32(0x3a, 0x31, 0x28, 255) };
@@ -418,8 +438,13 @@ namespace DeepFeast
                 if (!visible) continue;
                 float y = -p.transform.localPosition.y;
                 float height = p.transform.localScale.y;
-                float fog = Mathf.Clamp01((y - 850) / 3400) * (height > 200 ? 0.5f : 0.22f);
+                float fog = height > 200 ? 0.2f + Mathf.Clamp01((y - 850) / 3400) * 0.38f : Mathf.Clamp01((y - 850) / 3400) * 0.22f;
                 p.Pose(time, Color.white, fog, WaterAt(y - height * 0.4f));
+            }
+            foreach (var p in landmarks)
+            {
+                p.renderer.enabled = p.x + p.radius > x0 - 60 && p.x - p.radius < x1 + 60;
+                if (p.renderer.enabled) p.Pose(0, Color.white, 0.4f, WaterAt(-p.transform.localPosition.y - 150));
             }
 
             // kelp

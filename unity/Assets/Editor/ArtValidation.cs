@@ -71,7 +71,10 @@ namespace DeepFeast.EditorTools
             }
             var plants = Resources.Load<Shader>("Shaders/PlantSway");
             Require(plants != null && !ShaderUtil.ShaderHasError(plants), "Plant current/fog shader is missing or has compiler errors.");
-            Debug.Log("[DeepFeast] production art validation passed: 12 species, 24 aligned pose keys, 16 props, 10 shared environment meshes, transparent atlases and both animation shaders.");
+            var scenery = Resources.Load<Shader>("Shaders/PaintedScenery");
+            Require(scenery != null && !ShaderUtil.ShaderHasError(scenery), "Shared scenery lighting shader is missing or has compiler errors.");
+            MotionValidation.Check();
+            Debug.Log("[DeepFeast] production art validation passed: 12 species, 24 aligned pose keys, 16 props, 10 shared environment meshes, transparent atlases, three shaders and turn visibility.");
         }
 
         static void Frame(string atlas, PaintedArt.Frame f)
