@@ -43,6 +43,10 @@ namespace DeepFeast
 
         /// Thick polyline. width may taper from w0 to w1. Optional round end cap.
         public static void Stroke(MeshBuilder m, IList<Vector2> pts, float w0, float w1, Color c, bool capEnd = false, bool capStart = false)
+            => Stroke(m, pts, w0, w1, c, c, capEnd, capStart);
+
+        /// Thick polyline whose colour runs from c0 at the start to c1 at the end.
+        public static void Stroke(MeshBuilder m, IList<Vector2> pts, float w0, float w1, Color c0, Color c1, bool capEnd = false, bool capStart = false)
         {
             int n = pts.Count;
             if (n < 2) return;
@@ -53,7 +57,9 @@ namespace DeepFeast
                 Vector2 d = b - a;
                 float l = d.magnitude;
                 Vector2 nrm = l > 1e-6f ? new Vector2(-d.y / l, d.x / l) : Vector2.up;
-                float hw = Mathf.Lerp(w0, w1, i / (float)(n - 1)) * 0.5f;
+                float t = i / (float)(n - 1);
+                float hw = Mathf.Lerp(w0, w1, t) * 0.5f;
+                var c = Color.Lerp(c0, c1, t);
                 var p = pts[i];
                 V(m, p.x + nrm.x * hw, p.y + nrm.y * hw, c);
                 V(m, p.x - nrm.x * hw, p.y - nrm.y * hw, c);
@@ -63,8 +69,8 @@ namespace DeepFeast
                 int a = first + i * 2;
                 m.Quad(a, a + 2, a + 3, a + 1);
             }
-            if (capEnd) Circle(m, pts[n - 1].x, pts[n - 1].y, w1 * 0.5f, c, 8);
-            if (capStart) Circle(m, pts[0].x, pts[0].y, w0 * 0.5f, c, 8);
+            if (capEnd) Circle(m, pts[n - 1].x, pts[n - 1].y, w1 * 0.5f, c1, 8);
+            if (capStart) Circle(m, pts[0].x, pts[0].y, w0 * 0.5f, c0, 8);
         }
 
         public static List<Vector2> QuadPts(float ax, float ay, float cx, float cy, float bx, float by, int n = 8)

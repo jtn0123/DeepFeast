@@ -66,7 +66,7 @@ namespace DeepFeast
         // ------------------------------------------------------------------ test harness (command line)
         bool autoplay, noPause;
         string shotDir;
-        float shotEvery = 15, nextShot, quitAfter, startSize, firstShark = -1, realTime, statT, botWanderDir = 1, restartT = -1;
+        float shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, realTime, statT, botWanderDir = 1, restartT = -1;
         int shotN;
         bool menuShotDone;
 
@@ -200,10 +200,13 @@ namespace DeepFeast
             shotEvery = ArgF("-shotevery", 15);
             quitAfter = ArgF("-quitafter", 0);
             startSize = ArgF("-size", 0);
+            startX = ArgF("-startx", -1);
             firstShark = ArgF("-shark", -1);
             float ts = ArgF("-timescale", 1);
             if (ts != 1) Time.timeScale = ts;
             if (shotDir != null) System.IO.Directory.CreateDirectory(shotDir);
+            Raster.DumpDir = Arg("-dumpart");
+            if (Raster.DumpDir != null) System.IO.Directory.CreateDirectory(Raster.DumpDir);
         }
 
         void Shot(string name)
@@ -264,6 +267,7 @@ namespace DeepFeast
             sharkT = firstShark > 0 ? firstShark : U.Rand(32, 40); pearlT = U.Rand(14, 20); slowT = 0; shake = 0; dieT = 0;
             hints.Clear();
             var s = world.FindStart();
+            if (startX >= 0) s = new Vector2(startX, world.FloorY(startX) - 260);
             player.x = s.x; player.y = s.y; player.vx = player.vy = 0; player.r = 12; player.face = player.faceS = 1;
             player.tilt = 0; player.mouth = 0; player.chomp = 0; player.state = FState.Wander;
             if (startSize > 0)
@@ -339,7 +343,8 @@ namespace DeepFeast
             score += pts;
             eaten++;
             Burst(f.x, f.y, f.r, f.sp.c0);
-            hud.AddText(f.x, f.y - f.r, "+" + pts, combo > 1 ? U.Hex("#ffd447") : Color.white, combo > 2 ? 28 : 22);
+            // float the score above the player's head rather than over its mouth
+            hud.AddText(f.x, Mathf.Min(f.y, player.y) - player.r * 1.5f - 10 / zoom, "+" + pts, combo > 1 ? U.Hex("#ffd447") : Color.white, combo > 2 ? 30 : 24);
             if (combo == 5 || combo == 10)
                 Banner(combo == 10 ? "MEGA FRENZY!" : "FEEDING FRENZY!", $"×{combo} combo", new Color(1, 170 / 255f, 40 / 255f));
             sfx.Chomp(f.r / pr, combo);
@@ -549,7 +554,7 @@ namespace DeepFeast
             float w = Mathf.Max(1, Screen.width), h = Mathf.Max(1, Screen.height);
             pxPerRef = Mathf.Min(w, h) / 820f;
             refW = w / pxPerRef; refH = h / pxPerRef;
-            hud?.Resize(pxPerRef);
+            hud?.Resize(pxPerRef, refW);
         }
 
         void Step(float dt)
@@ -563,8 +568,21 @@ namespace DeepFeast
             UpdateFish(dt);
             UpdateJellies(dt);
             UpdateSpawner(dt);
+            UpdateVents(dt);
             parts.Step(dt);
             UpdateCamera(dt);
+        }
+
+        /// Seabed vents near the camera trickle columns of bubbles.
+        void UpdateVents(float dt)
+        {
+            float hw = ViewW / 2 + 200;
+            foreach (var v in world.vents)
+            {
+                if (Mathf.Abs(v.x - cam.x) > hw || !U.Chance(dt * 7)) continue;
+                float s = U.Rand(2.5f, 6);
+                parts.Add(new Particle { type = PType.Bubble, x = v.x + U.Rand(-5, 5), y = v.y - 6, vx = U.Rand(-4, 4), vy = -U.Rand(70, 120), life = U.Rand(3, 5.5f), max = 5.5f, size = s, ph = U.Rand(0, U.TAU) });
+            }
         }
 
         // ------------------------------------------------------------------ input
@@ -1123,7 +1141,7 @@ namespace DeepFeast
                 playerGlow.transform.localPosition = U.V3(player.x, player.y);
                 float gd = player.r * 8;
                 playerGlow.transform.localScale = new Vector3(gd, gd, 1);
-                playerGlow.color = new Color(80 / 255f, 1, 220 / 255f, 0.07f + deep * 0.16f);
+                playerGlow.color = new Color(80 / 255f, 1, 220 / 255f, 0.1f + deep * 0.16f + Mathf.Sin(time * 2.4f) * 0.025f);
             }
             bool sh = pv && pShield > 0;
             shieldRing.enabled = shieldFill.enabled = shieldShine.enabled = sh;

@@ -232,6 +232,87 @@ namespace DeepFeast
             return ring;
         }
 
+        /// Separable box blur (3 passes ≈ gaussian); radius in raster pixels, outside counts as empty.
+        public float[] Blur(float[] m, int rad, int passes = 3)
+        {
+            var a = (float[])m.Clone();
+            var b = new float[m.Length];
+            float inv = 1f / (2 * rad + 1);
+            for (int p = 0; p < passes; p++)
+            {
+                for (int y = 0; y < H; y++)
+                {
+                    int o = y * W;
+                    float s = 0;
+                    for (int k = 0; k <= rad && k < W; k++) s += a[o + k];
+                    for (int x = 0; x < W; x++)
+                    {
+                        b[o + x] = s * inv;
+                        if (x + rad + 1 < W) s += a[o + x + rad + 1];
+                        if (x - rad >= 0) s -= a[o + x - rad];
+                    }
+                }
+                for (int x = 0; x < W; x++)
+                {
+                    float s = 0;
+                    for (int k = 0; k <= rad && k < H; k++) s += b[k * W + x];
+                    for (int y = 0; y < H; y++)
+                    {
+                        a[y * W + x] = s * inv;
+                        if (y + rad + 1 < H) s += b[(y + rad + 1) * W + x];
+                        if (y - rad >= 0) s -= b[(y - rad) * W + x];
+                    }
+                }
+            }
+            return a;
+        }
+
+        /// Pseudo-3D shading: the blurred mask is treated as a height field and lit from `light`
+        /// (image space, y up). Returns n·L − L.z per pixel: 0 on flat tops, + on lit slopes, − in shade.
+        public float[] Light(float[] mask, int rad, Vector3 light, float depth = 2f)
+        {
+            var h = Blur(mask, Mathf.Max(1, rad));
+            var L = light.normalized;
+            var s = new float[mask.Length];
+            float k = rad * depth;
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    int i = y * W + x;
+                    if (mask[i] <= 0) continue;
+                    float dx = (h[y * W + Mathf.Min(W - 1, x + 1)] - h[y * W + Mathf.Max(0, x - 1)]) * 0.5f;
+                    float dy = (h[Mathf.Min(H - 1, y + 1) * W + x] - h[Mathf.Max(0, y - 1) * W + x]) * 0.5f;
+                    var n = new Vector3(-dx * k, -dy * k, 1).normalized;
+                    s[i] = Vector3.Dot(n, L) - L.z;
+                }
+            return s;
+        }
+
+        /// Soft, rounded dilation of a mask by roughly `rad` pixels.
+        public float[] Dilate(float[] m, int rad)
+        {
+            var b = Blur(m, Mathf.Max(1, rad / 2 + 1), 2);
+            var d = new float[m.Length];
+            for (int i = 0; i < m.Length; i++) d[i] = Mathf.Max(m[i], Mathf.Clamp01((b[i] - 0.03f) / 0.1f));
+            return d;
+        }
+
+        /// Paint with a colour that depends on the pixel index and shape-space position.
+        public void Paint(float[] mask, Func<int, float, float, Color> colorAt)
+        {
+            for (int row = 0; row < H; row++)
+            {
+                float y = ShapeY(row);
+                for (int i = 0; i < W; i++)
+                {
+                    int id = row * W + i;
+                    if (mask[id] <= 0.0005f) continue;
+                    var c = colorAt(id, ShapeX(i), y);
+                    Over(id, c, mask[id] * c.a);
+                }
+            }
+        }
+
         public void Paint(float[] mask, Color c)
         {
             for (int i = 0; i < px.Length; i++)
@@ -293,11 +374,16 @@ namespace DeepFeast
             }
         }
 
+        /// When set (harness flag -dumpart), every baked texture is also written here as a PNG.
+        public static string DumpDir;
+        static int dumpN;
+
         public Texture2D ToTexture()
         {
             Bleed();
             var t = new Texture2D(W, H, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear };
             t.SetPixels(px);
+            if (DumpDir != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(DumpDir, $"{dumpN++:000}_{W}x{H}.png"), t.EncodeToPNG());
             t.Apply(true, true);
             return t;
         }

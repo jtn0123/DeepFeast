@@ -70,6 +70,8 @@ namespace DeepFeast
         readonly List<Grass> grasses = new List<Grass>();
         public readonly List<Anemone> anemones = new List<Anemone>();
         public readonly List<Anemone> glowAnemones = new List<Anemone>();
+        /// Seabed vents that trickle bubble columns (x, floor y).
+        public readonly List<Vector2> vents = new List<Vector2>();
         readonly List<Swayer> swayers = new List<Swayer>();
 
         static readonly string[] CORAL = { "#ff6f91", "#ff9f5a", "#c77dff", "#ff4d6d", "#48cae4", "#ffd166", "#f15bb5", "#7bf1a8" };
@@ -88,7 +90,9 @@ namespace DeepFeast
             BuildFloorMesh();
             kelpMesh = Gfx.MeshObject("Kelp", root, Layer.Kelp).mesh;
             frontMesh = Gfx.MeshObject("Front", root, Layer.Front).mesh;
-            causticMesh = Gfx.MeshObject("Caustics", root, Layer.Caustic, true).mesh;
+            var caustics = Gfx.MeshObject("Caustics", root, Layer.Caustic, true);
+            causticMesh = caustics.mesh;
+            caustics.mr.sharedMaterial = new Material(Gfx.Additive) { mainTexture = Gfx.Caustics };
         }
 
         void GenFloor()
@@ -123,19 +127,25 @@ namespace DeepFeast
                 }
             }
 
-            // rocks: a handful of baked variants, scaled & flipped per placement
+            // rocks: a handful of baked variants, scaled & flipped per placement, sometimes in little clusters
             var rockSprites = new List<Sprite>();
             var rr = new Mulberry(77);
             for (int i = 0; i < 10; i++) rockSprites.Add(DecorArt.Rock(rr, i % 2 == 0 ? 0.2f : 0.8f));
             var rocksT = new GameObject("Rocks").transform;
             rocksT.SetParent(root, false);
             int ri = 0;
-            for (float x = 80; x < W; x += 130 + R.Next() * 420)
+            void PlaceRock(float x, float s)
             {
-                float s = 40 + R.Next() * 110;
                 var sr = Gfx.SpriteObject("Rock", rocksT, R.Pick(rockSprites), Layer.Rocks + ri++);
-                sr.transform.localPosition = U.V3(x, FloorY(x) + s * 0.32f);
+                float y = Mathf.Max(FloorY(x), (FloorY(x - s) + FloorY(x + s)) * 0.5f);
+                sr.transform.localPosition = U.V3(x, y + s * 0.3f);
                 sr.transform.localScale = new Vector3(R.Next() < 0.5f ? -s : s, s, 1);
+            }
+            for (float x = 80; x < W; x += 150 + R.Next() * 460)
+            {
+                float s = 28 + R.Next() * 72;
+                PlaceRock(x, s);
+                if (R.Next() < 0.45f) PlaceRock(x + (R.Next() < 0.5f ? -1 : 1) * s * (0.9f + R.Next() * 0.4f), s * (0.35f + R.Next() * 0.25f));
             }
 
             // coral reef on shallow floors
@@ -155,7 +165,7 @@ namespace DeepFeast
                 float k = R.Next(), s = 40 + R.Next() * 95, y = fy + 6;
                 Sprite spr; float amp = 0, speed = 0;
                 if (k < 0.38f) { spr = R.Pick(branch); amp = 0.02f; speed = 0.7f; }
-                else if (k < 0.58f) { spr = R.Pick(fan); amp = 0.05f; speed = 0.6f; }
+                else if (k < 0.58f) { spr = R.Pick(fan); amp = 0.05f; speed = 0.6f; s *= 0.62f; }
                 else if (k < 0.8f) { spr = R.Pick(brain); y += 4; s *= 0.9f; }
                 else spr = R.Pick(tube);
                 var sr = Gfx.SpriteObject("Coral", coralT, spr, Layer.Coral + ci++);
@@ -190,6 +200,8 @@ namespace DeepFeast
                 if (fy > 3400 || R.Next() < 0.35f) continue;
                 grasses.Add(new Grass { x = x, y = fy + 6, s = 22 + R.Next() * 46, n = 3 + (int)(R.Next() * 4), phase = R.Next() * U.TAU });
             }
+
+            for (float x = 400; x < W - 400; x += 500 + R.Next() * 900) vents.Add(new Vector2(x, FloorY(x) + 4));
         }
 
         static readonly Color[] FLOOR_C = { new Color32(0xf0, 0xdc, 0xa4, 255), new Color32(0xc9, 0xae, 0x74, 255), new Color32(0x7d, 0x68, 0x44, 255), new Color32(0x3a, 0x31, 0x28, 255) };
@@ -197,17 +209,21 @@ namespace DeepFeast
         static Color FloorCol(float y)
         {
             float t = Mathf.Clamp01((y - 1300f) / 3100f);
-            for (int i = 0; i < 3; i++)
-                if (t <= FLOOR_T[i + 1]) return Color.Lerp(FLOOR_C[i], FLOOR_C[i + 1], (t - FLOOR_T[i]) / (FLOOR_T[i + 1] - FLOOR_T[i]));
-            return FLOOR_C[3];
+            int i = 0;
+            while (i < 2 && t > FLOOR_T[i + 1]) i++;
+            var c = Color.Lerp(FLOOR_C[i], FLOOR_C[i + 1], (t - FLOOR_T[i]) / (FLOOR_T[i + 1] - FLOOR_T[i]));
+            // deep sand takes on the colour of the water in front of it
+            return Color.Lerp(c, WaterAt(y), t * 0.38f);
         }
 
         void BuildFloorMesh()
         {
-            var (_, mesh, _) = Gfx.MeshObject("Floor", root, Layer.Floor);
+            // sand body: depth-tinted, darker further below the surface edge, textured with tiling grain
+            var (_, mesh, mr) = Gfx.MeshObject("Floor", root, Layer.Floor);
+            mr.sharedMaterial = new Material(Gfx.Alpha) { mainTexture = Gfx.Sand };
             var m = new MeshBuilder();
-            const int ROWS = 7;
-            const float BOTTOM = 5200f;
+            const int ROWS = 8;
+            const float BOTTOM = 5200f, TEX = 1 / 240f;
             int cols = floorS.Length;
             for (int i = 0; i < cols; i++)
             {
@@ -216,7 +232,9 @@ namespace DeepFeast
                 {
                     float t = k / (float)ROWS;
                     float y = Mathf.Lerp(fy, BOTTOM, t * t);
-                    Draw.V(m, x, y, FloorCol(y));
+                    float shade = Mathf.Lerp(1.04f, 0.74f, Mathf.Clamp01((y - fy) / 420f));
+                    var c = FloorCol(y) * shade; c.a = 1;
+                    m.Vert(x, -y, c, x * TEX, -y * TEX);
                 }
             }
             for (int i = 0; i < cols - 1; i++)
@@ -225,21 +243,31 @@ namespace DeepFeast
                     int a = i * (ROWS + 1) + k, b = (i + 1) * (ROWS + 1) + k;
                     m.Quad(a, b, b + 1, a + 1);
                 }
-            // pebbles
-            var peb = new Color(80 / 255f, 60 / 255f, 40 / 255f, 0.25f);
+            m.Apply(mesh);
+            mesh.UploadMeshData(false);
+
+            // pebbles, shells and the sunlit lip on top (untextured)
+            var (_, detail, _) = Gfx.MeshObject("FloorDetail", root, Layer.Floor + 1);
+            var d = new MeshBuilder();
             for (int i = 0; i < cols - 1; i++)
             {
                 float x = i * FSTEP, h = U.Hash(x * 0.37f);
-                if (h < 0.55f) continue;
-                float px = x + h * FSTEP, py = FloorY(px) + 8 + U.Hash(x) * 60, pr = 2 + U.Hash(x * 1.7f) * 5;
-                Draw.Ellipse(m, px, py, pr, pr * 0.6f, 0, peb, 8);
+                if (h < 0.5f) continue;
+                float px = x + h * FSTEP, py = FloorY(px) + 8 + U.Hash(x) * 70, pr = 2 + U.Hash(x * 1.7f) * 6;
+                var baseC = FloorCol(py);
+                var dark = Color.Lerp(baseC, new Color(0.25f, 0.2f, 0.15f), 0.45f); dark.a = 0.85f;
+                var lite = Color.Lerp(baseC, Color.white, 0.35f); lite.a = 0.7f;
+                Draw.Ellipse(d, px, py, pr, pr * 0.62f, 0, dark, 10);
+                Draw.Ellipse(d, px - pr * 0.25f, py - pr * 0.22f, pr * 0.5f, pr * 0.24f, 0, lite, 8);
             }
-            // sunlit lip
             var lip = new List<Vector2>(cols);
-            for (int i = 0; i < cols; i++) lip.Add(new Vector2(i * FSTEP, floorS[i] + 1.5f));
-            Draw.Stroke(m, lip, 5f, 5f, new Color(1f, 245 / 255f, 210 / 255f, 0.35f));
-            m.Apply(mesh);
-            mesh.UploadMeshData(false);
+            for (int i = 0; i < cols; i++) lip.Add(new Vector2(i * FSTEP, floorS[i] + 2f));
+            Draw.Stroke(d, lip, 6f, 6f, new Color(1f, 245 / 255f, 210 / 255f, 0.4f));
+            var edge = new List<Vector2>(cols);
+            for (int i = 0; i < cols; i++) edge.Add(new Vector2(i * FSTEP, floorS[i] - 0.5f));
+            Draw.Stroke(d, edge, 2.5f, 2.5f, new Color(0.25f, 0.2f, 0.12f, 0.25f));
+            d.Apply(detail);
+            detail.UploadMeshData(false);
         }
 
         // ------------------------------------------------------------------ per frame
@@ -264,20 +292,26 @@ namespace DeepFeast
                     x += Mathf.Cos(ang) * sl; y += Mathf.Sin(ang) * sl;
                     pts.Add(new Vector2(x, y));
                 }
-                var col = d.tone < 0.5f ? U.Hex("#2e8b57") : U.Hex("#4a9a3c");
-                Draw.Stroke(mb, pts, d.w, d.w * 0.25f, col, true);
-                var lc = d.tone < 0.5f ? U.Hex("#3aa06a") : U.Hex("#62b04e");
+                bool olive = d.tone >= 0.5f;
+                Color stemA = olive ? U.Hex("#2f6a2a") : U.Hex("#1f5e40"), stemB = olive ? U.Hex("#7cc456") : U.Hex("#4fbf86");
+                Draw.Stroke(mb, pts, d.w, d.w * 0.25f, stemA, stemB, true);
+                Color leafA = olive ? U.Hex("#3f8a36") : U.Hex("#2b8a5a"), leafB = olive ? U.Hex("#8fd468") : U.Hex("#66d39a");
                 for (int i = 2; i < pts.Count - 1; i += 2)
                 {
                     float s = i % 4 == 0 ? 1 : -1, rot = s * 0.6f + Mathf.Sin(time * 1.2f + d.phase + i) * 0.25f;
-                    Draw.Ellipse(mb, pts[i].x + s * d.w * 0.9f, pts[i].y, d.w * 1.1f, d.w * 0.38f, rot, lc, 10);
+                    float t = i / (float)(pts.Count - 1);
+                    var lc = Color.Lerp(leafA, leafB, t);
+                    float lx = pts[i].x + s * d.w * 0.9f, ly = pts[i].y;
+                    Draw.Ellipse(mb, lx, ly, d.w * 1.15f, d.w * 0.4f, rot, lc, 12);
+                    var hl = Color.Lerp(lc, Color.white, 0.22f);
+                    Draw.Ellipse(mb, lx - Mathf.Sin(rot) * d.w * 0.08f, ly - Mathf.Cos(rot) * d.w * 0.1f, d.w * 0.8f, d.w * 0.12f, rot, hl, 10);
                 }
             }
             mb.Apply(kelpMesh);
 
             // grass + anemones
             mb.Clear();
-            var grassC = U.Hex("#3f9a55");
+            Color grassA = U.Hex("#2c6e3e"), grassB = U.Hex("#6cc070");
             foreach (var d in grasses)
             {
                 if (d.x < x0 - 80 || d.x > x1 + 80) continue;
@@ -286,13 +320,14 @@ namespace DeepFeast
                     float bx = d.x + (i - d.n / 2f) * d.s * 0.12f;
                     float sw = Mathf.Sin(time * 1.3f + d.phase + i) * d.s * 0.25f;
                     var q = Draw.QuadPts(bx, d.y, bx + sw * 0.3f, d.y - d.s * 0.6f, bx + sw, d.y - d.s * (0.8f + (i % 3) * 0.15f), 7);
-                    Draw.Stroke(mb, q, d.s * 0.07f, d.s * 0.07f, grassC, true);
+                    Draw.Stroke(mb, q, d.s * 0.09f, d.s * 0.04f, grassA, grassB, true);
                 }
             }
             foreach (var d in anemones)
             {
                 if (d.x < x0 - 100 || d.x > x1 + 100) continue;
-                var col = U.Hsl(d.hue, d.deep ? 0.9f : 0.75f, d.deep ? 0.65f : 0.62f);
+                var col = U.Hsl(d.hue, d.deep ? 0.9f : 0.75f, d.deep ? 0.68f : 0.66f);
+                var baseC = U.Hsl(d.hue, 0.6f, 0.4f);
                 Draw.Ellipse(mb, d.x, d.y - d.s * 0.12f, d.s * 0.32f, d.s * 0.2f, 0, U.Hsl(d.hue, 0.45f, 0.35f), 12);
                 var tipC = U.Hsl(d.hue, 1f, 0.85f);
                 for (int i = 0; i < d.n; i++)
@@ -302,22 +337,31 @@ namespace DeepFeast
                     float ex = d.x + Mathf.Cos(a + sw * 0.4f) * d.s * 0.75f, ey = d.y - d.s * 0.2f + Mathf.Sin(a) * d.s * 0.75f;
                     var q = Draw.QuadPts(d.x + Mathf.Cos(a) * d.s * 0.2f, d.y - d.s * 0.2f,
                         d.x + Mathf.Cos(a) * d.s * 0.5f + sw * d.s * 0.2f, d.y - d.s * 0.2f + Mathf.Sin(a) * d.s * 0.4f, ex, ey, 7);
-                    Draw.Stroke(mb, q, d.s * 0.07f, d.s * 0.07f, col, false);
+                    Draw.Stroke(mb, q, d.s * 0.09f, d.s * 0.06f, baseC, col, false);
                     Draw.Circle(mb, ex, ey, d.s * 0.05f, tipC, 8);
                 }
             }
             mb.Apply(frontMesh);
 
-            // caustic shimmer on shallow sand
+            // dancing caustic light on the sand (two drifting layers of the caustic net)
             mb.Clear();
-            var cc = new Color(200 / 255f, 1f, 1f, 0.06f);
-            float s0 = Mathf.Floor(x0 / (FSTEP * 3)) * FSTEP * 3;
-            for (float x = s0; x <= x1; x += FSTEP * 3)
+            const float CS = 40;
+            float s0 = Mathf.Floor(x0 / CS) * CS - CS;
+            for (int layer = 0; layer < 2; layer++)
             {
-                float y = FloorY(x);
-                if (y > 2600 || y > yBot + 40) continue;
-                float s = 14 + 10 * Mathf.Sin(time * 1.3f + x * 0.05f);
-                Draw.Ellipse(mb, x, y + 14, s, s * 0.3f, 0, cc, 10);
+                float sc = layer == 0 ? 1 / 300f : 1 / 210f;
+                float ox = layer == 0 ? time * 0.02f : -time * 0.015f, oy = layer == 0 ? time * 0.012f : time * 0.017f;
+                int prev = -1;
+                for (float x = s0; x <= x1 + CS; x += CS)
+                {
+                    float y = FloorY(x);
+                    float k = Mathf.Clamp01(1 - (y - 900) / 2300) * (layer == 0 ? 0.42f : 0.3f);
+                    float wob = Mathf.Sin(time * 0.9f + x * 0.004f) * 0.02f;
+                    int a = mb.Vert(x, -(y - 1), new Color(0.9f, 1, 0.95f, k), x * sc + ox + wob, y * sc * 2.4f + oy);
+                    mb.Vert(x, -(y + 170), new Color(0.9f, 1, 0.95f, 0), x * sc + ox - wob, (y + 170) * sc * 2.4f + oy);
+                    if (prev >= 0) mb.Quad(prev, a, a + 1, prev + 1);
+                    prev = a;
+                }
             }
             mb.Apply(causticMesh);
         }
@@ -328,12 +372,20 @@ namespace DeepFeast
     {
         const float PPU = 150f;
 
+        static readonly Vector3 Sun = new Vector3(-0.45f, 0.8f, 0.5f);
+
         public static Sprite Rock(Mulberry R, float tone)
         {
-            int n = 9;
+            int n = 11;
             var ang = new float[n]; var mul = new float[n];
-            for (int i = 0; i < n; i++) { ang[i] = i / (float)n * U.TAU; mul[i] = 1 + (R.Next() * 2 - 1) * 0.22f; }
-            Vector2 P(int i) { i = (i % n + n) % n; return new Vector2(Mathf.Cos(ang[i]) * mul[i] * 1.25f, Mathf.Sin(ang[i]) * mul[i] * 0.8f); }
+            for (int i = 0; i < n; i++) { ang[i] = i / (float)n * U.TAU; mul[i] = 1 + (R.Next() * 2 - 1) * 0.2f; }
+            Vector2 P(int i)
+            {
+                i = (i % n + n) % n;
+                float x = Mathf.Cos(ang[i]) * mul[i] * 1.25f, y = Mathf.Sin(ang[i]) * mul[i] * 0.8f;
+                if (y > 0.4f) y = 0.4f + (y - 0.4f) * 0.35f; // flat underside, buried in the sand
+                return new Vector2(x, y);
+            }
             var path = new Path();
             Vector2 p0 = P(0), p1 = P(1);
             path.Move((p0.x + p1.x) / 2, (p0.y + p1.y) / 2);
@@ -344,22 +396,51 @@ namespace DeepFeast
             }
             var r = new Raster(-1.6f, -1.05f, 1.6f, 1.05f, PPU);
             var m = r.Fill(path);
-            Color[] c = tone < 0.5f
-                ? new[] { U.Hex("#a3a9b4"), U.Hex("#5d6370"), U.Hex("#2b2f38") }
-                : new[] { U.Hex("#b19d86"), U.Hex("#6c5c4c"), U.Hex("#332b24") };
-            Vector2 A = new Vector2(-0.7f, -1f), B = new Vector2(0.5f, 0.4f), AB = B - A;
-            r.Paint(m, (x, y) =>
+            Color lite, mid, dark;
+            if (tone < 0.5f) { lite = U.Hex("#b4bcc6"); mid = U.Hex("#6b7480"); dark = U.Hex("#252a33"); }
+            else { lite = U.Hex("#c4b096"); mid = U.Hex("#7a6854"); dark = U.Hex("#2e2620"); }
+            var lit = r.Light(m, Mathf.RoundToInt(PPU * 0.2f), Sun, 2.4f);
+            int seed = (int)(R.Next() * 1000);
+            float sx = R.Next() * 50;
+            r.Paint(m, (i, x, y) =>
             {
-                float t = Mathf.Clamp01(Vector2.Dot(new Vector2(x, y) - A, AB) / AB.sqrMagnitude);
-                return t < 0.5f ? Color.Lerp(c[0], c[1], t * 2) : Color.Lerp(c[1], c[2], t * 2 - 1);
+                float mottle = Noise2.Fbm(x * 2.6f + sx, y * 2.6f, 4, seed);
+                float grain = Noise2.At(x * 14 + sx, y * 14, seed + 7);
+                float v = 0.52f + lit[i] * 1.5f + (mottle - 0.5f) * 0.45f + (grain - 0.5f) * 0.12f - Mathf.Max(0, y + 0.1f) * 0.45f;
+                v = Mathf.Clamp01(v);
+                return v < 0.5f ? Color.Lerp(dark, mid, v * 2) : Color.Lerp(mid, lite, v * 2 - 1);
             });
-            void Clip(float[] k, Color col) { Raster.Mul(k, m); r.Paint(k, col); }
-            Clip(r.Ellipse(-0.4f, -0.62f, 0.55f, 0.2f, -0.25f), new Color(1, 1, 1, 0.13f));
-            var spots = r.Mask();
-            for (int i = 0; i < 7; i++) r.Circle((R.Next() - 0.5f) * 1.8f, -R.Next() * 0.7f, 0.04f + R.Next() * 0.06f, spots);
-            Clip(spots, new Color(0, 0, 0, 0.16f));
-            Clip(r.Ellipse(-0.05f, -0.82f, 0.75f, 0.2f, 0), tone < 0.5f ? new Color(90 / 255f, 175 / 255f, 100 / 255f, 0.55f) : new Color(150 / 255f, 170 / 255f, 80 / 255f, 0.5f));
-            r.Paint(r.InnerRing(m, 4), new Color(8 / 255f, 14 / 255f, 24 / 255f, 0.4f));
+            // strata cracks: dark groove with a lit lip just above
+            var cracks = r.Mask(); var lips = r.Mask();
+            int nc = 2 + (int)(R.Next() * 2);
+            for (int k = 0; k < nc; k++)
+            {
+                var pts = new List<Vector2>();
+                float cx = -1.1f + R.Next() * 0.6f, cy = -0.45f + R.Next() * 0.6f, dir = (R.Next() - 0.5f) * 0.5f;
+                for (int j = 0; j < 7; j++) { pts.Add(new Vector2(cx, cy)); cx += 0.18f + R.Next() * 0.12f; cy += dir * 0.18f + (R.Next() - 0.5f) * 0.08f; }
+                r.Stroke(pts, 0.035f, cracks);
+                for (int j = 0; j < pts.Count; j++) pts[j] += new Vector2(0, -0.03f);
+                r.Stroke(pts, 0.022f, lips);
+            }
+            Raster.Sub(lips, cracks);
+            Raster.Mul(cracks, m); Raster.Mul(lips, m);
+            r.Paint(lips, new Color(1, 1, 1, 0.16f));
+            r.Paint(cracks, new Color(0.05f, 0.05f, 0.08f, 0.4f));
+            // algae cap and barnacles on the sunlit top
+            var algae = tone < 0.5f ? new Color(0.36f, 0.66f, 0.38f) : new Color(0.58f, 0.66f, 0.3f);
+            r.Paint(m, (i, x, y) =>
+            {
+                float nz = Noise2.Fbm(x * 4 + sx, y * 4, 3, seed + 3);
+                float a = Mathf.Clamp01((-y - 0.3f) * 3.5f) * Mathf.Clamp01((nz - 0.42f) * 6) * Mathf.Clamp01(lit[i] * 5 + 0.7f);
+                var c = Color.Lerp(algae, Color.white, Mathf.Max(0, lit[i]) * 0.6f);
+                c.a = a * 0.75f;
+                return c;
+            });
+            var barn = r.Mask();
+            for (int k = 0; k < 9; k++) r.Circle(-1 + R.Next() * 2, -0.55f + R.Next() * 0.8f, 0.018f + R.Next() * 0.025f, barn);
+            Raster.Mul(barn, m);
+            r.Paint(barn, new Color(0.95f, 0.93f, 0.85f, 0.55f));
+            r.Paint(r.InnerRing(m, 3), new Color(8 / 255f, 12 / 255f, 22 / 255f, 0.45f));
             return r.ToSprite(Vector2.zero, PPU);
         }
 
@@ -389,36 +470,63 @@ namespace DeepFeast
                 float w = 0.13f * Mathf.Pow(0.7f, l);
                 foreach (var s in levels[l]) r.Stroke(new[] { new Vector2(s.x, s.y), new Vector2(s.z, s.w) }, w, m);
             }
-            r.Paint(m, (x, y) => { var c = Color.Lerp(col * 0.78f, col, Mathf.Clamp01(-y * 1.6f)); c.a = 1; return c; });
+            var lit = r.Light(m, Mathf.RoundToInt(PPU * 0.03f), Sun, 2.5f);
+            r.Paint(m, (i, x, y) =>
+            {
+                var c = Color.Lerp(col * 0.62f, Color.Lerp(col, Color.white, 0.12f), Mathf.Clamp01(-y * 1.4f));
+                c = Color.Lerp(c, lit[i] > 0 ? Color.white : new Color(0.15f, 0.02f, 0.12f), Mathf.Abs(lit[i]) * 1.3f);
+                c.a = 1;
+                return c;
+            });
+            // polyps dotted along the branches
+            var dots = r.Mask();
+            foreach (var l in levels)
+                foreach (var s in l)
+                    for (float t = 0.25f; t < 1; t += 0.3f)
+                        r.Circle(Mathf.Lerp(s.x, s.z, t) + (R.Next() - 0.5f) * 0.03f, Mathf.Lerp(s.y, s.w, t), 0.012f, dots);
+            Raster.Mul(dots, m);
+            r.Paint(dots, U.WithA(tip, 0.6f));
             var tips = r.Mask();
-            foreach (var s in levels[levels.Count - 1]) r.Circle(s.z, s.w, 0.035f, tips);
+            foreach (var s in levels[levels.Count - 1]) r.Circle(s.z, s.w, 0.04f, tips);
             r.Paint(tips, tip);
+            var shine = r.Mask();
+            foreach (var s in levels[levels.Count - 1]) r.Circle(s.z - 0.012f, s.w - 0.014f, 0.014f, shine);
+            r.Paint(shine, new Color(1, 1, 1, 0.8f));
             return r.ToSprite(Vector2.zero, PPU);
         }
 
         public static Sprite Fan(Mulberry R, Color col)
         {
             const float S = 1.1f;
-            int n = 9 + (int)(R.Next() * 4);
+            int n = 13 + (int)(R.Next() * 5);
             var ribs = new List<Vector2>();
-            for (int i = 0; i < n; i++) ribs.Add(new Vector2(-Mathf.PI + 0.35f + (i / (float)(n - 1)) * (Mathf.PI - 0.7f), 0.75f + R.Next() * 0.25f));
+            for (int i = 0; i < n; i++) ribs.Add(new Vector2(-Mathf.PI + 0.3f + (i / (float)(n - 1)) * (Mathf.PI - 0.6f), 0.78f + R.Next() * 0.22f));
             var r = new Raster(-S * 1.05f, -S * 1.05f, S * 1.05f, 0.08f, PPU);
             var poly = new Path().Move(0, 0);
             foreach (var rb in ribs) poly.Line(Mathf.Cos(rb.x) * S * rb.y, Mathf.Sin(rb.x) * S * rb.y);
-            r.Paint(r.Fill(poly), U.WithA(col, 0.35f));
+            var membrane = r.Fill(poly);
+            Color deep = Color.Lerp(col, Color.black, 0.35f), edge = Color.Lerp(col, Color.white, 0.25f);
+            r.Paint(membrane, (x, y) => { float d = Mathf.Sqrt(x * x + y * y) / S; var c = Color.Lerp(deep, col, d); c.a = 0.18f + d * 0.3f; return c; });
             var m = r.Mask();
             foreach (var rb in ribs)
             {
-                float a = rb.x, k = rb.y;
-                r.Stroke(Raster.QuadPts(Vector2.zero, new Vector2(Mathf.Cos(a + 0.1f) * S * k * 0.5f, Mathf.Sin(a + 0.1f) * S * k * 0.5f), new Vector2(Mathf.Cos(a) * S * k, Mathf.Sin(a) * S * k), 10), S * 0.03f, m);
+                float a = rb.x, k = rb.y, bend = (R.Next() - 0.5f) * 0.2f;
+                r.Stroke(Raster.QuadPts(Vector2.zero, new Vector2(Mathf.Cos(a + bend) * S * k * 0.5f, Mathf.Sin(a + bend) * S * k * 0.5f), new Vector2(Mathf.Cos(a) * S * k, Mathf.Sin(a) * S * k), 12), S * 0.024f, m);
             }
-            foreach (var k in new[] { 0.4f, 0.62f, 0.82f })
+            foreach (var k in new[] { 0.28f, 0.44f, 0.58f, 0.71f, 0.83f })
             {
                 var arc = new List<Vector2>();
-                for (int i = 0; i <= 24; i++) { float a = -Mathf.PI + 0.4f + (Mathf.PI - 0.8f) * i / 24f; arc.Add(new Vector2(Mathf.Cos(a) * S * k, Mathf.Sin(a) * S * k)); }
-                r.Stroke(arc, S * 0.015f, m);
+                for (int i = 0; i <= 32; i++)
+                {
+                    float a = -Mathf.PI + 0.35f + (Mathf.PI - 0.7f) * i / 32f, wob = 1 + Mathf.Sin(i * 1.7f + k * 20) * 0.03f;
+                    arc.Add(new Vector2(Mathf.Cos(a) * S * k * wob, Mathf.Sin(a) * S * k * wob));
+                }
+                r.Stroke(arc, S * 0.012f, m);
             }
-            r.Paint(m, col);
+            Raster.Mul(m, r.Dilate(membrane, 2));
+            r.Paint(m, (x, y) => Color.Lerp(deep, edge, Mathf.Sqrt(x * x + y * y) / S));
+            var trunk = r.Stroke(new[] { new Vector2(0, 0.06f), new Vector2(0, -0.14f) }, S * 0.07f);
+            r.Paint(trunk, deep);
             return r.ToSprite(Vector2.zero, PPU);
         }
 
@@ -428,23 +536,28 @@ namespace DeepFeast
             var path = new Path().Move(-0.7f, 0);
             for (int i = 1; i <= 32; i++) { float a = Mathf.PI + Mathf.PI * i / 32f; path.Line(Mathf.Cos(a) * 0.7f, Mathf.Sin(a) * 0.48f); }
             var m = r.Fill(path);
-            var dark = new Color(40 / 255f, 20 / 255f, 40 / 255f);
+            var dark = Color.Lerp(col, new Color(0.16f, 0.06f, 0.14f), 0.6f);
+            float ox = R.Next() * 64, oy = R.Next() * 64, rot = R.Next() * U.TAU, cs = Mathf.Cos(rot), sn = Mathf.Sin(rot);
             r.Paint(m, (x, y) =>
             {
-                float t = Mathf.Clamp01(Vector2.Distance(new Vector2(x, y), new Vector2(-0.2f, -0.4f)) / 0.95f);
-                return t < 0.15f ? Color.Lerp(Color.white, col, t / 0.15f) : Color.Lerp(col, dark, (t - 0.15f) / 0.85f);
+                // seen side-on the dome is a hemisphere, so its normal falls straight out of the position
+                float px = x / 0.7f, py = y / 0.48f, rr = px * px + py * py;
+                float nz = Mathf.Sqrt(Mathf.Max(0, 1 - rr));
+                float dome = -0.45f * px - 0.8f * py + 0.5f * nz - 0.5f;
+                float foot = 1 - U.Smooth(Mathf.Clamp01(-py / 0.35f));
+                // labyrinth folds, packed tighter toward the rim as if wrapped round the dome
+                float k = 58 * (1 + 0.5f * rr);
+                float h = Noise2.Maze(ox + (x * cs - y * sn) * k, oy + (x * sn + y * cs) * k, out float dx, out float dy);
+                float gx = dx * cs + dy * sn, gy = dy * cs - dx * sn;
+                // broad rounded ridges with a bright crest, split by narrow dark grooves
+                float ridge = U.Smooth(Mathf.Clamp01((h - 0.05f) / 0.32f));
+                float crest = U.Smooth(Mathf.Clamp01((h - 0.7f) / 0.3f));
+                float v = 0.3f + ridge * 0.42f + crest * 0.12f + dome * 0.45f - foot * 0.22f + (0.45f * gx + 0.8f * gy) * 0.9f;
+                var c = v < 0.6f ? Color.Lerp(dark, col, v / 0.6f) : Color.Lerp(col, Color.white, (v - 0.6f) * 0.9f);
+                c.a = 1;
+                return c;
             });
-            float seed = R.Next() * 100;
-            var lines = r.Mask();
-            for (int k = 0; k < 5; k++)
-            {
-                float yy = -(0.08f + k * 0.09f);
-                var pts = new List<Vector2>();
-                for (float xx = -0.7f; xx <= 0.7f; xx += 0.035f) pts.Add(new Vector2(xx, yy + Mathf.Sin(xx * 18 + seed + k) * 0.025f));
-                r.Stroke(pts, 0.035f, lines);
-            }
-            Raster.Mul(lines, m);
-            r.Paint(lines, new Color(0, 0, 0, 0.22f));
+            r.Paint(r.InnerRing(m, 2), new Color(0.1f, 0.03f, 0.08f, 0.35f));
             return r.ToSprite(Vector2.zero, PPU);
         }
 
@@ -470,14 +583,28 @@ namespace DeepFeast
                 maxH = Mathf.Max(maxH, t.y);
             }
             float span = (n - 1) / 2f * 0.22f + 0.3f;
-            var r = new Raster(-span, -maxH - 0.05f, span, 0.05f, PPU);
-            var white = Color.white;
+            var r = new Raster(-span, -maxH - 0.08f, span, 0.05f, PPU);
+            Color shade = Color.Lerp(col, new Color(0.15f, 0.03f, 0.1f), 0.55f), lite = Color.Lerp(col, Color.white, 0.4f);
             foreach (var t in tubes)
             {
                 float x = t.x, h = t.y, w = t.z;
                 var m = r.Fill(RoundRect(x - w, -h, w * 2, h + 0.02f, w * 0.6f));
-                r.Paint(m, (px, py) => Color.Lerp(col, white, 0.2f * Mathf.Clamp01(1 - Mathf.Abs(px - x) / w)));
-                r.Paint(r.Ellipse(x, -h + w * 0.25f, w * 0.75f, w * 0.3f, 0), new Color(30 / 255f, 10 / 255f, 20 / 255f, 0.7f));
+                r.Paint(m, (px, py) =>
+                {
+                    // cylinder: lit on the left, shaded on the right, darker toward the base
+                    float u = (px - x) / w;
+                    float l = Mathf.Clamp01(1 - Mathf.Abs(u + 0.35f) * 1.3f);
+                    var c = u > 0.2f ? Color.Lerp(col, shade, (u - 0.2f) * 1.1f) : Color.Lerp(col, lite, l * 0.6f);
+                    c = Color.Lerp(c, shade, Mathf.Clamp01((py + h * 0.3f) / (h * 0.9f)) * 0.5f);
+                    c.a = 1;
+                    return c;
+                });
+                // flared rim and dark mouth
+                r.Paint(r.Ellipse(x, -h + w * 0.25f, w * 1.08f, w * 0.38f, 0), lite);
+                r.Paint(r.Ellipse(x, -h + w * 0.25f, w * 0.78f, w * 0.26f, 0), new Color(30 / 255f, 10 / 255f, 20 / 255f, 0.85f));
+                // tiny polyps peeking out
+                for (int k = 0; k < 3; k++)
+                    r.Paint(r.Circle(x + (k - 1) * w * 0.4f, -h + w * 0.05f - (k == 1 ? w * 0.18f : 0), w * 0.12f), Color.Lerp(lite, Color.white, 0.5f));
             }
             return r.ToSprite(Vector2.zero, PPU);
         }

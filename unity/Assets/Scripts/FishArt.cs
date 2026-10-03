@@ -231,21 +231,38 @@ namespace DeepFeast
             var sh = sp.Sh;
             float hl = HL, hh = hl * sh.hh;
             bool shark = sh.tail == TailKind.Shark;
+            bool outline = sp == Data.Player;
             float scale = shark ? 300f : PPU;
-            float pad = 0.08f;
+            float pad = outline ? 0.3f : 0.08f;
             float minY = -(hh + hl * sh.dH * 1.45f) - pad - (sh.trailing ? hh * 0.2f : 0);
             float maxY = Mathf.Max(hh * 1.95f, hh + hl * sh.aH * 1.45f + (sh.trailing ? hh * 0.2f : 0)) + pad;
             float minX = -hl * 1.0f - pad, maxX = hl * 1.08f + pad;
 
             var art = new Art { shark = shark, hh = hh, fin = sp.fin };
-            art.body = BakeBody(sp, sh, hl, hh, minX, minY, maxX, maxY, scale, 0f);
-            art.bodyOpen = BakeBody(sp, sh, hl, hh, minX, minY, maxX, maxY, scale, 1f);
+            art.body = BakeBody(sp, sh, hl, hh, minX, minY, maxX, maxY, scale, 0f, outline);
+            art.bodyOpen = BakeBody(sp, sh, hl, hh, minX, minY, maxX, maxY, scale, 1f, outline);
 
             float tl = hl * sh.tl, th = hl * sh.tH;
             var tr = new Raster(-tl * 1.35f - pad, -th - pad, hl * 0.12f + pad, th + pad, scale);
             var tm = tr.Fill(TailPath(sh, hl, hh));
-            tr.Paint(tm, sp.tailCol);
-            tr.Paint(tr.InnerRing(tm, Mathf.Max(1, Mathf.RoundToInt(scale * 0.012f))), new Color(0, 0.07f, 0.14f, 0.25f));
+            if (outline) tr.Paint(tr.Dilate(tm, OutlinePx(scale)), OutlineCol);
+            Color tc = sp.tailCol;
+            tr.Paint(tm, (x, y) =>
+            {
+                float t = Mathf.Clamp01(-x / (tl * 1.2f));
+                var c = Color.Lerp(tc * 0.8f, Color.Lerp(tc, Color.white, 0.22f), t);
+                c.a = tc.a * (1 - t * 0.15f);
+                return c;
+            });
+            if (!shark)
+            {
+                var rays = tr.Mask();
+                for (int i = -4; i <= 4; i++)
+                    tr.Stroke(new[] { new Vector2(hl * 0.06f, 0), new Vector2(-tl * 1.4f, i / 4f * th * 1.25f) }, hl * 0.016f, rays);
+                Raster.Mul(rays, tm);
+                tr.Paint(rays, new Color(0, 0.05f, 0.1f, 0.16f));
+            }
+            tr.Paint(tr.InnerRing(tm, Mathf.Max(1, Mathf.RoundToInt(scale * 0.012f))), new Color(0, 0.07f, 0.14f, 0.3f));
             art.tail = tr.ToSprite(Vector2.zero, scale);
 
             float ex = hl * (shark ? 0.62f : 0.56f), ey = -hh * 0.22f;
@@ -254,15 +271,47 @@ namespace DeepFeast
             return art;
         }
 
-        static Sprite BakeBody(Species sp, Shape sh, float hl, float hh, float minX, float minY, float maxX, float maxY, float scale, float mouth)
+        static readonly Color OutlineCol = new Color(0.94f, 1f, 1f, 1f);
+        static int OutlinePx(float scale) => Mathf.RoundToInt(scale * 0.13f);
+
+        static Sprite BakeBody(Species sp, Shape sh, float hl, float hh, float minX, float minY, float maxX, float maxY, float scale, float mouth, bool outline)
         {
             var r = new Raster(minX, minY, maxX, maxY, scale);
             bool shark = sh.tail == TailKind.Shark;
-
-            // fins behind the body
-            r.Paint(r.Fill(FinsPath(sh, hl, hh)), sp.fin);
-
+            var fins = r.Fill(FinsPath(sh, hl, hh));
             var body = r.Fill(BodyPath(hl, hh, sh));
+
+            // player only: white sticker outline (faded out at the tail cut so the tail joins cleanly)
+            if (outline)
+            {
+                var all = (float[])body.Clone();
+                for (int i = 0; i < all.Length; i++) all[i] = Mathf.Max(all[i], fins[i]);
+                var ring = r.Dilate(all, OutlinePx(scale));
+                float cut = -hl * 0.86f + 2f / scale;
+                r.Paint(ring, (x, y) => { var c = OutlineCol; c.a = Mathf.Clamp01((x - cut) * scale * 0.5f); return c; });
+            }
+
+            // fins behind the body: darker at the root, with fin rays
+            float finSpan = hl * Mathf.Max(sh.dH, sh.aH) + hh * 0.4f;
+            r.Paint(fins, (x, y) =>
+            {
+                float t = Mathf.Clamp01((Mathf.Abs(y) - hh * 0.55f) / finSpan);
+                var c = Color.Lerp(sp.fin * 0.8f, Color.Lerp(sp.fin, Color.white, 0.2f), t);
+                c.a = sp.fin.a;
+                return c;
+            });
+            if (!shark)
+            {
+                var rays = r.Mask();
+                for (int i = 0; i < 22; i++)
+                {
+                    float a = i / 22f * U.TAU;
+                    r.Stroke(new[] { new Vector2(-hl * 0.1f, 0), new Vector2(-hl * 0.1f + Mathf.Cos(a) * hl * 2.2f, Mathf.Sin(a) * hl * 2.2f) }, hl * 0.016f, rays);
+                }
+                Raster.Mul(rays, fins);
+                r.Paint(rays, new Color(0, 0.05f, 0.1f, 0.16f));
+            }
+
             Color top = sp.c1, mid = sp.c0, bot = sp.c2;
             r.Paint(body, (x, y) =>
             {
@@ -351,7 +400,12 @@ namespace DeepFeast
                     break;
             }
 
-            // soft top highlight
+            // rounded volume: lit from above, shaded underneath, plus a soft top highlight
+            var lit = r.Light(body, Mathf.Max(2, Mathf.RoundToInt(hh * scale * 0.32f)), new Vector3(-0.3f, 0.85f, 0.6f), 2f);
+            var hi = r.Mask(); var lo = r.Mask();
+            for (int i = 0; i < lit.Length; i++) { hi[i] = Mathf.Max(0, lit[i]) * 1.6f * body[i]; lo[i] = Mathf.Min(1, Mathf.Max(0, -lit[i]) * 1.3f) * body[i]; }
+            r.Paint(lo, new Color(0, 0.05f, 0.14f, 0.42f));
+            r.Paint(hi, new Color(1, 1, 1, 0.3f));
             Clipped(r.Ellipse(hl * 0.05f, -hh * 0.5f, hl * 0.55f, hh * 0.17f, -0.05f), new Color(1, 1, 1, 0.2f));
 
             if (mouth > 0)
@@ -393,14 +447,18 @@ namespace DeepFeast
         static void Brow(Raster r) => r.Paint(r.Stroke(new[] { new Vector2(-1.3f, -1.7f), new Vector2(1.1f, -0.95f) }, 0.45f), U.Hex("#1a0d0d"));
         static void Shine(Raster r) => r.Paint(r.Circle(0.05f, -0.32f, 0.26f), Color.white);
 
+        static void Rim(Raster r) => r.Paint(r.Circle(0, 0, 1.16f), new Color(0, 0.05f, 0.1f, 0.4f));
+
         public static Sprite EyeNormal => eyeNormal ??= EyeSprite(r =>
         {
+            Rim(r);
             r.Paint(r.Circle(0, 0, 1), Color.white);
             r.Paint(r.Circle(0.25f, 0, 0.6f), U.Hex("#0b0f14"));
             Shine(r);
         });
         public static Sprite EyeAngry => eyeAngry ??= EyeSprite(r =>
         {
+            Rim(r);
             r.Paint(r.Circle(0, 0, 1), Color.white);
             r.Paint(r.Circle(0.22f, 0, 0.66f), U.Hex("#e0283c"));
             r.Paint(r.Circle(0.25f, 0, 0.36f), U.Hex("#0b0f14"));

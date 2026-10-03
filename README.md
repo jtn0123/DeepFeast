@@ -28,6 +28,8 @@ Headless build:
 | `-shots <dir>` / `-shotevery <s>` | Save screenshots of the menu and every N seconds of play |
 | `-quitafter <s>` | Quit after N real seconds |
 | `-size <r>` | Start at radius `r` (jump straight to bigger tiers) |
+| `-startx <x>` | Start near the seabed at world x (e.g. `11000` for the deep trench) |
+| `-dumpart <dir>` | Write every baked sprite texture to `dir` as a PNG |
 | `-shark <s>` | First shark arrives after N seconds |
 | `-timescale <x>` / `-mute` / `-nopause` | Speed up, silence, don't pause on focus loss |
 
@@ -39,4 +41,6 @@ Headless build:
 - `SceneFx.cs` — water gradient, parallax ridges, god rays, surface, depth darkness, snow
 - `Hud.cs` — uGUI HUD, banners and menus built in code
 - `Sfx.cs` — synthesised sound effects and ambience
-- `Raster.cs` / `Draw.cs` / `Util.cs` — software rasteriser, mesh drawing helpers, utilities
+- `Raster.cs` / `Draw.cs` / `Util.cs` — software rasteriser (with blur / pseudo-3D lighting), mesh drawing helpers, noise, procedural textures
+
+The display font is [Lilita One](https://fonts.google.com/specimen/Lilita+One) by Juan Montoreano, used under the SIL Open Font License (`unity/Assets/Resources/Fonts/OFL.txt`).
