@@ -42,8 +42,24 @@ namespace DeepFeast.EditorTools
                         var heading = view.root.transform.Find("Pivot").localToWorldMatrix.MultiplyVector(Vector3.right).normalized;
                         if (heading.y > -0.25f) throw new InvalidOperationException($"Downward swimming must pitch the nose down in both directions: {sp.key}, facing={facing}.");
                     }
+                    // A reversal must not instantly flip the bank, and a completed turn must settle.
+                    for (int i = 0; i <= 5; i++)
+                        view.Pose(new Fish { sp = sp, r = 22, faceS = Mathf.Cos((80 + i * 9) * Mathf.Deg2Rad) }, 0, FishView.EyeMode.Normal, 1f / 60);
+                    var pivot = view.root.transform.Find("Pivot");
+                    var beforeReverse = pivot.localRotation;
+                    float holdFacing = Mathf.Cos(116 * Mathf.Deg2Rad);
+                    var hold = new Fish { sp = sp, r = 22, faceS = holdFacing };
+                    view.Pose(hold, 0, FishView.EyeMode.Normal, 1f / 60);
+                    float jump = Quaternion.Angle(beforeReverse, pivot.localRotation);
+                    if (jump > 15) throw new InvalidOperationException($"Bank reversal snapped for {sp.key}: {jump:0.0} degrees in one frame.");
+                    for (int i = 0; i < 40; i++) view.Pose(hold, 0, FishView.EyeMode.Normal, 1f / 60);
+                    float residual = Quaternion.Angle(Quaternion.Euler(0, 116, 0), pivot.localRotation);
+                    if (residual > 1) throw new InvalidOperationException($"Stationary fish retained turn bank for {sp.key}: {residual:0.0} degrees.");
+                    var paused = pivot.localRotation;
+                    for (int i = 0; i < 10; i++) view.Pose(hold, 0, FishView.EyeMode.Normal, 0);
+                    if (Quaternion.Angle(paused, pivot.localRotation) > 0.01f) throw new InvalidOperationException("Paused animation changed: " + sp.key);
                 }
-                Debug.Log("[DeepFeast] volume turns passed: 12 species with real mesh depth, positive scales, continuous midpoint heading, head-on pose and correct pitch in both directions.");
+                Debug.Log("[DeepFeast] volume turns passed: 12 species with mesh depth, positive scales, continuous midpoint heading, correct pitch, smooth bank reversal, settled bank and frozen pause.");
             }
             finally { UnityEngine.Object.DestroyImmediate(root); }
         }

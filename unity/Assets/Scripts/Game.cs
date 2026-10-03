@@ -1352,7 +1352,7 @@ namespace DeepFeast
                 var f = sorted[i];
                 if (f.view == null) f.view = GetView();
                 f.view.SetSpecies(f.sp);
-                f.view.Pose(f, f.shark ? Layer.Shark + i : Layer.FishBase + i, f.state == FState.Chase ? FishView.EyeMode.Angry : FishView.EyeMode.Normal);
+                f.view.Pose(f, f.shark ? Layer.Shark + i : Layer.FishBase + i, f.state == FState.Chase ? FishView.EyeMode.Angry : FishView.EyeMode.Normal, dt);
                 var halo = f.view.halo;
                 bool threat = pActive && f.r >= pr * Data.DANGER;
                 halo.enabled = threat;
@@ -1376,7 +1376,7 @@ namespace DeepFeast
                 bool blinkOut = pInvuln > 0 && Mathf.FloorToInt(time * 12) % 2 == 0;
                 playerView.SetVisible(!blinkOut);
                 var mode = pBlink > 0 ? FishView.EyeMode.Blink : player.chomp > 0 ? FishView.EyeMode.Happy : FishView.EyeMode.Normal;
-                playerView.Pose(player, Layer.Player, mode);
+                playerView.Pose(player, Layer.Player, mode, dt);
                 float deep = Mathf.Clamp01((player.y - 1200) / 2500);
                 playerGlow.transform.localPosition = U.V3(player.x, player.y);
                 float gd = player.r * 8;

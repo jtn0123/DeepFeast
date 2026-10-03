@@ -621,18 +621,22 @@ namespace DeepFeast
 
         bool HasFin => art != null && !art.shark && !art.painted;
 
-        public void SetActive(bool on) { if (root.activeSelf != on) root.SetActive(on); if (!on) halo.enabled = false; }
+        public void SetActive(bool on)
+        {
+            if (root.activeSelf != on) { if (on) volume?.ResetMotion(); root.SetActive(on); }
+            if (!on) halo.enabled = false;
+        }
 
         public enum EyeMode { Normal, Angry, Blink, Happy }
 
-        public void Pose(Fish f, int order, EyeMode eyeMode)
+        public void Pose(Fish f, int order, EyeMode eyeMode, float animationDt = -1)
         {
             if (art.whole && volume != null)
             {
                 root.transform.localPosition = U.V3(f.x, f.y);
                 root.transform.localScale = Vector3.one;
                 float swim = f.wag * motion.x;
-                var rotation = volume.Rotation(f.faceS, f.tilt, swim);
+                var rotation = volume.Rotation(f.faceS, f.tilt, swim, animationDt < 0 ? Time.deltaTime : animationDt);
                 pivot.localRotation = rotation;
                 pivot.localPosition = new Vector3(0, Mathf.Sin(swim * 0.65f) * motion.w * f.r, 0);
                 float squash = Mathf.Sin(Mathf.Clamp01(f.mouth) * Mathf.PI) * 0.02f;

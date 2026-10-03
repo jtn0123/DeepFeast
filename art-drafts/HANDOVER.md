@@ -1,6 +1,6 @@
 # Latest Unity visual review
 
-The latest review is [v5: two 3D fish animation drafts](v5/README.md), with [native side-by-side animations](v5/index.html) and source in the working branch. The installed version is **8dbd365**; see [v4 implementation handover](v4/HANDOVER.md) for that pass. The v5 drafts have not replaced the installed app.
+The latest review is [v6: refined 3D fish in both styles](v6/README.md), with [native turn and feeding comparisons](v6/index.html) and committed source in the working branch. The installed version is **8dbd365**; see [v4 implementation handover](v4/HANDOVER.md) for that pass. The 3D drafts have not replaced the installed app.
 
 The original v1 concept handover is preserved below as historical context.
 
@@ -126,4 +126,3 @@ The gallery and comparison views were inspected in the collaborative browser. Im
 ## Paste-ready instruction for a receiving agent
 
 > Continue the Deep Feast visual-draft work using the attached `art-drafts/HANDOVER.md` and image bundle. First inspect all three comparison boards and the actual target checkout. These are review concepts, and the baseline images come from the web prototype, not the Unity player. Preserve the turquoise/gold player and recognizable species palettes. Use the user's selected designs as the direction; prepare transparent sprites and animation/rig parts before integrating them. Keep gameplay mechanics unchanged and show a real Unity before/after proof when implementation is authorized. Do not treat the opaque concept sheets or full-scene mockup as ready-to-import production assets. Exact prompts and source references are included.
-

@@ -17,8 +17,9 @@ namespace DeepFeast
         Fish[] fish;
         string output;
         int frame, warmup;
-        [Serializable] sealed class Sample { public int frame; public float time, facing, yaw; public float[] width; }
-        [Serializable] sealed class Evidence { public int fps = FPS, frames = FRAMES; public string style; public List<Sample> samples = new List<Sample>(); }
+        bool feeding;
+        [Serializable] sealed class Sample { public int frame; public float time, facing, yaw, mouth; public string expression; public float[] width; }
+        [Serializable] sealed class Evidence { public int fps = FPS, frames = FRAMES; public string style, sequence; public List<Sample> samples = new List<Sample>(); }
         readonly Evidence evidence = new Evidence();
 
         void Awake()
@@ -26,6 +27,8 @@ namespace DeepFeast
             var args = Environment.GetCommandLineArgs();
             FishVolume.Style = Array.IndexOf(args, "-sculpted") >= 0 ? FishVolume.Look.Sculpted : FishVolume.Look.Painted;
             evidence.style = FishVolume.Style.ToString();
+            feeding = Array.IndexOf(args, "-feed-animation") >= 0;
+            evidence.sequence = feeding ? "Feeding and blink" : "Turn";
             int i = Array.IndexOf(args, "-shots");
             if (i < 0 || i + 1 >= args.Length) throw new ArgumentException("-shots is required.");
             output = args[i + 1]; Directory.CreateDirectory(output);
@@ -62,13 +65,16 @@ namespace DeepFeast
                 if (warmup++ < 2) return;
                 if (!Resources.Load<Shader>("Shaders/FishVolume").isSupported) throw new InvalidOperationException("Volume fish shader unsupported.");
                 float t = frame / (float)FPS;
-                float facing = Mathf.Cos(t * Mathf.PI / 2);
-                var sample = new Sample { frame = frame, time = t, facing = facing, yaw = Mathf.Acos(Mathf.Clamp(facing,-1,1))*Mathf.Rad2Deg, width = new float[3] };
+                float facing = feeding ? 0.70710678f : Mathf.Cos(t * Mathf.PI / 2);
+                float bite = feeding ? Bite(t) : 0;
+                var expression = feeding && t >= 2.55f && t < 2.68f ? FishView.EyeMode.Blink :
+                    feeding && t >= 2.75f && t < 3.1f ? FishView.EyeMode.Happy : FishView.EyeMode.Normal;
+                var sample = new Sample { frame = frame, time = t, facing = facing, mouth = bite, expression = expression.ToString(), yaw = Mathf.Acos(Mathf.Clamp(facing,-1,1))*Mathf.Rad2Deg, width = new float[3] };
                 for (int f = 0; f < fish.Length; f++)
                 {
                     fish[f].faceS = facing; fish[f].face = facing < 0 ? -1 : 1;
-                    fish[f].wag = 4 + t * 5; fish[f].mouth = 0; fish[f].chomp = 0;
-                    views[f].Pose(fish[f], 100 + f, FishView.EyeMode.Normal);
+                    fish[f].wag = 4 + t * 5; fish[f].mouth = bite; fish[f].chomp = 0;
+                    views[f].Pose(fish[f], 100 + f, expression, 1f / FPS);
                     sample.width[f] = Mathf.Abs(views[f].root.transform.localScale.x);
                 }
                 evidence.samples.Add(sample);
@@ -80,11 +86,20 @@ namespace DeepFeast
                 if (++frame >= FRAMES)
                 {
                     File.WriteAllText(System.IO.Path.Combine(output, "native-samples.json"), JsonUtility.ToJson(evidence, true));
-                    Debug.Log($"[FishTurnReview] complete: {frame} native frames at {FPS} FPS scripted timeline, closed jaw, 3 species.");
+                    Debug.Log($"[FishTurnReview] complete: {frame} native frames at {FPS} FPS scripted timeline, {evidence.sequence}, 3 species.");
                     Application.Quit(0);
                 }
             }
             catch (Exception e) { Debug.LogException(e); enabled = false; Application.Quit(1); }
+        }
+
+        static float Bite(float t)
+        {
+            float phase = t < 1.6f ? t : t - 1.3f;
+            if (phase < 0.45f || phase > 1.45f) return 0;
+            if (phase < 0.95f) return Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0.45f, 0.95f, phase));
+            if (phase < 1.10f) return 1;
+            return 1 - Mathf.SmoothStep(0, 1, Mathf.InverseLerp(1.10f, 1.45f, phase));
         }
     }
 }

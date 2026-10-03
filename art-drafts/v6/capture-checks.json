@@ -1,0 +1,400 @@
+{
+  "baseline_3d_commit": "dafc45fc08690c95858c5dff86a66398d5ee2be8",
+  "installed_commit": "8dbd365e8cbb5272fa61fe0ff28ceddf1d6bc180",
+  "unity": "6000.3.25f1",
+  "capture_graphics": "native macOS Metal, graphics-enabled batchmode",
+  "source_sha256": {
+    "unity/Assets/Scripts/FishVolume.cs": "e7cc4b8359f293ef92ac05709986b22246c1cb12bf11fa021250322010d9e09f",
+    "unity/Assets/Scripts/FishArt.cs": "5064c1ac50768f67cbfe686846a4a1bdbb5cc09477d851f786352bc81741ac98",
+    "unity/Assets/Scripts/FishTurnReview.cs": "3349d967a850716420860db04bbcd4fbadfeebd6835c2c93e8c4a7dfe1d8151c",
+    "unity/Assets/Scripts/Game.cs": "6a54c5bfe2d453c513ba0169cc4130f49970550ba0525a7159a9931d46dd4b8c",
+    "unity/Assets/Resources/Shaders/FishVolume.shader": "fe3d256dda8bac9200b61af841c0825eed34b530085994233380bd905a32c596",
+    "unity/Assets/Editor/MotionValidation.cs": "2d22d507c3946a83983f189c102ddafecaf672834ed524f03c9aac333a8a5f18"
+  },
+  "sequences": {
+    "before-painted": {
+      "frames": 120,
+      "size": [
+        960,
+        720
+      ],
+      "fps": 30,
+      "input_samples": 120,
+      "exit_code": 0,
+      "content_bounds_union": [
+        284,
+        73,
+        677,
+        648
+      ],
+      "bounds_convention": "right/bottom exclusive",
+      "edge_clipping": false
+    },
+    "before-sculpted": {
+      "frames": 120,
+      "size": [
+        960,
+        720
+      ],
+      "fps": 30,
+      "input_samples": 120,
+      "exit_code": 0,
+      "content_bounds_union": [
+        284,
+        73,
+        677,
+        648
+      ],
+      "bounds_convention": "right/bottom exclusive",
+      "edge_clipping": false
+    },
+    "after-painted": {
+      "frames": 120,
+      "size": [
+        960,
+        720
+      ],
+      "fps": 30,
+      "input_samples": 120,
+      "exit_code": 0,
+      "content_bounds_union": [
+        285,
+        74,
+        676,
+        640
+      ],
+      "bounds_convention": "right/bottom exclusive",
+      "edge_clipping": false
+    },
+    "after-sculpted": {
+      "frames": 120,
+      "size": [
+        960,
+        720
+      ],
+      "fps": 30,
+      "input_samples": 120,
+      "exit_code": 0,
+      "content_bounds_union": [
+        285,
+        74,
+        676,
+        640
+      ],
+      "bounds_convention": "right/bottom exclusive",
+      "edge_clipping": false
+    },
+    "before-feed-painted": {
+      "frames": 120,
+      "size": [
+        960,
+        720
+      ],
+      "fps": 30,
+      "input_samples": 120,
+      "exit_code": 0,
+      "content_bounds_union": [
+        337,
+        72,
+        590,
+        647
+      ],
+      "bounds_convention": "right/bottom exclusive",
+      "edge_clipping": false
+    },
+    "before-feed-sculpted": {
+      "frames": 120,
+      "size": [
+        960,
+        720
+      ],
+      "fps": 30,
+      "input_samples": 120,
+      "exit_code": 0,
+      "content_bounds_union": [
+        337,
+        72,
+        590,
+        647
+      ],
+      "bounds_convention": "right/bottom exclusive",
+      "edge_clipping": false
+    },
+    "after-feed-painted": {
+      "frames": 120,
+      "size": [
+        960,
+        720
+      ],
+      "fps": 30,
+      "input_samples": 120,
+      "exit_code": 0,
+      "content_bounds_union": [
+        333,
+        73,
+        600,
+        640
+      ],
+      "bounds_convention": "right/bottom exclusive",
+      "edge_clipping": false
+    },
+    "after-feed-sculpted": {
+      "frames": 120,
+      "size": [
+        960,
+        720
+      ],
+      "fps": 30,
+      "input_samples": 120,
+      "exit_code": 0,
+      "content_bounds_union": [
+        333,
+        73,
+        600,
+        640
+      ],
+      "bounds_convention": "right/bottom exclusive",
+      "edge_clipping": false
+    }
+  },
+  "matched_input_pairs": {
+    "painted": {
+      "samples": 120,
+      "fields": [
+        "time",
+        "facing",
+        "yaw"
+      ],
+      "all_equal_within_1e-5": true
+    },
+    "painted-feed": {
+      "samples": 120,
+      "fields": [
+        "time",
+        "facing",
+        "yaw",
+        "mouth",
+        "expression"
+      ],
+      "all_equal_within_1e-5": true
+    },
+    "sculpted": {
+      "samples": 120,
+      "fields": [
+        "time",
+        "facing",
+        "yaw"
+      ],
+      "all_equal_within_1e-5": true
+    },
+    "sculpted-feed": {
+      "samples": 120,
+      "fields": [
+        "time",
+        "facing",
+        "yaw",
+        "mouth",
+        "expression"
+      ],
+      "all_equal_within_1e-5": true
+    }
+  },
+  "v5_copy_proof": {
+    "painted": {
+      "all_120_pngs_byte_identical": true
+    },
+    "sculpted": {
+      "all_120_pngs_byte_identical": true
+    }
+  },
+  "motion_regression": {
+    "fail_before": "24.1 degree bank reversal jump for minnow",
+    "pass_after_species": 12,
+    "assertions": [
+      "bank reversal step <= 15 degrees for 9 degree yaw step",
+      "stationary bank < 1 degree after 40 frames",
+      "paused rotation unchanged",
+      "mesh depth",
+      "positive scales",
+      "continuous head-on midpoint",
+      "descending pitch both headings"
+    ]
+  },
+  "review_media": {
+    "both-improved-options.mp4": {
+      "width": 1280,
+      "height": 592,
+      "frames": 120,
+      "fps": "30/1",
+      "duration": 4.0,
+      "full_decode": "passed in prior full ffmpeg decode run"
+    },
+    "painted-before-after.mp4": {
+      "width": 1280,
+      "height": 592,
+      "frames": 120,
+      "fps": "30/1",
+      "duration": 4.0,
+      "full_decode": "passed in prior full ffmpeg decode run"
+    },
+    "painted-feeding-before-after.mp4": {
+      "width": 1280,
+      "height": 592,
+      "frames": 120,
+      "fps": "30/1",
+      "duration": 4.0,
+      "full_decode": "passed in prior full ffmpeg decode run"
+    },
+    "sculpted-before-after.mp4": {
+      "width": 1280,
+      "height": 592,
+      "frames": 120,
+      "fps": "30/1",
+      "duration": 4.0,
+      "full_decode": "passed in prior full ffmpeg decode run"
+    },
+    "sculpted-feeding-before-after.mp4": {
+      "width": 1280,
+      "height": 592,
+      "frames": 120,
+      "fps": "30/1",
+      "duration": 4.0,
+      "full_decode": "passed in prior full ffmpeg decode run"
+    },
+    "both-improved-options.gif": {
+      "width": 1280,
+      "height": 592,
+      "frames": 80,
+      "fps": "20/1",
+      "duration": 4.0,
+      "full_decode": "passed in prior full ffmpeg decode run"
+    },
+    "painted-before-after.gif": {
+      "width": 1280,
+      "height": 592,
+      "frames": 80,
+      "fps": "20/1",
+      "duration": 4.0,
+      "full_decode": "passed in prior full ffmpeg decode run"
+    },
+    "painted-feeding-before-after.gif": {
+      "width": 1280,
+      "height": 592,
+      "frames": 80,
+      "fps": "20/1",
+      "duration": 4.0,
+      "full_decode": "passed in prior full ffmpeg decode run"
+    },
+    "sculpted-before-after.gif": {
+      "width": 1280,
+      "height": 592,
+      "frames": 80,
+      "fps": "20/1",
+      "duration": 4.0,
+      "full_decode": "passed in prior full ffmpeg decode run"
+    },
+    "sculpted-feeding-before-after.gif": {
+      "width": 1280,
+      "height": 592,
+      "frames": 80,
+      "fps": "20/1",
+      "duration": 4.0,
+      "full_decode": "passed in prior full ffmpeg decode run"
+    }
+  },
+  "smoke_runs": {
+    "gameplay": {
+      "exit_code": 0,
+      "requested_quit_after_seconds": 20,
+      "runtime_exceptions": false,
+      "stat_lines": [
+        "[DeepFeast] stat t=0 r=12.0 tier=Fry lives=3 score=0 eaten=0 fish=135 fps=60",
+        "[DeepFeast] stat t=10 r=13.1 tier=Fry lives=3 score=38 eaten=2 fish=91 fps=60"
+      ]
+    },
+    "large-tier": {
+      "exit_code": 0,
+      "requested_quit_after_seconds": 18,
+      "runtime_exceptions": false,
+      "stat_lines": [
+        "[DeepFeast] stat t=0 r=175.0 tier=Legend lives=3 score=0 eaten=0 fish=103 fps=60",
+        "[DeepFeast] stat t=10 r=190.0 tier=Legend lives=3 score=587 eaten=2 fish=80 fps=60"
+      ]
+    },
+    "gallery-painted": {
+      "exit_code": 0,
+      "requested_quit_after_seconds": 6,
+      "runtime_exceptions": false,
+      "stat_lines": []
+    },
+    "gallery-sculpted": {
+      "exit_code": 0,
+      "requested_quit_after_seconds": 6,
+      "runtime_exceptions": false,
+      "stat_lines": []
+    }
+  },
+  "review_page": {
+    "http_resources": {
+      "index.html": {
+        "status": 200,
+        "length": 5314
+      },
+      "README.md": {
+        "status": 200,
+        "length": 8172
+      },
+      "painted-feeding-before-after.mp4": {
+        "status": 200,
+        "length": 386428
+      },
+      "both-improved-options.mp4": {
+        "status": 200,
+        "length": 537040
+      },
+      "sculpted-feeding-before-after.mp4": {
+        "status": 200,
+        "length": 338106
+      },
+      "painted-before-after.mp4": {
+        "status": 200,
+        "length": 581595
+      },
+      "sculpted-before-after.mp4": {
+        "status": 200,
+        "length": 508468
+      },
+      "gallery-painted/gallery.png": {
+        "status": 200,
+        "length": 752005
+      },
+      "gallery-painted/gallery_bite.png": {
+        "status": 200,
+        "length": 752383
+      },
+      "gallery-sculpted/gallery.png": {
+        "status": 200,
+        "length": 739950
+      },
+      "gallery-sculpted/gallery_bite.png": {
+        "status": 200,
+        "length": 741711
+      }
+    },
+    "byte_ranges": {
+      "status": 206,
+      "content_range": "bytes 0-1023/537040",
+      "accept_ranges": "bytes"
+    },
+    "main_clip_browser_controls": {
+      "pause": true,
+      "half_speed": true,
+      "seek_to_1_second": true,
+      "replay": true
+    },
+    "final_all_buttons_sweep": "Incomplete: collaborative preview host disconnected",
+    "main_clip_initial_ready_state": 4,
+    "main_clip_duration": 4
+  },
+  "atlas_image_diff": ""
+}
