@@ -134,7 +134,7 @@ namespace DeepFeast
             void AddKnown(Species species, string name, string scientificName, string page)
                 => Add(Identify(species, name, scientificName, noaa + page));
             // Radius ranges are game progression units, not biological adult lengths.
-            AddKnown(S("almaco_jack", "oval", "#c7b46e", "#38524d", "#efe9ef", "#7d8c5e", 1, "amberjack", 30, 190),
+            AddKnown(S("almaco_jack", "oval", "#c2ad6a", "#34493f", "#efe9ef", "#5d6a48", 1, "amberjack", 30, 190),
                 "Almaco jack", "Seriola rivoliana", "almaco-jack");
             var goliath = S("goliath_grouper", "fat", "#c6a663", "#5a4630", "#efdfb0", "#94794a", 1, "mottled", 70, 600);
             goliath.spot = U.Hex("#38382b"); goliath.canSchool = false;

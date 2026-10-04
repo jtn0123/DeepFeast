@@ -145,8 +145,10 @@ Shader "DeepFeast/FishVolume"
                 v2fo o;
                 // Fangs and the anglerfish's lure are too fine for the hull; it would ink them solid.
                 if (_Part > 1.5 || (_Part > .5 && (_Pattern != 8 || v.flex.y < 3.5)) || (_Part < .5 && v.color.a < .45)) { o.position = float4(2,2,2,1); return o; }
-                // A painted tail carries its own contour; the body's flat rear end runs into it unlined.
-                float ink = _Part < .5 && _PaintedFins > .5 ? smoothstep(-1.035,-.98,v.vertex.x) : 1;
+                // A painted or shark tail carries its own contour; the body's flat rear end runs into it unlined.
+                float ink = _Part < .5 && _PaintedFins > .5 ? smoothstep(-1.035,-.98,v.vertex.x) : _Part < .5 && _Pattern == 8 ? smoothstep(-1.04,-1.015,v.vertex.x) : 1;
+                // Body vertex alpha above .91 weights the contour: it stops under a shark's median fins.
+                if (_Part < .5 && v.color.a > .9) ink *= saturate((v.color.a-.91)/.09);
                 Animate(v);
                 float4 clip = UnityObjectToClipPos(v.vertex);
                 float2 normal = mul((float3x3)UNITY_MATRIX_VP, UnityObjectToWorldNormal(normalize(v.normal))).xy;
@@ -205,6 +207,17 @@ Shader "DeepFeast/FishVolume"
                 }
                 return sum/total;
             }
+            float hash21(float2 q) { return frac(sin(dot(q,float2(127.1,311.7)))*43758.5453); }
+            float valueNoise(float2 q)
+            {
+                float2 i=floor(q), f=frac(q); f=f*f*(3-2*f);
+                return lerp(lerp(hash21(i),hash21(i+float2(1,0)),f.x),lerp(hash21(i+float2(0,1)),hash21(i+1),f.x),f.y);
+            }
+            // The hammerhead's cephalofoil: skin out beyond the head's own width at the front.
+            float hammerBlade(float3 p)
+            {
+                return _SharkKind==5 ? max(smoothstep(.015,.05,abs(p.z)-_Head.w*bodyProfile(p.x)),smoothstep(.84,.96,p.x))*smoothstep(.70,.82,p.x) : 0;
+            }
             fixed3 procedural(float3 p)
             {
                 float y = p.y / max(_Height, 0.1);
@@ -215,7 +228,8 @@ Shader "DeepFeast/FishVolume"
                 {
                     // Shark markings follow the centre line, so the white runs up under the raised snout.
                     y=(p.y-centerY(p.x))/max(_Height,.1);
-                    float belly=1-smoothstep(-.27,-.10,y+.035*sin(p.x*8));
+                    // The grey comes down over the pectoral bases, so the fins grow out of the back's color.
+                    float belly=1-smoothstep(-.27,-.10,y+.035*sin(p.x*8)+.28*exp(-pow((p.x-.24)/.20,2)));
                     skin=lerp(lerp(_Base.rgb,_Dark.rgb,smoothstep(.18,.90,y)*.42),_Belly.rgb,belly*.96);
                     if (_SharkKind==4)
                     {
@@ -225,14 +239,32 @@ Shader "DeepFeast/FishVolume"
                         float columns=smoothstep(.45,.475,abs(frac(p.x*3.5+y*.2)-.5)), rows=smoothstep(.44,.47,abs(frac(y*3+.5)-.5));
                         float stripes=max(columns,rows)*(1-smoothstep(.30,.45,p.x))*smoothstep(-.95,-.75,p.x);
                         skin=lerp(skin,_Belly.rgb*.92,max(spot*.85,stripes*.7)*upper);
+                        // The wide terminal mouth: its gape runs back along each side from the blunt snout,
+                        // over a pale lower lip.
+                        float t=(_Head.x+_Head.y-.01-p.x)/.24, reach=step(0,t)*(1-smoothstep(.75,1,t));
+                        skin=lerp(skin,_Belly.rgb,(1-smoothstep(.025,.05,abs(y+.085+.06*t*t)))*reach*.55);
+                        skin=lerp(skin,_Dark.rgb*.30,(1-smoothstep(.018,.034,abs(y+.03+.06*t*t)))*reach*.85);
                     }
-                    // Great hammerhead: a bronze cast over the grey back.
-                    if (_SharkKind==5) skin=lerp(skin,skin*fixed3(1.10,1.0,.84),smoothstep(-.25,.35,y)*.7);
+                    if (_SharkKind==5)
+                    {
+                        // Great hammerhead: a bronze cast over the grey back. The cephalofoil (HammerX = 1.04
+                        // in SharkAnatomy.cs) is countershaded across its flat blade, grey above and pale
+                        // beneath, without the flank's band.
+                        skin=lerp(skin,skin*fixed3(1.10,1.0,.84),smoothstep(-.25,.35,y)*.7);
+                        fixed3 top=lerp(_Base.rgb,_Dark.rgb,.42)*fixed3(1.06,1,.88);
+                        skin=lerp(skin,lerp(_Belly.rgb*.94,top,smoothstep(-.010,.010,p.y-centerY(1.04)-.01)),hammerBlade(p));
+                    }
                     if (_SharkKind==2)
                     {
-                        float wave=p.x*20+y*1.8+sin(y*7+p.x*2)*.9;
-                        float bars=smoothstep(.72,.94,sin(wave))*smoothstep(-.32,-.16,y);
-                        skin=lerp(skin,_Dark.rgb,bars*.65*(1-smoothstep(.85,1.12,p.x))*smoothstep(-1.02,-.78,p.x)*smoothstep(-.22,.10,y));
+                        // Tiger shark: broken dark bars over the upper flank, boldest toward the tail, and
+                        // scattered spots on the forebody. Smooth noise breaks each bar into pieces.
+                        float wave=p.x*17+sin(y*5+p.x*3)*.8+sin(y*11+p.x*7)*.25, bar=floor(wave/6.2832+.5);
+                        float pieces=smoothstep(.16,.36,valueNoise(float2(bar*3.7,y*4.5+bar*1.3)));
+                        float bars=smoothstep(.40,.82,cos(wave))*pieces*smoothstep(-.24,.06,y)*lerp(.60,1,smoothstep(.5,-.6,p.x));
+                        float2 uv=p.xy*float2(11,13), cell=floor(uv);
+                        float seed=hash21(cell), seed2=hash21(cell+17.3);
+                        float spot=(1-smoothstep(.12,.22,length(frac(uv)-float2(.3+.4*seed,.3+.4*seed2))))*step(.74,seed)*smoothstep(0,.45,p.x)*smoothstep(-.18,.05,y);
+                        skin=lerp(skin,_Dark.rgb*.85,max(bars*.78,spot*.50)*(1-smoothstep(.85,1.10,p.x))*smoothstep(-1.02,-.78,p.x));
                     }
                 }
                 if (_Pattern == 1)
@@ -277,6 +309,8 @@ Shader "DeepFeast/FishVolume"
                     skin=lerp(skin,_Belly.rgb,spots*.8);
                 }
                 if (_Pattern == 9 || _Pattern == 20) skin=lerp(skin,_Dark.rgb,(1-smoothstep(.035,.06,abs(y-.06)))*.45);
+                // The bluefish's dark blotch at the pectoral fin's base (the body's _FinRoot carries its position).
+                if (_Pattern == 20) skin=lerp(skin,_Dark.rgb*.55,(1-smoothstep(.45,1,length((p.xy-_FinRoot.xy+float2(.025,0))/float2(.055,.040))))*.80);
                 // Pelagic counter-shading: a dark back meets the silver flank along a crisp, wavy
                 // line. It is what tells these silver species apart at play size.
                 if (_Pattern==16 || _Pattern==17 || _Pattern==20)
@@ -287,22 +321,25 @@ Shader "DeepFeast/FishVolume"
                 // Species markings wrap the body in rest coordinates, so they remain stable in turns.
                 if (_Pattern==11)
                 {
+                    // Almaco jack: an olive back over amber flanks, and the dark nuchal bar that runs
+                    // from the eye up and back to the dorsal fin's origin.
+                    skin=lerp(skin,_Dark.rgb,smoothstep(.15,.80,y)*.45);
                     float amber=exp(-pow((y-.08)*5,2));
-                    skin=lerp(skin,fixed3(.69,.61,.29),amber*.27);
-                    skin=lerp(skin,_Dark.rgb,exp(-pow((p.x-.78+y*.45)*12,2))*.35);
+                    skin=lerp(skin,fixed3(.69,.58,.27),amber*.32);
+                    float nuchal=exp(-pow((p.x-_Eye.x+(p.y-_Eye.y)*.85)*10,2))*smoothstep(_Eye.y-.09,_Eye.y-.02,p.y);
+                    skin=lerp(skin,_Dark.rgb*.70,nuchal*.72);
                 }
                 if (_Pattern==12)
                 {
-                    float2 uv=p.xy*float2(10,15);
-                    float2 cell=floor(uv); float seed=frac(sin(dot(cell,float2(127.1,311.7)))*43758.5453);
-                    float seed2=frac(sin(dot(cell,float2(269.5,183.3)))*43758.5453);
-                    float2 offset=float2(.20+seed*.60,.20+seed2*.60);
-                    float distance=length((frac(uv)-offset)*float2(1,lerp(.75,1.5,seed2)));
-                    float size=lerp(.08,.19,seed);
-                    float spot=(1-smoothstep(size*.50,size,distance))*step(.27,seed2);
-                    float mottling=.5+.5*sin(p.x*18+sin(y*13))*sin(y*21+p.x*4);
-                    skin=lerp(skin,_Dark.rgb,spot*.58+mottling*.18);
-                    skin=lerp(skin,_Dark.rgb,smoothstep(.79,.96,sin(p.x*15+y*.8))*.15);
+                    // Goliath grouper: irregular oblique dark bars on a yellow-brown body, softly
+                    // mottled, with small black spots crowded on the head.
+                    float wave=p.x*11+y*1.6+sin(y*6+p.x*2.5)*.7, bar=floor(wave/6.2832+.5);
+                    float bars=smoothstep(.30,.85,cos(wave))*smoothstep(.15,.40,valueNoise(float2(bar*2.3,y*2.5)))*smoothstep(-1.0,-.80,p.x)*(1-smoothstep(.45,.70,p.x));
+                    skin=lerp(skin,_Dark.rgb,bars*.40+valueNoise(p.xy*float2(7,9))*.14);
+                    float2 uv=p.xy*float2(12,15), cell=floor(uv);
+                    float seed=hash21(cell), seed2=hash21(cell+9.1);
+                    float spot=(1-smoothstep(.10,.19,length(frac(uv)-float2(.25+.5*seed,.25+.5*seed2))))*step(lerp(.86,.45,smoothstep(.25,.75,p.x)),seed2);
+                    skin=lerp(skin,_Dark.rgb*.40,spot*.70);
                 }
                 if (_Pattern==13)
                 {
@@ -444,10 +481,12 @@ Shader "DeepFeast/FishVolume"
                     // Giant manta: a black back with white shoulder patches, a white belly with dark
                     // spots and dusky wing margins. Rest coordinates: z runs across the wings.
                     float span=abs(p.z), behind=.22-.505*(span-.42)-p.x;
-                    // Triangles behind the leading edge: broad beside the head, pointed towards the tips.
-                    float reach=.44*(1-saturate((span-.36)/.62));
-                    float shoulder=smoothstep(.03,.08,behind)*(1-smoothstep(reach-.06,reach,behind))*smoothstep(.28,.38,span);
-                    fixed3 back=lerp(_Dark.rgb,_Belly.rgb*.9,shoulder*.92);
+                    // Patches behind the black band along the leading edge: broad beside the head and
+                    // tapering toward the tips. Their rear margins cloud into the black, and their inner
+                    // edges curve out so the black stem down the back widens toward the tail.
+                    float reach=.42*pow(1-saturate((span-.34)/.60),.8)+(valueNoise(p.xz*7)-.5)*.06;
+                    float shoulder=smoothstep(.02,.10,behind)*(1-smoothstep(reach-.18,reach+.02,behind))*smoothstep(.26,.42,span-behind*.15);
+                    fixed3 back=lerp(_Dark.rgb,lerp(_Belly.rgb,_Dark.rgb,.12),shoulder*.90);
                     float2 uv=p.xz*6, cell=floor(uv);
                     float seed=frac(sin(dot(cell,float2(127.1,311.7)))*43758.5453);
                     float spot=(1-smoothstep(.10,.20,length(frac(uv)-.5)))*step(.72,seed)*(1-smoothstep(.45,.70,span));
@@ -461,8 +500,9 @@ Shader "DeepFeast/FishVolume"
                     gill=0;
                     [unroll] for (int j=0;j<5;j++) gill+=exp(-pow((p.x-(.60-j*.06)+y*y*.07)*105,2))*(1-smoothstep(.25,.44,abs(y+.02)));
                     skin*=1-gill*.30;
+                    // The whale shark's nostrils sit on its mouth's upper lip and the hammerhead's on its blade.
                     float nostril=exp(-pow((p.x-(_Head.x+_Head.y*.94))*38,2)-pow((y+.12)*30,2));
-                    skin*=1-nostril*.45;
+                    skin*=1-nostril*.45*(_SharkKind==4||_SharkKind==5?0:1);
                 }
                 else if (_Painterly<.5) skin*=1-gill*.20;
                 return skin;
@@ -494,7 +534,7 @@ Shader "DeepFeast/FishVolume"
             {
                 float center=centerY(p.x);
                 float relative=(p.y-center)/max(_Height*bodyProfile(p.x),.001);
-                float sheen=exp(-pow((relative-.45)*5,2))*smoothstep(-1.0,-.6,p.x);
+                float sheen=exp(-pow((relative-.45)*5,2))*smoothstep(-1.0,-.6,p.x)*(1-hammerBlade(p));
                 skin=lerp(skin,skin*1.15+.09,sheen*.6);
                 // Sharks, the sunfish and the manta have no bony gill cover or rows of scales.
                 if (_Pattern==8 || _Pattern==30 || _Pattern==31) return skin;
@@ -591,7 +631,22 @@ Shader "DeepFeast/FishVolume"
                     // read against the body instead of as an inked loop. Shark fins stay solid.
                     float fan=_Painterly*_FinRoot.w*(_Pattern==8?0:1);
                     rgb=lerp(rgb,rgb*1.20+.07,smoothstep(.15,.9,i.surface.x)*(1-ray*.6)*.65*fan);
-                    rgb*=lerp(.83,1,smoothstep(0,.18,i.surface.x));
+                    // The goliath grouper's small black spots continue onto its fins.
+                    if (_Pattern==12)
+                    {
+                        float2 uv=i.skin.xy*float2(12,15), cell=floor(uv);
+                        float seed=hash21(cell), seed2=hash21(cell+9.1);
+                        rgb=lerp(rgb,_Dark.rgb*.40,(1-smoothstep(.10,.19,length(frac(uv)-float2(.25+.5*seed,.25+.5*seed2))))*step(.55,seed2)*.70*smoothstep(.10,.25,i.surface.x));
+                    }
+                    if (_Pattern==8)
+                    {
+                        // Shark fins grow out of the skin: each root takes the body's own color and
+                        // markings. The caudal starts at the body's flat rear end and keeps its own.
+                        // Whale shark fins carry the same pale spots as its back.
+                        if (_SharkKind==4) rgb=lerp(rgb,_Belly.rgb*.85,(1-smoothstep(.16,.26,length(frac(i.skin.xy*float2(14,22))-.5)))*.75*smoothstep(.10,.30,i.surface.x));
+                        if (i.fin.x<3.5) rgb=lerp(procedural(i.skin),rgb,smoothstep(0,.24,i.surface.x));
+                    }
+                    rgb*=lerp(_Pattern==8?1:.83,1,smoothstep(0,.18,i.surface.x));
                     rgb=lerp(rgb,rgb*.88,smoothstep(.95,1,i.surface.x)*.4);
                     // Ink along the free rim, as wide as the body hull but never more than a
                     // quarter of a small fin, which would otherwise turn into a dark blot.
@@ -645,9 +700,12 @@ Shader "DeepFeast/FishVolume"
                     float fresnel=.15+.85*pow(1-ndv,4);
                     rgb+=environment*_ReflectionStrength*fresnel;
                 }
-                rgb*=_Painterly>.5?lerp(.76,1,smoothstep(.02,.45,ndv)):lerp(.88,1,smoothstep(.02,.30,ndv));
+                // The body's contour weight (vertex alpha above .91) also drops its edge shading and
+                // rim light where a shark's median fin rises out of the back.
+                float lined=_Part<.5 && i.color.a>.9 ? saturate((i.color.a-.91)/.09) : 1;
+                rgb*=lerp(_Painterly>.5?.76:.88,1,max(_Painterly>.5?smoothstep(.02,.45,ndv):smoothstep(.02,.30,ndv),1-lined));
                 // Water light catches the upper contour and separates the back from dark scenery.
-                if (_Part<.5) rgb+=_WaterReflection.rgb*pow(1-ndv,3)*saturate(normal.y*.8+.35)*.24;
+                if (_Part<.5) rgb+=_WaterReflection.rgb*pow(1-ndv,3)*saturate(normal.y*.8+.35)*.24*lined;
                 rgb=lerp(rgb,OutlineColor(),ink*.9);
                 if (_Glow>0 && _Part<.5)
                 {

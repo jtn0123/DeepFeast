@@ -225,18 +225,21 @@ namespace DeepFeast
             float h = model.height, depth = model.depth, headCenter = model.head.x, headLength = model.head.y;
             var b = new Builder();
             bool manta = sp.key == Manta;
+            var medians = sp.IsShark ? SharkMedians(sp) : null;
             int rings = manta ? 72 : 96, sides = manta ? 40 : 48;
             for (int ring = 0; ring <= rings; ring++)
             {
                 // Rings crowd toward the nose and the tail, where the silhouette turns fastest.
                 float u = ring / (float)rings, along = manta ? u : u - 0.5f * Mathf.Sin(U.TAU * u) / U.TAU;
                 float x = Mathf.Lerp(-1.04f, headCenter + headLength, along), profile = Profile(x, model);
-                float width = manta ? MantaWidth(x, model) : depth * profile;
+                float width = manta ? MantaWidth(x, model) : depth * profile, keel = sp.IsShark ? SharkKeel(sp, x) : 0;
                 for (int side = 0; side <= sides; side++)
                 {
-                    float angle = side / (float)sides * U.TAU, z = Mathf.Sin(angle) * width;
-                    float y = Mathf.Cos(angle) * h * profile * (manta ? MantaTaper(z) : 1);
-                    b.Vertex(new Vector3(x, CenterY(x, model) + y, z), Color.white, Vector2.zero, new Vector2(x, side / (float)sides));
+                    float angle = side / (float)sides * U.TAU, up = Mathf.Cos(angle);
+                    float z = Mathf.Sin(angle) * (width + keel * Mathf.Exp(-up * up / 0.05f));
+                    float y = up * h * profile * (manta ? MantaTaper(z) : 1);
+                    var tone = medians == null ? Color.white : new Color(1, 1, 1, 0.91f + 0.09f * SharkContour(medians, x, up));
+                    b.Vertex(new Vector3(x, CenterY(x, model) + y, z), tone, Vector2.zero, new Vector2(x, side / (float)sides));
                     if (ring < rings && side < sides)
                     {
                         int a = ring * (sides + 1) + side, c = a + sides + 1;
@@ -251,7 +254,7 @@ namespace DeepFeast
                 b.Tri(rearCap, side + 1, side);
                 b.Tri(noseCap, rings * (sides + 1) + side, rings * (sides + 1) + side + 1);
             }
-            if (sp.IsShark) AddSharkKeels(b, sp, model);
+            if (sp.IsShark) AddSharkRidges(b, sp, model);
             if (sp.key == "puffer") AddPufferSpines(b, model);
             AddAppendages(b, sp, model);
             model.body = b.Mesh(sp.key + " sculpted species body");
@@ -637,7 +640,8 @@ namespace DeepFeast
 #endif
                 return mesh;
             }
-            public void Membrane(Color color, int radial, int across, float kind, System.Func<float, float, Vector3> point, bool cartilage = false)
+            public void Membrane(Color color, int radial, int across, float kind, System.Func<float, float, Vector3> point, bool cartilage = false,
+                System.Func<float, float, Color> shade = null)
             {
                 int start = vertices.Count, count = (radial + 1) * (across + 1);
                 for (int layer = 0; layer < 2; layer++)
@@ -647,7 +651,7 @@ namespace DeepFeast
                             float weight = u / (float)radial, along = t / (float)across;
                             var p = point(weight, along);
                             p.z += (layer == 0 ? -1 : 1) * Mathf.Lerp(cartilage ? 0.035f : 0.018f, cartilage ? 0.004f : 0.002f, Mathf.Sqrt(weight));
-                            Vertex(p, FinColor(color, weight, cartilage), new Vector2(weight, kind), new Vector2(weight, along));
+                            Vertex(p, shade != null ? shade(weight, along) : FinColor(color, weight, cartilage), new Vector2(weight, kind), new Vector2(weight, along));
                         }
                 void Face(int a, int c, int d, int layer)
                 {

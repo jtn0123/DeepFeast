@@ -8,11 +8,14 @@ namespace DeepFeast
         // halibut is its eyed flank: it is broad in XY and very thin through Z.
         static Model ExpandedBody(Species sp, FishArt.Art art)
         {
-            Model Form(float height, float depth, float shoulder, float nose, float rear, float front, float stalk, float lift = 0)
+            // A negative snout bends the head's centre line down toward the mouth, so the forehead
+            // falls steeply while the chin stays nearly level.
+            Model Form(float height, float depth, float shoulder, float nose, float rear, float front, float stalk, float lift = 0, float snout = 0)
                 => new Model
                 {
                     height = art.hh * height,
                     depth = depth,
+                    snout = snout,
                     head = new Vector4(shoulder, nose, art.hh * height, depth),
                     profile = new Vector4(rear, front, stalk, lift)
                 };
@@ -20,13 +23,15 @@ namespace DeepFeast
             return sp.key switch
             {
                 "almaco_jack" => Form(0.84f, 0.24f, -0.10f, 1.47f, 1.18f, 0.63f, 0.14f, 0.025f),
-                "goliath_grouper" => Form(0.78f, 0.45f, 0.06f, 1.50f, 1.00f, 0.39f, 0.23f, 0.025f),
+                // A long, broad head tapering to a big, low-set mouth, not a blunt loaf.
+                "goliath_grouper" => Form(0.78f, 0.45f, 0.06f, 1.50f, 1.00f, 0.50f, 0.23f, 0.025f, -0.12f),
                 // A short, pointed head on an even oval that narrows into a distinct tail stalk.
                 "atlantic_halibut" => Form(0.70f, 0.085f, 0.06f, 1.20f, 1.10f, 0.52f, 0.11f),
                 "atlantic_mackerel" => Form(0.64f, 0.18f, -0.08f, 1.52f, 1.65f, 0.70f, 0.11f),
-                // Low front exponent gives the male mahi its steep, broad forehead rather than
-                // the pointed muzzle used by the tunas; the dorsal banner completes the outline.
-                "mahi_mahi" => Form(1.05f, 0.21f, 0.35f, 1.03f, 1.10f, 0.23f, 0.12f, 0.095f),
+                // The male mahi's steep, rounded forehead falls to a mouth at the lower front: a
+                // moderate front exponent on a centre line that dips toward the snout. The dorsal
+                // banner completes the outline.
+                "mahi_mahi" => Form(1.05f, 0.21f, 0.35f, 1.03f, 1.10f, 0.40f, 0.12f, 0.095f, -0.18f),
                 "skipjack_tuna" => Form(0.85f, 0.29f, -0.10f, 1.55f, 1.55f, 0.69f, 0.095f),
                 "striped_bass" => Form(0.66f, 0.23f, 0.01f, 1.58f, 1.28f, 0.62f, 0.15f),
                 "yellowfin_tuna" => Form(0.87f, 0.26f, -0.12f, 1.68f, 1.70f, 0.74f, 0.085f),
@@ -391,7 +396,9 @@ namespace DeepFeast
                 FinForm.Sickle => width * Mathf.Pow(Arch(s), 0.8f) * (1 - 0.55f * s),
                 _ => width * Mathf.Pow(Arch(s), 0.7f) * (1 - 0.35f * s)
             };
-            const int steps = 10; const float start = 0.18f;
+            // The rim starts close to the base, so the fin fans out from a narrow root instead of
+            // ending in a flat, upright front edge.
+            const int steps = 12; const float start = 0.06f;
             var rim = new Vector2[steps * 2 + 3];
             for (int i = 0; i <= steps; i++)
             {
