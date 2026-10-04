@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -69,7 +70,8 @@ namespace DeepFeast
                 "atlantic-b" => new[] { "mahi_mahi", "skipjack_tuna", "striped_bass", "yellowfin_tuna" },
                 "extras" => new[] { "bluefish", "red_drum" },
                 "kelp" => new[] { "pacific_sardine", "garibaldi", "california_sheephead", "lingcod" },
-                "deep" => new[] { "lanternfish", "hatchetfish" },
+                "deep" => new[] { "lanternfish", "hatchetfish", "humpback_anglerfish", "viperfish" },
+                "giants" => new[] { "swordfish", "whale_shark", "great_hammerhead" },
                 "legacy-a" => new[] { "minnow", "clown", "tang", "angel" },
                 "legacy-b" => new[] { "puffer", "parrot", "snapper", "barracuda" },
                 "legacy-c" => new[] { "grouper", "tuna", "player" },
@@ -83,8 +85,7 @@ namespace DeepFeast
             float cellHeight = HEIGHT / (float)rows;
             for (int i = 0; i < keys.Length; i++)
             {
-                Species sp = keys[i] == "shark" ? Data.Shark : keys[i] == "tiger_shark" ? Data.TigerShark :
-                    keys[i] == "mako_shark" ? Data.MakoShark : keys[i] == "player" ? Data.Player : Data.SpeciesMap[keys[i]];
+                Species sp = Data.AllSpecies.First(s => s.key == keys[i]);
                 float x = stacked ? 0 : i % 2 == 0 ? -320 : 320;
                 float y = 1020 + (stacked ? i : i / 2) * cellHeight + cellHeight * (keys.Length == 3 ? .64f : .53f);
                 views[i] = new FishView(root, root); views[i].SetSpecies(sp);

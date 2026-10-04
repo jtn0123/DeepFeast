@@ -107,7 +107,7 @@ namespace DeepFeast
                 block.SetVector("_Head", model.head);
                 block.SetVector("_Profile", model.profile);
                 block.SetVector("_MouthShape", model.mouthParameters);
-                block.SetFloat("_SharkKind", species.key == "tiger_shark" ? 2 : species.key == "mako_shark" ? 3 : species.IsShark ? 1 : 0);
+                block.SetFloat("_SharkKind", species.key switch { "tiger_shark" => 2, "mako_shark" => 3, "whale_shark" => 4, "great_hammerhead" => 5, _ => species.IsShark ? 1 : 0 });
                 // Bluefish shares the minnow's line pattern but also needs a pelagic dark back.
                 block.SetFloat("_Pattern", species.key == "bluefish" ? 20 : Pattern(species.pat));
                 // Only real painted art is projected; generated fallback sprites smear on the rounded body,
@@ -118,14 +118,15 @@ namespace DeepFeast
                 block.SetFloat("_Facing", f.faceS);
                 block.SetFloat("_Part", i == 0 ? 0 : i < 4 ? 1 : i < 6 ? 2 : 3);
                 block.SetFloat("_Expression", expression == FishView.EyeMode.Blink ? 1 : expression == FishView.EyeMode.Angry ? 2 : expression == FishView.EyeMode.Happy ? 3 : 0);
-                block.SetFloat("_Phase", f.wag * motion.x * (species.key == "mako_shark" ? 1.2f : species.key == "tiger_shark" ? 0.88f : 1));
+                block.SetFloat("_Phase", f.wag * motion.x * species.key switch { "mako_shark" => 1.2f, "tiger_shark" => 0.88f, "whale_shark" => 0.6f, _ => 1 });
                 block.SetFloat("_TailFlex", motion.y * 1.5f);
                 block.SetFloat("_Energy", Mathf.Clamp(0.6f + new Vector2(f.vx, f.vy).magnitude / Mathf.Max(1, f.r) * 0.02f, 0.6f, 1.25f));
                 block.SetFloat("_TurnBend", angularVelocity / 240 * 0.22f);
                 block.SetFloat("_Flutter", i == 2 || i == 3 ? motion.z * 5 : 0.035f);
                 var finRoot = i == 2 ? model.nearFinRoot : model.farFinRoot;
                 block.SetVector("_FinRoot", new Vector4(finRoot.x, finRoot.y, finRoot.z, i == 2 || i == 3 ? 1 : 0));
-                block.SetFloat("_Mouth", f.mouth);
+                // The anglerfish rests with its toothy jaws ajar.
+                block.SetFloat("_Mouth", species.key == "humpback_anglerfish" ? Mathf.Max(f.mouth, 0.42f) : f.mouth);
                 block.SetFloat("_Height", model.height);
                 block.SetFloat("_Fog", species == Data.Player ? 0.015f : 0.02f + Mathf.Clamp01((f.y - 900) / 3500) * 0.045f);
                 block.SetColor("_FogColor", World.WaterAt(f.y));
@@ -154,7 +155,7 @@ namespace DeepFeast
 
         public void SetVisible(bool visible) { foreach (var part in parts) part.enabled = visible; }
 
-        static int Pattern(string pattern) => pattern switch { "bands" => 1, "stripes" => 2, "tang" => 3, "spots" => 4, "scales" => 5, "bars" => 6, "player" => 7, "shark" => 8, "tiger" => 8, "mako" => 8, "line" => 9, "finlets" => 10, "amberjack" => 11, "mottled" => 12, "halibut" => 13, "mackerel" => 14, "mahi" => 15, "skipjack" => 16, "bass" => 17, "yellowfin" => 18, "red_drum" => 19, "sardine" => 21, "garibaldi" => 22, "sheephead" => 23, "lantern" => 24, "hatchet" => 25, "lingcod" => 26, _ => 0 };
+        static int Pattern(string pattern) => pattern switch { "bands" => 1, "stripes" => 2, "tang" => 3, "spots" => 4, "scales" => 5, "bars" => 6, "player" => 7, "shark" => 8, "tiger" => 8, "mako" => 8, "line" => 9, "finlets" => 10, "amberjack" => 11, "mottled" => 12, "halibut" => 13, "mackerel" => 14, "mahi" => 15, "skipjack" => 16, "bass" => 17, "yellowfin" => 18, "red_drum" => 19, "sardine" => 21, "garibaldi" => 22, "sheephead" => 23, "lantern" => 24, "hatchet" => 25, "lingcod" => 26, "angler" => 27, "viper" => 28, "swordfish" => 29, "whale" => 8, "hammer" => 8, _ => 0 };
 
         static Model Anatomy(Species sp, FishArt.Art art)
         {
@@ -178,6 +179,11 @@ namespace DeepFeast
                 "tiger_shark" => new Vector4(-0.43f, 0.22f, 0.78f, 0.20f),
                 "mako_shark" => new Vector4(-0.38f, 0.23f, 0.66f, 0.24f),
                 "goliath_grouper" or "lingcod" => new Vector4(-0.20f, 0.35f, 0.86f, 0.28f),
+                // The filter-feeding whale shark's wide mouth is at the very front of its head.
+                "whale_shark" => new Vector4(-0.02f, 0.24f, 0.92f, 0.16f),
+                "great_hammerhead" => new Vector4(-0.42f, 0.20f, 0.62f, 0.20f),
+                "humpback_anglerfish" => new Vector4(-0.10f, 0.48f, 0.95f, 0.40f),
+                "viperfish" => new Vector4(-0.10f, 0.42f, 0.85f, 0.45f),
                 _ => new Vector4(-0.20f, 0.28f, 0.76f, 0.38f),
             };
             float h = model.height, depth = model.depth, headCenter = model.head.x, headLength = model.head.y;
@@ -206,6 +212,7 @@ namespace DeepFeast
             }
             if (sp.IsShark) AddSharkKeels(b, sp, model);
             if (sp.key == "puffer") AddPufferSpines(b, model);
+            AddAppendages(b, sp, model);
             model.body = b.Mesh(sp.key + " sculpted species body");
             b = new Builder();
             model.paintedFins = HasPaintedFins(sp, art);
@@ -243,13 +250,16 @@ namespace DeepFeast
                 model.nearFinRoot = PectoralRoot(sp, model, -1, 0.5f); model.farFinRoot = PectoralRoot(sp, model, 1, 0.5f);
             }
             // Painted fish keep the illustration's eye position on their longer, matched heads.
-            float ex = sp.IsShark ? 0.78f : Mathf.Clamp(art.eyePos.x, 0.5f, model.paintedFins ? 0.95f : 0.83f), ey = sp.IsShark ? h * 0.30f : Mathf.Clamp(art.eyePos.y, 0.08f, h * 0.58f);
+            bool whale = sp.key == "whale_shark";
+            float ex = sp.IsShark ? whale ? 0.92f : 0.78f : Mathf.Clamp(art.eyePos.x, 0.5f, model.paintedFins ? 0.95f : 0.83f);
+            float ey = sp.IsShark ? h * (whale ? 0.10f : 0.30f) : Mathf.Clamp(art.eyePos.y, 0.08f, h * 0.58f);
             if (ExpandedEye(sp, out var eyePosition, out _)) { ex = eyePosition.x; ey = eyePosition.y; }
             float profileEye = Profile(ex, model);
             float ez = depth * profileEye * Mathf.Sqrt(Mathf.Max(0.1f, 1 - Mathf.Pow(ey / (h * profileEye), 2))) + 0.015f;
             model.nearNormal = (sp.IsShark ? new Vector3(0.25f, 0.13f, -0.96f) : new Vector3(0.57f, 0.12f, -0.82f)).normalized;
             model.farNormal = new Vector3(model.nearNormal.x, model.nearNormal.y, -model.nearNormal.z);
             model.nearEyeCenter = new Vector3(ex, ey + CenterY(ex, model), -ez); model.farEyeCenter = new Vector3(ex, ey + CenterY(ex, model), ez);
+            static Vector3 Opposite(Vector3 p) => new Vector3(p.x, p.y, -p.z);
             if (sp.key == "atlantic_halibut")
             {
                 // A flatfish carries both eyes on its upper side. A turn shows the other flank, so each
@@ -258,10 +268,19 @@ namespace DeepFeast
                 model.farNormal = new Vector3(model.nearNormal.x, model.nearNormal.y, -model.nearNormal.z);
                 var lower = new Vector3(0.64f, h * 0.20f, -depth * Profile(0.64f, model) - 0.010f);
                 var upper = new Vector3(0.43f, h * 0.40f, -depth * Profile(0.43f, model) - 0.006f);
-                static Vector3 Opposite(Vector3 p) => new Vector3(p.x, p.y, -p.z);
                 model.nearEyeCenter = lower; model.farEyeCenter = Opposite(lower);
                 model.nearEye = Eye(sp, art, model.nearNormal, lower, upper);
                 model.farEye = Eye(sp, art, model.farNormal, Opposite(lower), Opposite(upper));
+            }
+            else if (sp.key == "great_hammerhead")
+            {
+                // The eyes sit at the tips of the cephalofoil, looking out to each side.
+                model.nearNormal = new Vector3(0.35f, 0.12f, -0.93f).normalized;
+                model.farNormal = new Vector3(model.nearNormal.x, model.nearNormal.y, -model.nearNormal.z);
+                var tip = new Vector3(HammerX, CenterY(HammerX, model) + 0.012f, -HammerSpan * 0.94f);
+                model.nearEyeCenter = tip; model.farEyeCenter = Opposite(tip);
+                model.nearEye = Eye(sp, art, model.nearNormal, tip);
+                model.farEye = Eye(sp, art, model.farNormal, Opposite(tip));
             }
             else
             {
@@ -294,7 +313,7 @@ namespace DeepFeast
         static void Caudal(Builder b, Species sp, Model model)
         {
             float height = sp.Sh.tH * FishArt.HL;
-            if (sp.key == "atlantic_mackerel" || sp.key == "skipjack_tuna" || sp.key == "mahi_mahi") height *= 0.82f;
+            if (sp.key == "atlantic_mackerel" || sp.key == "skipjack_tuna" || sp.key == "mahi_mahi" || sp.key == "viperfish") height *= 0.82f;
             // Small deep-sea tails sit on thin stalks.
             if (sp.key == "lanternfish") height *= 0.85f;
             if (sp.key == "hatchetfish") height *= 0.62f;
@@ -459,21 +478,23 @@ namespace DeepFeast
                     int a = 1 + ring * sides + side, next = 1 + ring * sides + (side + 1) % sides;
                     b.Tri(a, next, a + sides); b.Tri(next, next + sides, a + sides);
                 }
-            if (sp.IsShark || sp.shape == "long" || sp.key == "bluefish")
+            // The filter-feeding whale shark has no biting teeth; the deep-sea hunters have long needles.
+            bool needles = sp.key == "humpback_anglerfish" || sp.key == "viperfish", whale = sp.key == "whale_shark";
+            if (!whale && (sp.IsShark || sp.shape == "long" || sp.key == "bluefish" || needles))
                 for (int tooth = 0; tooth < 6; tooth++)
                 {
                     float z = Mathf.Lerp(-0.66f, 0.66f, tooth / 5f);
                     int a = Vertex(new Vector2(z - 0.08f, 0.65f), Color.white);
-                    int c = Vertex(new Vector2(z, 0.20f), Color.white);
+                    int c = Vertex(new Vector2(z, needles ? -0.05f : 0.20f), Color.white);
                     int d = Vertex(new Vector2(z + 0.08f, 0.65f), Color.white);
                     b.Tri(a, d, c);
                 }
-            if (sp.IsShark)
+            if (!whale && (sp.IsShark || needles))
                 for (int tooth = 0; tooth < 5; tooth++)
                 {
                     float z = Mathf.Lerp(-0.52f, 0.52f, tooth / 4f);
                     int a = Vertex(new Vector2(z - 0.065f, -0.65f), Color.white);
-                    int c = Vertex(new Vector2(z, -0.28f), Color.white);
+                    int c = Vertex(new Vector2(z, needles ? 0.0f : -0.28f), Color.white);
                     int d = Vertex(new Vector2(z + 0.065f, -0.65f), Color.white);
                     b.Tri(a, c, d);
                 }
@@ -561,7 +582,41 @@ namespace DeepFeast
             }
             public void Edge(int a, int c, int offset) { Tri(a, c, a + offset); Tri(c, c + offset, a + offset); }
 
-            public void Ellipsoid(Vector3 center, Vector3 radius, Quaternion rotation, Color color, int rings = 12, int sides = 16, Vector2 uv = default)
+            // A tube along a centerline with a radius by fraction of its length. For a centerline
+            // along x, squash scales the cross section's y and z extents.
+            public void Tube(IReadOnlyList<Vector3> spine, System.Func<float, float> radius, Vector2 squash, Color color, Vector2 flex, int sides = 10)
+            {
+                int start = vertices.Count, n = spine.Count;
+                for (int i = 0; i < n; i++)
+                {
+                    var forward = (spine[Mathf.Min(i + 1, n - 1)] - spine[Mathf.Max(i - 1, 0)]).normalized;
+                    var across = Vector3.Cross(forward, Vector3.forward);
+                    if (across.sqrMagnitude < 1e-6f) across = Vector3.Cross(forward, Vector3.up);
+                    across.Normalize();
+                    var normal = Vector3.Cross(across, forward);
+                    float r = radius(i / (float)(n - 1));
+                    for (int s = 0; s <= sides; s++)
+                    {
+                        float angle = s * U.TAU / sides;
+                        Vertex(spine[i] + (across * Mathf.Cos(angle) * squash.x + normal * Mathf.Sin(angle) * squash.y) * r, color, flex);
+                    }
+                }
+                for (int i = 0; i < n - 1; i++)
+                    for (int s = 0; s < sides; s++)
+                    {
+                        int a = start + i * (sides + 1) + s, c = a + sides + 1;
+                        Outward(a, c, a + 1, spine[i]); Outward(a + 1, c, c + 1, spine[i]);
+                    }
+            }
+
+            // Winds a triangle to face away from the axis point it surrounds.
+            void Outward(int a, int c, int d, Vector3 axis)
+            {
+                var normal = Vector3.Cross(vertices[c] - vertices[a], vertices[d] - vertices[a]);
+                if (Vector3.Dot(normal, vertices[a] - axis) >= 0) Tri(a, c, d); else Tri(a, d, c);
+            }
+
+            public void Ellipsoid(Vector3 center, Vector3 radius, Quaternion rotation, Color color, int rings = 12, int sides = 16, Vector2 uv = default, Vector2 flex = default)
             {
                 int start = vertices.Count;
                 for (int ring = 0; ring <= rings; ring++)
@@ -571,7 +626,7 @@ namespace DeepFeast
                     {
                         float phi = side * U.TAU / sides;
                         var v = new Vector3(Mathf.Cos(theta) * radius.x, Mathf.Sin(theta) * Mathf.Cos(phi) * radius.y, Mathf.Sin(theta) * Mathf.Sin(phi) * radius.z);
-                        Vertex(center + rotation * v, color, Vector2.zero, uv);
+                        Vertex(center + rotation * v, color, flex, uv);
                         if (ring < rings && side < sides)
                         {
                             int a = start + ring * (sides + 1) + side, c = a + sides + 1;

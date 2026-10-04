@@ -1,13 +1,29 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace DeepFeast
 {
-    // Authored silhouettes for lamnid and requiem sharks. The seven cached parts and
-    // shader flex contract remain shared with FishVolume's other species.
+    // Authored silhouettes for lamnid, requiem, hammerhead and whale sharks. The seven cached
+    // parts and shader flex contract remain shared with FishVolume's other species.
     public sealed partial class FishVolume
     {
+        // The hammerhead's cephalofoil: its center along the body and its half span across.
+        const float HammerX = 0.96f, HammerSpan = 0.50f;
+
         static Model SharkBody(Species sp, FishArt.Art art)
         {
+            if (sp.key == "whale_shark")
+            {
+                // A broad, flattened giant: the wide head ends bluntly in the mouth.
+                float h = art.hh;
+                return new Model { height = h, depth = 0.42f, head = new Vector4(0.25f, 1.05f, h, 0.42f), profile = new Vector4(1.30f, 0.30f, 0.17f, 0) };
+            }
+            if (sp.key == "great_hammerhead")
+            {
+                // A short snout under the cephalofoil, which is added with the keels.
+                float h = art.hh * 0.95f;
+                return new Model { height = h, depth = 0.28f, head = new Vector4(0.05f, 0.98f, h, 0.28f), profile = new Vector4(1.40f, 0.55f, 0.16f, 0.01f) };
+            }
             bool tiger = sp.key == "tiger_shark", mako = sp.key == "mako_shark";
             float height = art.hh * (tiger ? 1.11f : mako ? 0.87f : 1.03f);
             float depth = tiger ? 0.36f : mako ? 0.225f : 0.315f;
@@ -33,14 +49,18 @@ namespace DeepFeast
         static void BuildSharkFins(Builder b, Species sp, Model model)
         {
             bool tiger = sp.key == "tiger_shark", mako = sp.key == "mako_shark";
+            bool whale = sp.key == "whale_shark", hammer = sp.key == "great_hammerhead";
             SharkCaudal(b, sp, model);
 
-            SharkSpine(b, sp, model, 1, tiger ? -0.03f : 0.10f,
+            // The whale shark's first dorsal sits far back; the great hammerhead's is tall and sickle-shaped.
+            if (whale) SharkSpine(b, sp, model, 1, -0.10f, -0.62f, -0.38f, 0.36f);
+            else if (hammer) SharkSpine(b, sp, model, 1, 0.16f, -0.30f, -0.34f, 0.66f);
+            else SharkSpine(b, sp, model, 1, tiger ? -0.03f : 0.10f,
                 tiger ? -0.68f : -0.55f, tiger ? -0.34f : mako ? -0.30f : -0.19f,
                 tiger ? 0.38f : mako ? 0.39f : 0.43f);
             // Second dorsal and anal fins are distinctly smaller than the first.
-            SharkSpine(b, sp, model, 1, -0.73f, -0.99f, -0.87f, tiger ? 0.14f : 0.105f);
-            SharkSpine(b, sp, model, -1, -0.76f, -1.01f, -0.90f, tiger ? 0.13f : 0.085f);
+            SharkSpine(b, sp, model, 1, -0.73f, -0.99f, -0.87f, tiger || hammer ? 0.14f : 0.105f);
+            SharkSpine(b, sp, model, -1, -0.76f, -1.01f, -0.90f, tiger || hammer ? 0.13f : 0.085f);
             foreach (int side in new[] { -1, 1 }) SharkPelvic(b, sp, model, side);
         }
 
@@ -54,10 +74,19 @@ namespace DeepFeast
                 Vector3.Lerp(new Vector3(-1.04f, (along * 2 - 1) * stalk, 0), notch, weight), true);
             foreach (int side in new[] { -1, 1 })
             {
-                float height = side > 0 ? tiger ? 0.86f : 0.65f
-                    : tiger ? 0.46f : mako ? 0.61f : 0.59f;
-                float tipX = side > 0 ? tiger ? -2.06f : mako ? -1.89f : -1.86f
-                    : tiger ? -1.86f : mako ? -1.87f : -1.83f;
+                var (height, tipX) = (side > 0, sp.key) switch
+                {
+                    (true, "tiger_shark") => (0.86f, -2.06f),
+                    (true, "mako_shark") => (0.65f, -1.89f),
+                    (true, "whale_shark") => (0.74f, -1.98f),
+                    (true, "great_hammerhead") => (0.80f, -2.02f),
+                    (true, _) => (0.65f, -1.86f),
+                    (false, "tiger_shark") => (0.46f, -1.86f),
+                    (false, "mako_shark") => (0.61f, -1.87f),
+                    (false, "whale_shark") => (0.50f, -1.88f),
+                    (false, "great_hammerhead") => (0.42f, -1.84f),
+                    (false, _) => (0.59f, -1.83f),
+                };
                 var leadingRoot = new Vector3(-1.04f, side * stalk, 0);
                 var leadingControl = new Vector3(tiger && side > 0 ? -1.47f : -1.39f,
                     side * height * 0.88f, 0);
@@ -258,6 +287,24 @@ namespace DeepFeast
         static void AddSharkKeels(Builder b, Species sp, Model model)
         {
             bool tiger = sp.key == "tiger_shark";
+            if (sp.key == "whale_shark")
+                // Three ridges run along each upper flank from behind the head to the tail.
+                foreach (int side in new[] { -1, 1 })
+                    foreach (float level in new[] { 0.78f, 0.52f, 0.24f })
+                    {
+                        var ridge = new List<Vector3>();
+                        for (int i = 0; i <= 24; i++)
+                        {
+                            float x = Mathf.Lerp(0.55f, -0.98f, i / 24f), profile = Profile(x, model);
+                            ridge.Add(new Vector3(x, CenterY(x, model) + model.height * profile * level,
+                                side * model.depth * profile * Mathf.Sqrt(1 - level * level) * 0.99f));
+                        }
+                        b.Tube(ridge, t => 0.011f * Mathf.Sqrt(Mathf.Max(0, Mathf.Sin(t * Mathf.PI))), Vector2.one, Color.white, Vector2.zero, 6);
+                    }
+            if (sp.key == "great_hammerhead")
+                // The cephalofoil: a flat blade across the head with the eyes at its tips.
+                b.Ellipsoid(new Vector3(HammerX, CenterY(HammerX, model) + 0.01f, 0), new Vector3(0.17f, 0.048f, HammerSpan),
+                    Quaternion.identity, Color.white, 10, 24, default, Skull);
             // Low cartilage ridges blend into the peduncle, well before the tail fin.
             foreach (int side in new[] { -1, 1 })
                 b.Ellipsoid(new Vector3(-0.94f, CenterY(-0.94f, model), side * model.depth * Profile(-0.94f, model) * 0.98f),

@@ -29,6 +29,8 @@ namespace DeepFeast
         // Photophores light the skin and open a hole in the deep's darkness.
         public float glow;
         public Color glowColor;
+        // Where the light sits in model units (x toward the snout, y up); the anglerfish's is its lure.
+        public Vector2 glowOffset;
         public bool IsShark => shape == "shark";
         public float ZoneWeight(Habitat.Look zone) => reef * Mathf.Max(0, 1 - zone.kelp - zone.abyss) + kelp * zone.kelp + abyss * zone.abyss;
         public Shape Sh => FishArt.Shapes[shape];
@@ -64,16 +66,17 @@ namespace DeepFeast
         static Species S(string key, string shape, string a, string b, string c, string fin, float finA, string pat, float min, float max)
             => new Species { key = key, displayName = key, shape = shape, c0 = U.Hex(a), c1 = U.Hex(b), c2 = U.Hex(c), fin = U.Hex(fin, finA), tailCol = U.Hex(fin, finA), pat = pat, min = min, max = max };
 
-        public static Species Shark, TigerShark, MakoShark, Player;
+        public static Species Shark, TigerShark, MakoShark, Hammerhead, WhaleShark, Player;
         public static readonly Dictionary<string, Species> SpeciesMap = Build();
         public static readonly List<string> SpeciesKeys = new List<string>(SpeciesMap.Keys);
-        public static readonly Species[] SharkVariants = { Shark, TigerShark, MakoShark };
+        public static readonly Species[] SharkVariants = { Shark, TigerShark, MakoShark, Hammerhead };
         public static readonly IReadOnlyList<Species> AllSpecies = CollectAll().AsReadOnly();
 
         static List<Species> CollectAll()
         {
             var species = new List<Species>(SpeciesMap.Values);
             species.AddRange(SharkVariants);
+            species.Add(WhaleShark);
             species.Add(Player);
             return species;
         }
@@ -166,6 +169,15 @@ namespace DeepFeast
             var hatchet = S("hatchetfish", "disc", "#c4d3e2", "#2a3a56", "#eef4fa", "#9fb2c6", 1, "hatchet", 4, 18);
             hatchet.glow = 0.8f; hatchet.glowColor = U.Hex("#7fc8ff");
             Add(Identify(hatchet, "Lovely hatchetfish", "Argyropelecus aculeatus", "https://en.wikipedia.org/wiki/Argyropelecus_aculeatus"));
+            var angler = S("humpback_anglerfish", "round", "#5a4650", "#2e2228", "#7a6670", "#3e3036", 1, "angler", 12, 70);
+            angler.canSchool = false; angler.glow = 1; angler.glowColor = U.Hex("#a6ffe0"); angler.glowOffset = new Vector2(1.42f, 0.96f);
+            Add(Identify(angler, "Humpback anglerfish", "Melanocetus johnsonii", "https://en.wikipedia.org/wiki/Melanocetus_johnsonii"));
+            var viper = S("viperfish", "long", "#3c4d58", "#141d26", "#71838c", "#2c3a44", 1, "viper", 18, 110);
+            viper.canSchool = false; viper.glow = 0.8f; viper.glowColor = U.Hex("#8fd8ff");
+            Add(Identify(viper, "Sloane's viperfish", "Chauliodus sloani", "https://en.wikipedia.org/wiki/Sloane%27s_viperfish"));
+            var swordfish = S("swordfish", "torpedo", "#6a5f7e", "#2e2a40", "#ddd6cc", "#4b4560", 1, "swordfish", 60, 700);
+            swordfish.canSchool = false;
+            AddKnown(swordfish, "Swordfish", "Xiphias gladius", "north-atlantic-swordfish");
             d["minnow"].forage = true;
 
             // Habitat weights (reef, kelp forest, abyss). Open-water hunters roam all three.
@@ -179,6 +191,7 @@ namespace DeepFeast
             Zone("red_drum", 1, 0.5f, 0);
             Zone("pacific_sardine", 0.6f, 1, 0); Zone("garibaldi", 0.3f, 1, 0); Zone("california_sheephead", 0.3f, 1, 0.1f);
             Zone("lingcod", 0.1f, 1, 0.5f); Zone("lanternfish", 0, 0.2f, 1); Zone("hatchetfish", 0, 0, 1);
+            Zone("humpback_anglerfish", 0, 0, 1); Zone("viperfish", 0, 0.05f, 1); Zone("swordfish", 0.6f, 0.6f, 0.6f);
 
             Shark = Identify(S("shark", "shark", "#879da4", "#334957", "#f2f5ee", "#647e87", 1, "shark", 0, 0),
                 "White shark", "Carcharodon carcharias", noaa + "white-shark");
@@ -187,6 +200,12 @@ namespace DeepFeast
             MakoShark = Identify(S("mako_shark", "shark", "#4f88b8", "#163d6c", "#f1f8f8", "#3b72a0", 1, "mako", 0, 0),
                 "Shortfin mako shark", "Isurus oxyrinchus", noaa + "shortfin-mako-shark");
             MakoShark.aggressive = true; MakoShark.chaseSpeedMultiplier = 1.08f;
+            Hammerhead = Identify(S("great_hammerhead", "shark", "#8c8f86", "#4f5650", "#eeeee4", "#73786e", 1, "hammer", 0, 0),
+                "Great hammerhead", "Sphyrna mokarran", "https://en.wikipedia.org/wiki/Great_hammerhead");
+            // The ocean's largest fish: the finale giant, not one of the rotating shark encounters.
+            WhaleShark = Identify(S("whale_shark", "shark", "#4f6a86", "#2c3e57", "#e9eef0", "#425a74", 1, "whale", 0, 0),
+                "Whale shark", "Rhincodon typus", "https://en.wikipedia.org/wiki/Whale_shark");
+            WhaleShark.spot = U.Hex("#e9eef0");
             Player = S("player", "oval", "#3df2d0", "#0a8f99", "#e2fff8", "#ffc93c", 1, "player", 0, 0);
             Player.eye = 0.15f; Player.displayName = "Hero fish";
             return d;
@@ -524,6 +543,7 @@ namespace DeepFeast
                 case "mottled":
                 case "lingcod":
                 case "halibut":
+                case "whale":
                     {
                         var rng = new Mulberry(StableSeed(sp.key));
                         var m = r.Mask();
@@ -603,11 +623,13 @@ namespace DeepFeast
                     break;
                 case "lantern":
                 case "hatchet":
+                case "viper":
                     {
                         // Photophore rows along the belly (the raster's y points down).
                         var m = r.Mask();
-                        int n = sp.pat == "lantern" ? 9 : 11;
-                        for (int i = 0; i < n; i++) r.Circle(hl * (0.6f - i * 1.3f / n), hh * (sp.pat == "lantern" ? 0.5f : 0.82f), hl * 0.025f, m);
+                        int n = sp.pat == "lantern" ? 9 : sp.pat == "hatchet" ? 11 : 13;
+                        float row = sp.pat == "lantern" ? 0.5f : sp.pat == "hatchet" ? 0.82f : 0.70f;
+                        for (int i = 0; i < n; i++) r.Circle(hl * (0.6f - i * 1.3f / n), hh * row, hl * 0.025f, m);
                         Clipped(m, U.WithA(sp.glowColor, 0.95f));
                     }
                     break;

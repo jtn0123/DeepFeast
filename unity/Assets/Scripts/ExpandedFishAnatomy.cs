@@ -41,6 +41,10 @@ namespace DeepFeast
                 // The hatchet's blade is its deep belly: the centerline drops at the front while the
                 // narrow tail stays high, and the steep rear exponent keeps the stalk long and thin.
                 "hatchetfish" => Form(0.76f, 0.11f, 0.18f, 0.98f, 2.60f, 0.55f, 0.07f, -0.35f),
+                // A globe of a body behind an enormous head; the lure is added with the body.
+                "humpback_anglerfish" => Form(0.62f, 0.40f, 0.22f, 1.08f, 1.10f, 0.32f, 0.22f, 0.04f),
+                "viperfish" => Form(0.80f, 0.17f, 0.30f, 1.02f, 1.10f, 0.60f, 0.10f, 0.03f),
+                "swordfish" => Form(0.66f, 0.27f, -0.05f, 1.55f, 1.55f, 0.80f, 0.09f, 0.02f),
                 _ => null
             };
         }
@@ -176,6 +180,28 @@ namespace DeepFeast
                     SweptSpine(b, sp, model, -1, -0.50f, -0.80f, 0.10f, 0.30f);
                     return true;
 
+                case "humpback_anglerfish":
+                    // Small soft dorsal and anal fins sit far back on the globular body.
+                    ExpandedSpine(b, sp, model, 1, -0.38f, -0.78f, 0.16f, t => Mathf.Pow(FinSine(t), 0.6f), 0.05f);
+                    ExpandedSpine(b, sp, model, -1, -0.50f, -0.82f, 0.14f, t => Mathf.Pow(FinSine(t), 0.6f), 0.05f);
+                    return true;
+
+                case "viperfish":
+                    // A short dorsal behind the head (its first ray is the long filament), an adipose
+                    // fin and an anal fin close to the tail.
+                    SweptSpine(b, sp, model, 1, 0.62f, 0.42f, 0.10f, 0.25f);
+                    ExpandedSpine(b, sp, model, 1, -0.66f, -0.78f, 0.06f, t => Mathf.Sqrt(FinSine(t)), 0.02f, 10, 4);
+                    SweptSpine(b, sp, model, -1, -0.60f, -0.88f, 0.12f, 0.30f);
+                    return true;
+
+                case "swordfish":
+                    // A tall, rigid crescent dorsal close behind the head; the second dorsal and anal are tiny.
+                    ExpandedSickle(b, sp, model, 1, 0.48f, 0.10f, 0.70f);
+                    SweptSpine(b, sp, model, 1, -0.74f, -0.84f, 0.07f, 0.35f);
+                    ExpandedSickle(b, sp, model, -1, -0.30f, -0.52f, 0.30f);
+                    SweptSpine(b, sp, model, -1, -0.72f, -0.82f, 0.06f, 0.35f);
+                    return true;
+
                 default:
                     return false;
             }
@@ -283,6 +309,9 @@ namespace DeepFeast
                 // Deep-sea eyes are large for the little light there is.
                 "lanternfish" => (new Vector2(0.92f, 0.06f), 0.180f),
                 "hatchetfish" => (new Vector2(0.74f, 0.30f), 0.160f),
+                "humpback_anglerfish" => (new Vector2(0.86f, 0.40f), 0.075f),
+                "viperfish" => (new Vector2(1.02f, 0.06f), 0.085f),
+                "swordfish" => (new Vector2(0.98f, 0.06f), 0.120f),
                 _ => (Vector2.zero, 0f)
             };
             return radius > 0;
@@ -312,6 +341,9 @@ namespace DeepFeast
                 "lingcod" => (new Vector2(0.46f, -0.12f), 0.44f, 26f, 0.15f, 0f, FinForm.Paddle),
                 "lanternfish" => (new Vector2(0.60f, -0.10f), 0.24f, 14f, 0.045f, 0.03f, FinForm.Blade),
                 "hatchetfish" => (new Vector2(0.50f, -0.10f), 0.24f, 30f, 0.05f, 0.02f, FinForm.Blade),
+                "humpback_anglerfish" => (new Vector2(0.12f, -0.18f), 0.24f, 8f, 0.10f, 0f, FinForm.Paddle),
+                "viperfish" => (new Vector2(0.72f, -0.10f), 0.20f, 25f, 0.035f, 0.02f, FinForm.Blade),
+                "swordfish" => (new Vector2(0.45f, -0.16f), 0.55f, 22f, 0.07f, 0.10f, FinForm.Sickle),
                 _ => null
             };
             basePoint = default; root = 0; rim = null;

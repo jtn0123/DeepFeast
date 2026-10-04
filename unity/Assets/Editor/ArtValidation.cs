@@ -49,8 +49,10 @@ namespace DeepFeast.EditorTools
                 UnityEngine.Object.DestroyImmediate(tex);
             }
             var species = Data.AllSpecies;
-            Require(species.Count == Data.SpeciesMap.Count + Data.SharkVariants.Length + 1, "Complete species catalog is missing a fish, shark or hero.");
-            Require(Data.SharkVariants.Length == 3, "Expected white, tiger and shortfin mako shark variants.");
+            Require(species.Count == Data.SpeciesMap.Count + Data.SharkVariants.Length + 2, "Complete species catalog is missing a fish, shark, whale shark or hero.");
+            Require(Data.SharkVariants.Length == 4, "Expected white, tiger, shortfin mako and great hammerhead shark variants.");
+            Require(Data.WhaleShark != null && Array.IndexOf(Data.SharkVariants, Data.WhaleShark) < 0 && !Data.SpeciesMap.ContainsKey(Data.WhaleShark.key),
+                "The whale shark is the finale giant, neither a spawning species nor a rotating shark.");
             var allKeys = new HashSet<string>();
             int preparedMeshes = 0, fallbackCount = 0;
             foreach (var sp in species)
@@ -96,8 +98,8 @@ namespace DeepFeast.EditorTools
                 Require(shark.IsShark && allKeys.Contains(shark.key) && !Data.SpeciesMap.ContainsKey(shark.key), "Shark variants must use the timed encounter pool: " + shark.key);
                 Require(shark == Data.SharkVariants[i % Data.SharkVariants.Length], "Shark identity rotation failed.");
             }
-            Require(Data.SharkVariants[0].key == "shark" && Data.SharkVariants[1].key == "tiger_shark" && Data.SharkVariants[2].key == "mako_shark",
-                "Shark identity rotation must include white, tiger and mako.");
+            Require(Data.SharkVariants[0].key == "shark" && Data.SharkVariants[1].key == "tiger_shark" && Data.SharkVariants[2].key == "mako_shark"
+                && Data.SharkVariants[3].key == "great_hammerhead", "Shark identity rotation must include white, tiger, mako and great hammerhead.");
             Require(Data.MakoShark.aggressive && Data.MakoShark.chaseSpeedMultiplier > Data.Shark.chaseSpeedMultiplier,
                 "The aggressive mako must have a modest faster pursuit.");
             Require(!Data.SpeciesMap["atlantic_halibut"].canSchool && !Data.SpeciesMap["goliath_grouper"].canSchool,

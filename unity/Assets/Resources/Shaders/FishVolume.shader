@@ -27,10 +27,13 @@ Shader "DeepFeast/FishVolume"
         }
         float mouthRadius() { return lerp(.018,_MouthShape.y,_Mouth); }
 
-        void jaw(inout float3 p, inout float3 normal)
+        // Rigid appendages flag their bone: x follows the lower jaw, y stays with the skull.
+        void jaw(inout float3 p, inout float3 normal, float2 rigid)
         {
             bool shark=_Pattern==8;
             float weight=smoothstep(shark?.24:.45,shark?.80:.95,p.x)*(1-smoothstep(-_Height*.45+_Profile.w,-_Height*.15+_Profile.w,p.y));
+            if (_Part<.5 && rigid.x>.5) weight=1;
+            if (_Part<.5 && rigid.y>.5) weight=0;
             float angle=-_Mouth*_MouthShape.w*weight, s=sin(angle), c=cos(angle);
             float2 hinge=float2(shark?.40:.58,-_Height*.18+_Profile.w);
             float2 offset=p.xy-hinge;
@@ -52,7 +55,7 @@ Shader "DeepFeast/FishVolume"
                 float slope=2*_Profile.y*front/_Head.y*pow(max(.02,1-front*front),2*_Profile.y-1);
                 v.normal=normalize(float3(slope,y/(_Head.z*_Head.z),z/(_Head.w*_Head.w)));
             }
-            if (_Part < .5 || _Part > 2.5) jaw(v.vertex.xyz,v.normal);
+            if (_Part < .5 || _Part > 2.5) jaw(v.vertex.xyz,v.normal,v.flex);
             // A travelling wave reaches the tail after the shoulder. The fin root receives exactly
             // the same displacement as the body; its thin edge then trails the root's motion.
             float rear = max(0,(0.50 - v.vertex.x) / 1.54);
@@ -105,7 +108,8 @@ Shader "DeepFeast/FishVolume"
             v2fo outlineVert(appdata v)
             {
                 v2fo o;
-                if (_Part > 1.5 || (_Part > .5 && (_Pattern != 8 || v.flex.y < 3.5))) { o.position = float4(2,2,2,1); return o; }
+                // Fangs and the anglerfish's lure are too fine for the hull; it would ink them solid.
+                if (_Part > 1.5 || (_Part > .5 && (_Pattern != 8 || v.flex.y < 3.5)) || (_Part < .5 && v.color.a < .45)) { o.position = float4(2,2,2,1); return o; }
                 Animate(v);
                 float4 clip = UnityObjectToClipPos(v.vertex);
                 float2 normal = mul((float3x3)UNITY_MATRIX_VP, UnityObjectToWorldNormal(normalize(v.normal))).xy;
@@ -173,6 +177,17 @@ Shader "DeepFeast/FishVolume"
                 {
                     float belly=1-smoothstep(-.27,-.10,y+.035*sin(p.x*8));
                     skin=lerp(lerp(_Base.rgb,_Dark.rgb,smoothstep(.18,.90,y)*.42),_Belly.rgb,belly*.96);
+                    if (_SharkKind==4)
+                    {
+                        // Whale shark: pale spots between thin pale stripes, a checkerboard over the back.
+                        float upper=smoothstep(-.32,-.14,y);
+                        float spot=1-smoothstep(.15,.24,length(frac(float2(p.x*14+sin(y*5)*.3,y*9))-.5));
+                        float columns=smoothstep(.45,.475,abs(frac(p.x*3.5+y*.2)-.5)), rows=smoothstep(.44,.47,abs(frac(y*3+.5)-.5));
+                        float stripes=max(columns,rows)*(1-smoothstep(.30,.45,p.x))*smoothstep(-.95,-.75,p.x);
+                        skin=lerp(skin,_Belly.rgb*.92,max(spot*.85,stripes*.7)*upper);
+                    }
+                    // Great hammerhead: a bronze cast over the grey back.
+                    if (_SharkKind==5) skin=lerp(skin,skin*fixed3(1.10,1.0,.84),smoothstep(-.25,.35,y)*.7);
                     if (_SharkKind==2)
                     {
                         float wave=p.x*20+y*1.8+sin(y*7+p.x*2)*.9;
@@ -338,6 +353,26 @@ Shader "DeepFeast/FishVolume"
                     skin=lerp(skin,_Dark.rgb,smoothstep(.55,.80,relative)*.9);
                     skin+=.05*smoothstep(.5,1,sin(p.x*26+relative*2));
                 }
+                if (_Pattern==27)
+                {
+                    // Humpback anglerfish: velvety black-brown skin with faint pale blotches.
+                    skin=lerp(_Base.rgb,_Dark.rgb,smoothstep(-.6,.6,y)*.6);
+                    float2 uv=p.xy*7+sin(p.yx*float2(13,11))*.4, cell=floor(uv);
+                    float seed=frac(sin(dot(cell,float2(127.1,311.7)))*43758.5453);
+                    skin=lerp(skin,_Belly.rgb,(1-smoothstep(.15,.35,length(frac(uv)-.5)))*step(.45,seed)*.35);
+                }
+                if (_Pattern==28)
+                {
+                    // Viperfish: a near-black back above flanks with a metallic blue-green sheen.
+                    skin=lerp(skin,_Dark.rgb,smoothstep(-.1,.6,y)*.8);
+                    skin+=fixed3(.04,.12,.14)*exp(-pow((y+.1)*3,2))*(.6+.4*sin(p.x*18+y*4));
+                }
+                if (_Pattern==29)
+                {
+                    // Swordfish: a dark purple-brown back and a bronze sheen along the flank.
+                    skin=lerp(skin,_Dark.rgb,smoothstep(0,.6,y)*.75);
+                    skin=lerp(skin,fixed3(.62,.50,.40),exp(-pow((y-.02)*5,2))*.35);
+                }
                 // Small recessed gill crease follows the curved skin on both sides.
                 float gill = exp(-pow((p.x-.48+y*.13)*38,2)) * (1-smoothstep(.30,.65,abs(y)));
                 if (_Pattern == 8)
@@ -361,6 +396,12 @@ Shader "DeepFeast/FishVolume"
                     glow=max(1-smoothstep(.10,.20,length(float2(frac(p.x*9)-.5,(relative+.50)*2.6))),
                              1-smoothstep(.10,.20,length(float2(frac(p.x*9+.5)-.5,(relative+.80)*2.6))));
                     glow*=smoothstep(-.95,-.75,p.x)*(1-smoothstep(.75,.95,p.x));
+                }
+                if (_Pattern==28)
+                {
+                    glow=max(1-smoothstep(.10,.20,length(float2(frac(p.x*12)-.5,(relative+.62)*3))),
+                             1-smoothstep(.10,.20,length(float2(frac(p.x*12+.5)-.5,(relative+.88)*3))));
+                    glow*=smoothstep(-.95,-.70,p.x)*(1-smoothstep(.85,1.0,p.x));
                 }
                 if (_Pattern==25)
                     glow=(1-smoothstep(.10,.22,length(float2(frac(p.x*11)-.5,(relative+.86)*3))))*smoothstep(-.9,-.6,p.x)*(1-smoothstep(.75,.9,p.x));
@@ -403,7 +444,7 @@ Shader "DeepFeast/FishVolume"
                     // The test uses rest coordinates, before the shared jaw bend on skin and lip.
                     float across=i.skin.z/max(.001,_Head.w*_MouthShape.z);
                     float vertical=((i.skin.y-_Profile.w)/_Height-mouthCenter(across))/mouthRadius();
-                    if (_Mouth>.08 && i.skin.x>_Head.x+_Head.y*.20 && across*across+vertical*vertical<.82*.82) discard;
+                    if (_Mouth>.08 && i.color.a>.9 && i.skin.x>_Head.x+_Head.y*.20 && across*across+vertical*vertical<.82*.82) discard;
                     // Keep projected skin inside the illustration's body. Its outer black contour and
                     // baked dorsal/ventral fins belong to the flat silhouette, not the rounded surface.
                     float profile=bodyProfile(i.skin.x);
@@ -440,6 +481,8 @@ Shader "DeepFeast/FishVolume"
                     paintedSkin=lerp(paintedSkin,cleanSkin,max(contour,_FrontView));
                     // Vertex tint colors the puffer's spines; the rest of the body is white.
                     rgb=(_Painterly>.5?painterly(i.skin,cleanSkin):lerp(paintedSkin,cleanSkin,_Style))*i.color.rgb;
+                    // Appendages (fangs, bill, lure) keep their own color.
+                    if (i.color.a<.9) rgb=i.color.rgb;
                 }
                 else if (_Part < 1.5 && _PaintedFins > .5 && _FinRoot.w < .5 && _Style < .5)
                 {
@@ -523,8 +566,13 @@ Shader "DeepFeast/FishVolume"
                 rgb=lerp(rgb,OutlineColor(),ink*.9);
                 if (_Glow>0 && _Part<.5)
                 {
-                    float glow=photophores(i.skin)*_Glow;
-                    rgb=lerp(rgb,_GlowColor.rgb*1.3,glow)+_GlowColor.rgb*glow*.35;
+                    // Lures shine in their color with a white-hot center; photophores dot the skin.
+                    if (i.color.a<.2) rgb=lerp(_GlowColor.rgb*1.1,1,pow(ndv,3)*.55);
+                    else
+                    {
+                        float glow=photophores(i.skin)*_Glow;
+                        rgb=lerp(rgb,_GlowColor.rgb*1.3,glow)+_GlowColor.rgb*glow*.35;
+                    }
                 }
                 float visibility=_Visibility;
                 if (_Part>.5 && _Part<1.5) visibility*=lerp(i.color.a,1,max(ink*.9,_Painterly*.55));
