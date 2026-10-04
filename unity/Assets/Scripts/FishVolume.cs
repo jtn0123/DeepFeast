@@ -107,7 +107,7 @@ namespace DeepFeast
             return Quaternion.Euler(0, Yaw, 0) * Quaternion.Euler(0, 0, -tilt * level * Mathf.Rad2Deg) * Quaternion.Euler(bank + Mathf.Sin(phase) * 1.2f, 0, 0);
         }
 
-        public void Pose(Fish f, Vector4 motion, FishView.EyeMode expression, Quaternion rotation, float threat)
+        public void Pose(Fish f, Vector4 motion, FishView.EyeMode expression, Quaternion rotation)
         {
             // The mesh jaw supplies the open pose; keep skin coordinates stable throughout feeding.
             Sprite sprite = art.body;
@@ -180,7 +180,6 @@ namespace DeepFeast
                 block.SetFloat("_Glow", species.glow);
                 block.SetFloat("_Roll", roll);
                 block.SetColor("_GlowColor", species.glowColor);
-                block.SetFloat("_Threat", threat);
                 parts[i].SetPropertyBlock(block);
             }
             parts[0].sortingOrder = 1; parts[1].sortingOrder = 0;

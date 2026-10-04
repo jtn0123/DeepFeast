@@ -1802,9 +1802,7 @@ namespace DeepFeast
                 f.view.SetSpecies(f.sp);
                 bool quarry = f == finale, threat = pActive && !quarry && f.r >= pr * Data.DANGER, glows = !threat && !quarry && f.sp.glow > 0;
                 float hot = f.state == FState.Chase ? 1 : 0;
-                // Danger reads at a glance: a crimson contour at rest that flares red while the fish hunts.
-                float danger = threat ? 0.78f + hot * (0.17f + 0.05f * Mathf.Sin(time * 7)) : 0;
-                f.view.Pose(f, f.shark ? Layer.Shark + i : Layer.FishBase + i, f.state == FState.Chase ? FishView.EyeMode.Angry : FishView.EyeMode.Normal, dt, danger);
+                f.view.Pose(f, f.shark ? Layer.Shark + i : Layer.FishBase + i, f.state == FState.Chase ? FishView.EyeMode.Angry : FishView.EyeMode.Normal, dt);
                 var halo = f.view.halo;
                 halo.enabled = threat || glows || quarry;
                 if (threat || quarry)

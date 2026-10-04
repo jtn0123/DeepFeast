@@ -962,7 +962,7 @@ namespace DeepFeast
 
         public enum EyeMode { Normal, Angry, Blink, Happy }
 
-        public void Pose(Fish f, int order, EyeMode eyeMode, float animationDt = -1, float threat = 0)
+        public void Pose(Fish f, int order, EyeMode eyeMode, float animationDt = -1)
         {
             if (volume != null)
             {
@@ -975,7 +975,7 @@ namespace DeepFeast
                 float squash = Mathf.Sin(Mathf.Clamp01(f.mouth) * Mathf.PI) * 0.02f;
                 pivot.localScale = new Vector3(f.r * (1 - squash), f.r * (1 + squash), f.r);
                 group.sortingOrder = order;
-                volume.Pose(f, motion, eyeMode, rotation, threat);
+                volume.Pose(f, motion, eyeMode, rotation);
                 return;
             }
             // Facing interpolation is a turn progress signal, not the fish's physical width.

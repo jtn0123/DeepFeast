@@ -12,7 +12,7 @@ Shader "DeepFeast/FishVolume"
         float4 _Frame, _SpriteBounds, _Eye, _Head, _Profile, _FinRoot, _MouthShape;
         fixed4 _Base, _Dark, _Belly, _FogColor, _Accent, _WaterReflection, _GroundReflection;
         float _Phase, _Energy, _TailFlex, _TurnBend, _Flutter, _Mouth, _Height, _Fog, _Visibility, _Style, _Pattern, _Part, _Expression, _FrontView, _Facing, _ReflectionStrength, _SharkKind;
-        float _PaintedFins, _PaintedPectoral, _Painterly, _Glow, _Roll, _Snout, _Threat;
+        float _PaintedFins, _PaintedPectoral, _Painterly, _Glow, _Roll, _Snout;
         // x: where the painted-outline fit ends; y: 1 when fitted. See FishVolume.FitToPainting.
         float4 _Fit;
         float _FitCenter[32], _FitScale[32];
@@ -118,8 +118,6 @@ Shader "DeepFeast/FishVolume"
             }
         }
         fixed3 OutlineColor() { return lerp(fixed3(.025,.04,.055),_Dark.rgb*.30,.35); }
-        // A fish big enough to eat the player is drawn in red: crimson at rest, bright when it hunts.
-        fixed3 ContourColor() { return lerp(OutlineColor(),fixed3(.90,.13,.18),_Threat); }
         // Ink width follows the fish's on-screen size, like a contour drawn at the sprite's scale.
         float InkPixels(float4 clip)
         {
@@ -156,11 +154,11 @@ Shader "DeepFeast/FishVolume"
                 float2 normal = mul((float3x3)UNITY_MATRIX_VP, UnityObjectToWorldNormal(normalize(v.normal))).xy;
                 float length2 = dot(normal,normal);
                 normal = length2 > 1e-8 ? normal*rsqrt(length2) : 0;
-                clip.xy += normal*InkPixels(clip)*ink*(1+_Threat*.7)*2/_ScreenParams.xy*clip.w;
+                clip.xy += normal*InkPixels(clip)*ink*2/_ScreenParams.xy*clip.w;
                 o.position = clip;
                 return o;
             }
-            fixed4 outlineFrag(v2fo i) : SV_Target { return fixed4(lerp(ContourColor(),_FogColor.rgb,_Fog),_Visibility*.95); }
+            fixed4 outlineFrag(v2fo i) : SV_Target { return fixed4(lerp(OutlineColor(),_FogColor.rgb,_Fog),_Visibility*.95); }
             ENDCG
         }
 
@@ -624,8 +622,6 @@ Shader "DeepFeast/FishVolume"
                     // Painted median fins: the illustration's own outline, rays and ink cut the envelope.
                     fixed4 painted=painting(i.skin.xy);
                     rgb=painted.rgb; i.color.a=painted.a;
-                    // The painting's own dark contour joins the body's danger line.
-                    rgb=lerp(rgb,ContourColor(),_Threat*(1-smoothstep(.07,.20,dot(rgb,fixed3(.30,.59,.11)))));
                 }
                 else if (_Part < 1.5)
                 {
@@ -720,7 +716,7 @@ Shader "DeepFeast/FishVolume"
                 rgb*=lerp(_Painterly>.5?.76:.88,1,max(_Painterly>.5?smoothstep(.02,.45,ndv):smoothstep(.02,.30,ndv),1-lined));
                 // Water light catches the upper contour and separates the back from dark scenery.
                 if (_Part<.5) rgb+=_WaterReflection.rgb*pow(1-ndv,3)*saturate(normal.y*.8+.35)*.24*lined;
-                rgb=lerp(rgb,ContourColor(),ink*.9);
+                rgb=lerp(rgb,OutlineColor(),ink*.9);
                 if (_Glow>0 && _Part<.5)
                 {
                     // Lures shine in their color with a white-hot center; photophores dot the skin.
