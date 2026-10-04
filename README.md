@@ -36,10 +36,10 @@ Menus, the results cards and the Fishdex navigate with arrows or the d-pad and c
 | Page | Options |
 | --- | --- |
 | Display | Fullscreen or windowed, resolution, render scale (50–200% of the output), VSync, max frame rate (Unlimited, 30, 60, 90, 120, 144, 165, 240, 360 or Custom), custom frame rate (20–1000), FPS counter |
-| Graphics | Anti-aliasing (off, 2×, 4×, 8× MSAA) |
+| Graphics | Anti-aliasing (off, 2×, 4×, 8× MSAA), glow (off, subtle, medium, strong), colour grading (off, subtle, rich), water ripples |
 | Sound & play | Master, effects and ambience volume; screen shake |
 
-Settings are saved as JSON in PlayerPrefs (`deepfeast.settings`). The scene is drawn into its own target at the render scale and MSAA level, then presented under the HUD, so the text stays sharp at any scale. Very large targets step down to fewer MSAA samples to stay under about 1.5 GB. Input runs on the Input System package with the legacy Input Manager still enabled (Active Input Handling: Both).
+Settings are saved as JSON in PlayerPrefs (`deepfeast.settings`). The scene is drawn into its own half-float target at the render scale and MSAA level, then presented under the HUD through `Shaders/PostFx.shader`: a soft-threshold bloom chain, a colour grade blended between reef, kelp and abyss looks, and ring-shaped refraction ripples from dashes and hits. The text stays sharp and ungraded at any scale. Very large targets step down to fewer MSAA samples to stay under about 1.5 GB. Input runs on the Input System package with the legacy Input Manager still enabled (Active Input Handling: Both).
 
 ### Test-harness flags (player builds)
 
@@ -59,6 +59,7 @@ Settings are saved as JSON in PlayerPrefs (`deepfeast.settings`). The scene is d
 | `-set <key=value,...>` | Pin settings for a test run by field name, e.g. `-set vSync=false,maxFps=0` or `renderScale=200,msaa=8`; test runs never save settings |
 | `-scenery kelp -turn-review -turn <facing>` | Hold facing interpolation near the midpoint for native turn-visibility regression captures |
 | `-scenery <reef\|kelp\|abyss\|surface>` | Fixed camera, fish placement and visual time for native environment comparisons; saves `scenery.png` after 3.1 seconds |
+| `-scenery <name> -ripple` | Send a water ripple from the hero just before the shot |
 | `-scenery kelp -animate-scenery` | Capture rooted plant motion; `-shotevery` sets the frame interval, with a 3.1-second HUD settling period |
 | `-batchmode -shots <dir>` | Render native camera/HUD captures offscreen when no active display is available; omit `-nographics` |
 | `-shark <s>` | First shark arrives after N seconds |
@@ -79,7 +80,7 @@ Settings are saved as JSON in PlayerPrefs (`deepfeast.settings`). The scene is d
 - `SceneFx.cs` — water gradient, parallax ridges, god rays, surface, depth darkness, snow
 - `Hud.cs` — uGUI HUD, banners, power-up timers, menus and the Fishdex screen built in code
 - `HudSettings.cs` / `GameSettings.cs` — the settings card and its option rows; saving and applying display, frame-rate, graphics and sound options
-- `Presenter.cs` — draws the scene into a scaled, multisampled target and presents it under the HUD
+- `Presenter.cs` / `Shaders/PostFx.shader` — draws the scene into a scaled, multisampled target and presents it under the HUD with glow, grading and ripples
 - `PadInput.cs` — gamepad steering, dash, pause and the `-padtest` virtual-pad check
 - `Fishdex.cs` — saved species discoveries and the portraits photographed from the 3D models
 - `Sfx.cs` — synthesised sound effects and ambience

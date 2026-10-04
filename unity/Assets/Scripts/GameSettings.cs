@@ -17,6 +17,9 @@ namespace DeepFeast
         public int customFps = 90;
         public int renderScale = 100;    // percent of the output resolution
         public int msaa = 4;
+        public int glow = 2;             // off, subtle, medium, strong
+        public int grading = 2;          // off, subtle, rich
+        public bool ripples = true;
         public bool showFps;
         public int shake = 100;          // percent
         public int master = 100, effects = 100, ambience = 100;
@@ -84,6 +87,8 @@ namespace DeepFeast
             d.customFps = Mathf.Clamp(d.customFps, MinFps, MaxCustomFps);
             if (Array.IndexOf(RenderScales, d.renderScale) < 0) d.renderScale = 100;
             if (Array.IndexOf(MsaaLevels, d.msaa) < 0) d.msaa = 4;
+            d.glow = Mathf.Clamp(d.glow, 0, 3);
+            d.grading = Mathf.Clamp(d.grading, 0, 2);
             d.shake = Mathf.Clamp(d.shake, 0, 150);
             d.master = Mathf.Clamp(d.master, 0, 100);
             d.effects = Mathf.Clamp(d.effects, 0, 100);

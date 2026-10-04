@@ -80,6 +80,7 @@ namespace DeepFeast
 
         public bool SettingsOpen => settings.activeSelf;
         static SettingsData Opt => GameSettings.Data;
+        static readonly string[] GlowNames = { "Off", "Subtle", "Medium", "Strong" }, GradeNames = { "Off", "Subtle", "Rich" };
         static float Hz => GameSettings.RefreshRate;
 
         void BuildSettings()
@@ -147,6 +148,24 @@ namespace DeepFeast
                     help = () => Opt.msaa > Presenter.ActiveMsaa
                         ? $"Smooths the edges of fish, kelp and reef. At this render scale it runs at {Presenter.ActiveMsaa}× to save memory."
                         : "Smooths the edges of fish, kelp and reef. Higher levels cost more GPU time.",
+                },
+                new Option
+                {
+                    key = "glow", label = "GLOW",
+                    value = () => GlowNames[Opt.glow], step = dir => Opt.glow = Mathf.Clamp(Opt.glow + dir, 0, GlowNames.Length - 1),
+                    help = () => "Sunlight, pearls, jellies and lanterns bleed a soft light into the water around them.",
+                },
+                new Option
+                {
+                    key = "grading", label = "COLOR GRADING",
+                    value = () => GradeNames[Opt.grading], step = dir => Opt.grading = Mathf.Clamp(Opt.grading + dir, 0, GradeNames.Length - 1),
+                    help = () => "A colour mood for each habitat: warm reef shallows, golden kelp and the cold blue deep.",
+                },
+                new Option
+                {
+                    key = "ripples", label = "WATER RIPPLES",
+                    value = () => Opt.ripples ? "On" : "Off", step = _ => Opt.ripples = !Opt.ripples,
+                    help = () => "Dashing and taking a hit send rings through the water that bend the scene behind them.",
                 },
             });
             AddPage(card, "SOUND & PLAY", new[]

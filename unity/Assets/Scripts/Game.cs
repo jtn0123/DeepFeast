@@ -58,7 +58,7 @@ namespace DeepFeast
 
         readonly Fish player = new Fish { sp = null };
         bool pActive, pAlive, pTired, pDashing;
-        float pInvuln, pStamina = 1, pBlink, pBlinkT = 3, pStun, pStungCool, wakeT;
+        float pInvuln, pStamina = 1, pBlink, pBlinkT = 3, pStun, pStungCool, wakeT, rippleT;
         // Seconds left on each pearl power, indexed by PearlKind.
         readonly float[] power = new float[Powers.Count];
         float pShield => power[(int)PearlKind.Shield];
@@ -94,7 +94,7 @@ namespace DeepFeast
         string shotDir, scenery, interfaceReview;
         float worstFrame, shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, finaleDelay = 12, pearlEvery, realTime, statT, botWanderDir = 1, restartT = -1;
         int shotN, uiFlowStage;
-        bool menuShotDone, turnReviewLogged, portraitsTaken;
+        bool menuShotDone, turnReviewLogged, portraitsTaken, rippleShown;
 
         float FocusR => pActive ? player.r : 22;
         float ViewW => refW / zoom;
@@ -466,6 +466,8 @@ namespace DeepFeast
             }
             bool animate = Has("-animate-scenery");
             time = 2 + (animate ? shotN * shotEvery : 0);
+            // -ripple: a ring from the hero just before the shot, as a hit would send.
+            if (Has("-ripple") && !rippleShown && realTime > 2.8f) { rippleShown = true; Ripple(player.x, player.y, 1.6f); }
             foreach (var f in fish) f.wag = time * 5;
             player.wag = time * 5;
             if (Has("-turn-review"))
@@ -745,6 +747,7 @@ namespace DeepFeast
             Burst(player.x, player.y, player.r * 1.4f, Data.Player.c0);
             Sparkle(player.x, player.y, player.r, 16, U.Hex("#ffd447"));
             shake = 16; slowT = 0.7f; combo = 0; comboT = 0;
+            Ripple(player.x, player.y, 1.6f);
             sfx.Hurt();
         }
 
@@ -1178,6 +1181,13 @@ namespace DeepFeast
                 wakeT = 0.055f;
                 parts.Add(new Particle { type = PType.Wake, x = player.x - player.face * player.r * 1.55f, y = player.y,
                     vx = player.vx, vy = player.vy, life = 0.25f, max = 0.25f, size = player.r * 0.55f, col = burst ? Powers.Colors[(int)PearlKind.Burst] : U.Hex("#97ece2") });
+            }
+            // A dash leaves rings in the water behind the tail.
+            rippleT = Mathf.Max(0, rippleT - dt);
+            if (pDashing && rippleT <= 0)
+            {
+                rippleT = 0.16f;
+                Ripple(player.x - player.face * player.r * 0.8f, player.y, 0.7f);
             }
             if (Powered(PearlKind.Magnet) && U.Rand() < dt * 28)
             {
@@ -1639,6 +1649,12 @@ namespace DeepFeast
         // ================================================================== rendering glue
         Vector2 ToScreen(float x, float y) => new Vector2((x - cam.x) * zoom + refW / 2, (y - cam.y) * zoom + refH / 2);
 
+        void Ripple(float x, float y, float force)
+        {
+            var s = ToScreen(x, y);
+            presenter.AddRipple(new Vector2(s.x / refW, 1 - s.y / refH), force);
+        }
+
         FishView GetView()
         {
             var v = viewPool.Count > 0 ? viewPool.Pop() : new FishView(fishRoot, haloRoot);
@@ -1660,6 +1676,8 @@ namespace DeepFeast
         {
             var habitat = Habitat.At(cam.y);
             Shader.SetGlobalColor("_SceneLight", habitat.light);
+            presenter.SetHabitat(habitat);
+            presenter.Step(state == GState.Paused ? 0 : rdt);
             hud.SetHabitat(habitat.name, habitat.accent);
             float shk = state == GState.Paused ? 0 : shake * GameSettings.Data.shake / 100f;
             float shx = (U.Rand() - 0.5f) * shk * 2 / zoom, shy = (U.Rand() - 0.5f) * shk * 2 / zoom;
