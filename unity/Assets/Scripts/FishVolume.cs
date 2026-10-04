@@ -97,11 +97,14 @@ namespace DeepFeast
             initialized = true;
             previousYaw = Yaw;
             float bank = angularVelocity / 240 * (species.shape == "round" ? 7 : species.shape == "shark" ? 10 : 13);
+            // A fish levels out as it turns: pitched while head-on, its long axis would point along the
+            // screen's vertical and a climbing fish would show edge-on as a thin stick.
+            float level = Mathf.Lerp(0.3f, 1, Mathf.Abs(Mathf.Clamp(facing, -1, 1)));
             // Pitch in the fish's local frame before yaw, so descending fish point down on either heading.
-            return Quaternion.Euler(0, Yaw, 0) * Quaternion.Euler(0, 0, -tilt * Mathf.Rad2Deg) * Quaternion.Euler(bank + Mathf.Sin(phase) * 1.2f, 0, 0);
+            return Quaternion.Euler(0, Yaw, 0) * Quaternion.Euler(0, 0, -tilt * level * Mathf.Rad2Deg) * Quaternion.Euler(bank + Mathf.Sin(phase) * 1.2f, 0, 0);
         }
 
-        public void Pose(Fish f, Vector4 motion, FishView.EyeMode expression, Quaternion rotation)
+        public void Pose(Fish f, Vector4 motion, FishView.EyeMode expression, Quaternion rotation, float threat)
         {
             // The mesh jaw supplies the open pose; keep skin coordinates stable throughout feeding.
             Sprite sprite = art.body;
@@ -174,6 +177,7 @@ namespace DeepFeast
                 block.SetFloat("_Glow", species.glow);
                 block.SetFloat("_Roll", roll);
                 block.SetColor("_GlowColor", species.glowColor);
+                block.SetFloat("_Threat", threat);
                 parts[i].SetPropertyBlock(block);
             }
             parts[0].sortingOrder = 1; parts[1].sortingOrder = 0;

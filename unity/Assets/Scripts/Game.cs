@@ -471,7 +471,8 @@ namespace DeepFeast
             float x = scenery == "abyss" ? 11000 : scenery == "kelp" ? 7200 : scenery == "surface" ? 8600 : 5500;
             zoom = 1.05f;
             cam = new Vector2(x, scenery == "surface" ? 340 : world.FloorY(x) - 260);
-            player.r = 22; tier = 1; pInvuln = 0;
+            // -size shrinks the hero so the review fish become threats.
+            player.r = startSize > 0 ? startSize : 22; tier = 1; pInvuln = 0;
             player.x = x; player.y = cam.y; player.wag = 2;
             var species = new[] { Data.SpeciesMap["clown"], Data.SpeciesMap["tang"], Data.SpeciesMap["snapper"], Data.SpeciesMap["angel"] };
             for (int i = 0; i < species.Length; i++)
@@ -1153,6 +1154,24 @@ namespace DeepFeast
             ReadPad();
         }
 
+        // Wandering fish of a similar size slide apart vertically as they pass: two big silhouettes
+        // stacked on each other read as one shapeless blob. Fish that can eat the other keep the food chain.
+        float Spacing(Fish f)
+        {
+            float push = 0;
+            foreach (var o in fish)
+            {
+                if (o == f || o.school != null || o.shark || Mathf.Max(f.r, o.r) >= Mathf.Min(f.r, o.r) * 1.45f) continue;
+                float ox = f.x - o.x, oy = f.y - o.y, gap = (f.r + o.r) * 1.15f;
+                if (Mathf.Abs(ox) >= gap || Mathf.Abs(oy) >= gap) continue;
+                float od = Dist(ox, oy);
+                if (od >= gap) continue;
+                float side = Mathf.Abs(oy) > 1 ? Mathf.Sign(oy) : f.id < o.id ? -1 : 1;
+                push += side * (1 - od / gap) * 1.4f;
+            }
+            return Mathf.Clamp(push, -1.2f, 1.2f);
+        }
+
         // ------------------------------------------------------------------ player
         void AnimateFish(Fish f, float dt, bool animateMouth = true)
         {
@@ -1478,7 +1497,7 @@ namespace DeepFeast
                             if (U.Chance(0.12f)) f.dir *= -1;
                         }
                         tx = f.dir;
-                        ty = Mathf.Clamp((f.homeY - f.y) / (f.r * 20), -0.4f, 0.4f) + Mathf.Sin(time * 0.9f + f.phase) * 0.12f;
+                        ty = Mathf.Clamp((f.homeY - f.y) / (f.r * 20), -0.4f, 0.4f) + Mathf.Sin(time * 0.9f + f.phase) * 0.12f + Spacing(f);
                         spd = bas * f.cruise; agility = 1.5f;
                     }
                 }
@@ -1781,14 +1800,16 @@ namespace DeepFeast
                 var f = sorted[i];
                 if (f.view == null) f.view = GetView();
                 f.view.SetSpecies(f.sp);
-                f.view.Pose(f, f.shark ? Layer.Shark + i : Layer.FishBase + i, f.state == FState.Chase ? FishView.EyeMode.Angry : FishView.EyeMode.Normal, dt);
-                var halo = f.view.halo;
                 bool quarry = f == finale, threat = pActive && !quarry && f.r >= pr * Data.DANGER, glows = !threat && !quarry && f.sp.glow > 0;
+                float hot = f.state == FState.Chase ? 1 : 0;
+                // Danger reads at a glance: a crimson contour at rest that flares red while the fish hunts.
+                float danger = threat ? 0.78f + hot * (0.17f + 0.05f * Mathf.Sin(time * 7)) : 0;
+                f.view.Pose(f, f.shark ? Layer.Shark + i : Layer.FishBase + i, f.state == FState.Chase ? FishView.EyeMode.Angry : FishView.EyeMode.Normal, dt, danger);
+                var halo = f.view.halo;
                 halo.enabled = threat || glows || quarry;
                 if (threat || quarry)
                 {
-                    float hot = f.state == FState.Chase ? 1 : 0;
-                    float a = quarry ? 0.1f + 0.04f * Mathf.Sin(time * 4) : 0.045f + hot * (0.075f + 0.025f * Mathf.Sin(time * 7));
+                    float a = quarry ? 0.1f + 0.04f * Mathf.Sin(time * 4) : 0.09f + hot * (0.10f + 0.03f * Mathf.Sin(time * 7));
                     halo.transform.localPosition = U.V3(f.x, f.y);
                     float d = f.r * 1.9f * 2;
                     halo.transform.localScale = new Vector3(d, d, 1);

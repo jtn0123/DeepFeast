@@ -13,8 +13,14 @@ namespace DeepFeast
     public sealed class SceneFx
     {
         readonly Transform screen;
-        readonly Mesh bgMesh, raysMesh, darkMesh, snowMesh, moteMesh, schoolMesh, surfaceMesh, surfCausticMesh;
-        readonly MeshRenderer darkMr, raysMr, surfaceMr, surfCausticMr;
+        readonly Mesh bgMesh, raysMesh, darkMesh, snowMesh, moteMesh, schoolMesh, surfaceMesh, surfCausticMesh, sargassumMesh;
+        readonly MeshRenderer darkMr, raysMr, surfaceMr, surfCausticMr, sargassumMr;
+
+        /// A raft of sargassum riding the surface: centre, width and a seed for its clumps and fronds.
+        sealed class Raft { public float x, w, seed; }
+        readonly List<Raft> rafts = new List<Raft>();
+        // A frond's own copy of its curve: Draw.QuadPts reuses one list, and every leaf drawn along it would overwrite it.
+        readonly List<Vector2> frondPts = new List<Vector2>();
         readonly SpriteRenderer vignette, sunBloom;
         readonly MeshBuilder mb = new MeshBuilder();
         float lastTime;
@@ -67,6 +73,11 @@ namespace DeepFeast
             surfCausticMesh = sc.mesh; surfCausticMr = sc.mr;
             sc.mr.sharedMaterial = new Material(Gfx.Additive) { mainTexture = Gfx.Caustics };
             sunBloom = Gfx.SpriteObject("SunBloom", worldRoot, Gfx.Glow, Layer.Rays + 1, true);
+            var sg = Gfx.MeshObject("Sargassum", worldRoot, Layer.Front + 1);
+            sargassumMesh = sg.mesh; sargassumMr = sg.mr;
+            var rr = new Mulberry(612);
+            for (float x = 260; x < World.W - 260; x += 420 + rr.Next() * 980)
+                rafts.Add(new Raft { x = x, w = 90 + rr.Next() * 170, seed = rr.Next() * 100 });
 
             far = new[]
             {
@@ -396,6 +407,68 @@ namespace DeepFeast
             }
             mb.Apply(surfCausticMesh);
             surfCausticMr.enabled = mb.v.Count > 0;
+
+            // Sargassum rafts ride the waves, their fronds and air bladders trailing below. They give the
+            // open surface water something to swim under besides light.
+            mb.Clear();
+            if (yTop <= 260)
+            {
+                var water = World.WaterAt(60);
+                Color Tint(string hex) => Color.Lerp(U.Hex(hex), water, 0.12f);
+                Color rim = Tint("#3b2c0b"), dark = Tint("#8c681b"), mid = Tint("#b88a2a"), lite = Tint("#ddb04a"), bladder = Tint("#f2cf63");
+                foreach (var r in rafts)
+                {
+                    if (r.x + r.w < x0 - 160 || r.x - r.w > x1 + 160) continue;
+                    // Short leafy tufts hang under the mat, each ending in a cluster of air bladders.
+                    int tufts = 5 + (int)(U.Hash(r.seed) * 5);
+                    for (int i = 0; i < tufts; i++)
+                    {
+                        float h = U.Hash(r.seed + i * 3.1f), sx = r.x + ((i + 0.5f) / tufts - 0.5f) * r.w * 0.85f;
+                        float body = Mathf.Sin((i + 0.5f) / tufts * Mathf.PI), frond = (16 + h * 46) * (0.45f + 0.55f * body);
+                        float root = WaveY(sx, time) + 8;
+                        float sway = Mathf.Sin(time * 1.1f + r.seed + i * 1.7f) * frond * 0.25f;
+                        var pts = frondPts;
+                        pts.Clear();
+                        pts.AddRange(Draw.QuadPts(sx, root, sx + sway * 0.4f, root + frond * 0.55f, sx + sway, root + frond, 6));
+                        Draw.Stroke(mb, pts, 4.6f, 2.4f, rim, rim, true);
+                        Draw.Stroke(mb, pts, 2.8f, 1.2f, dark, mid, true);
+                        for (int k = 1; k < pts.Count; k++)
+                        {
+                            var p = pts[k];
+                            float side = k % 2 == 0 ? 1 : -1, leaf = 7 + 3 * U.Hash(r.seed + i + k * 0.7f);
+                            Draw.Leaf(mb, p, p + new Vector2(side * leaf * 0.6f, -leaf * 0.3f), p + new Vector2(side * leaf, leaf * 0.35f), leaf * 0.5f,
+                                k % 3 == 0 ? lite : mid, dark, rim, 1.2f, 5);
+                        }
+                        var tip = pts[pts.Count - 1];
+                        for (int b = 0; b < 3; b++)
+                        {
+                            float bx = tip.x + (b - 1) * 3.4f, by = tip.y + 2 + (b == 1 ? 3 : 0);
+                            Draw.Circle(mb, bx, by, 3.3f, rim, 8);
+                            Draw.Circle(mb, bx, by, 2.3f, bladder, 8);
+                        }
+                    }
+                    // The floating mat: two rows of overlapping clumps riding the wave line, thickest in the middle.
+                    int clumps = 6 + (int)(r.w / 14);
+                    for (int pass = 0; pass < 2; pass++)
+                        for (int row = 0; row < 2; row++)
+                            for (int i = 0; i < clumps; i++)
+                            {
+                                float h = U.Hash(r.seed * 1.3f + i * 5.7f + row * 17), t = (i + 0.5f + row * 0.5f) / (clumps + row), cx = r.x + (t - 0.5f) * r.w;
+                                float body = Mathf.Sin(t * Mathf.PI), rx = 7 + (5 + h * 8) * body, ry = (5 + h * 4) * (0.55f + 0.45f * body);
+                                float cy = WaveY(cx, time) + 1 + row * ry * 1.1f * body + (h - 0.5f) * 4, rot = (h - 0.5f) * 0.7f;
+                                if (pass == 0) { Draw.Ellipse(mb, cx, cy, rx + 1.8f, ry + 1.8f, rot, rim, 12); continue; }
+                                Draw.Ellipse(mb, cx, cy, rx, ry, rot, row == 1 ? dark : h > 0.5f ? lite : mid, 12);
+                                Draw.Ellipse(mb, cx - rx * 0.2f, cy - ry * 0.35f, rx * 0.5f, ry * 0.3f, rot, U.WithA(lite, row == 1 ? 0.3f : 0.55f), 10);
+                                if (h > 0.55f)
+                                {
+                                    Draw.Circle(mb, cx + rx * 0.4f, cy + ry * 0.45f, 3.2f, rim, 8);
+                                    Draw.Circle(mb, cx + rx * 0.4f, cy + ry * 0.45f, 2.2f, bladder, 8);
+                                }
+                            }
+                }
+            }
+            mb.Apply(sargassumMesh);
+            sargassumMr.enabled = mb.v.Count > 0;
 
             // darkness of the deep, with soft holes around light sources
             if (Mathf.Max(World.DarkAt(yTop), World.DarkAt(yBot)) < 0.02f) darkMr.enabled = false;

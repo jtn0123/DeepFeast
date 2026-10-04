@@ -118,6 +118,8 @@ namespace DeepFeast
 
         sealed class FloatText { public float x, y, life, max, size; public Text t; public Color col; }
         readonly List<FloatText> texts = new List<FloatText>();
+        // Score pops stay below the top HUD row (ref px from the top), so none hide under the tier panel.
+        float textTop = 88;
         readonly Stack<Text> textPool = new Stack<Text>();
         readonly List<Text> alertPool = new List<Text>();
         readonly List<Image> arrowPool = new List<Image>();
@@ -154,8 +156,8 @@ namespace DeepFeast
             hudGroup.alpha = 0; hudGroup.blocksRaycasts = false;
 
             // score + combo pill (top left)
-            Label(hud, "SCORE", 11, U.Hex("#9bbdcb"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(24, -12));
-            score = Label(hud, "0", 36, Color.white, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(23, -24), display);
+            Label(hud, "SCORE", 13, U.Hex("#9bbdcb"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(24, -11));
+            score = Label(hud, "0", 36, Color.white, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(23, -25), display);
             Gradient(score, Color.white, Color.white, U.Hex("#bff6ff"));
             AddOutline(score, new Color(0, 0.14f, 0.26f, 0.6f), 2f);
             AddShadow(score, new Color(0, 0.08f, 0.18f, 0.45f), new Vector2(0, -4));
@@ -206,7 +208,7 @@ namespace DeepFeast
             AddOutline(dp, EdgeCol, 1.5f);
             habitatName = Label(dp.rectTransform, "CORAL REEF", 16, U.Hex("#80ead9"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(14, -9), display);
             depth = Label(dp.rectTransform, "DEPTH 0 m", 14, new Color(1, 1, 1, 0.8f), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(14, -37));
-            dashLabel = Label(dp.rectTransform, "DASH", 12, new Color(1, 0.86f, 0.5f, 0.85f), TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-14, -39), display);
+            dashLabel = Label(dp.rectTransform, "DASH", 13, new Color(1, 0.86f, 0.5f, 0.85f), TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-14, -39), display);
             var dbar = Panel(dp.rectTransform, TrackCol, 6);
             Place(dbar.rectTransform, Vector2.zero, Vector2.zero, new Vector2(14, 12), new Vector2(DASH_W, 12), Vector2.zero);
             dash = Panel(dbar.rectTransform, Color.white, 6);
@@ -236,6 +238,9 @@ namespace DeepFeast
             Place(bannerRT, new Vector2(0.5f, 0.78f), new Vector2(0.5f, 0.78f), Vector2.zero, new Vector2(900, 120));
             bannerGroup = bannerRT.gameObject.AddComponent<CanvasGroup>();
             bannerGroup.alpha = 0; bannerGroup.blocksRaycasts = false;
+            // A soft dark plate under a thin colored glow keeps the pale lettering legible over sunlit water.
+            var bannerShade = Img(bannerRT, Gfx.Glow, new Color(0, 0.07f, 0.13f, 0.5f));
+            Place(bannerShade.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 0), new Vector2(980, 230));
             bannerGlow = Img(bannerRT, Gfx.Glow, Color.white);
             Place(bannerGlow.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 10), new Vector2(820, 170));
             bannerTitle = Label(bannerRT, "", 68, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0, 18), display);
@@ -248,7 +253,7 @@ namespace DeepFeast
             // ---------------------------------------------------------- menu
             menu = Overlay("Menu", out var mp, new Vector2(940, 600));
             menuCard = mp;
-            Label(mp, "A LITTLE FISH. A VERY BIG OCEAN.", 12, U.Hex("#95d9cd"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(52, -30));
+            Label(mp, "A LITTLE FISH. A VERY BIG OCEAN.", 13, U.Hex("#95d9cd"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(52, -30));
             titleRT = Node("Title", mp);
             Place(titleRT, new Vector2(0, 1), new Vector2(0, 1), titleOrigin, new Vector2(390, 196), new Vector2(0, 1));
             var t1 = Label(titleRT, "DEEP", 92, Color.white, TextAnchor.UpperLeft, new Vector2(0, 1), Vector2.zero, display);
@@ -276,7 +281,7 @@ namespace DeepFeast
             // ---------------------------------------------------------- pause
             pause = Overlay("Pause", out var pp, new Vector2(600, 420));
             pauseCard = pp;
-            Label(pp, "YOUR SWIM IS ON HOLD", 12, U.Hex("#a7dacc"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -28));
+            Label(pp, "YOUR SWIM IS ON HOLD", 13, U.Hex("#a7dacc"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -28));
             Label(pp, "PAUSED", 62, U.Hex("#eff7e8"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -66), display);
             Label(pp, "Take a breath. The sharks will wait.", 18, U.Hex("#b8ced2"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -156));
             Button(pp, "KEEP SWIMMING", new Vector2(0, -221), () => OnResume?.Invoke(), 350);
@@ -287,7 +292,7 @@ namespace DeepFeast
             // ---------------------------------------------------------- game over
             over = Overlay("Over", out var op, new Vector2(740, 560));
             overCard = op;
-            Label(op, "END OF THIS SWIM", 12, U.Hex("#a6d2cb"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -24));
+            Label(op, "END OF THIS SWIM", 13, U.Hex("#a6d2cb"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -24));
             overTitle = Label(op, "GOBBLED!", 56, U.Hex("#f2ecd9"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -53), display);
             AddShadow(overTitle, new Color(0, 0.09f, 0.14f, 0.7f), new Vector2(0, -3));
             newBest = Label(op, "", 15, U.Hex("#f4d397"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -127), display);
@@ -304,7 +309,7 @@ namespace DeepFeast
             // ---------------------------------------------------------- victory
             victory = Overlay("Victory", out var vp, new Vector2(740, 560));
             victoryCard = vp;
-            Label(vp, "THE WHALE SHARK IS YOURS", 12, U.Hex("#f4d397"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -24));
+            Label(vp, "THE WHALE SHARK IS YOURS", 13, U.Hex("#f4d397"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -24));
             var victoryTitle = Label(vp, "LEGEND OF THE DEEP", 50, U.Hex("#ffe6a3"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -56), display);
             AddShadow(victoryTitle, new Color(0, 0.09f, 0.14f, 0.7f), new Vector2(0, -3));
             Label(vp, "From fry to the ocean's largest fish.", 16, U.Hex("#b8ced2"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -127));
@@ -322,7 +327,7 @@ namespace DeepFeast
             dexCard = dexPanel;
             var dexTitle = Label(dexPanel, "FISHDEX", 46, U.Hex("#f2ecd9"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(44, -24), display);
             AddShadow(dexTitle, new Color(0, 0.09f, 0.14f, 0.7f), new Vector2(0, -3));
-            Label(dexPanel, "EVERY SPECIES YOU HAVE EATEN", 12, U.Hex("#a6d2cb"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(46, -80));
+            Label(dexPanel, "EVERY SPECIES YOU HAVE EATEN", 13, U.Hex("#a6d2cb"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(46, -80));
             dexCount = Label(dexPanel, "", 18, U.Hex("#f4d397"), TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-44, -50), display);
             const int columns = 6;
             int rows = (Fishdex.Entries.Count + columns - 1) / columns;
@@ -380,6 +385,7 @@ namespace DeepFeast
             scaler.scaleFactor = pxPerRef;
             hudRT.offsetMin = new Vector2(insets.x, insets.y);
             hudRT.offsetMax = new Vector2(-insets.z, -insets.w);
+            textTop = insets.w + (refW < 960 ? 136 : 88);
             // narrow screens: drop the lives below the tier panel so they don't collide
             livesRT.anchoredPosition = refW < 960 ? new Vector2(-16, -86) : new Vector2(-16, -12);
             menuCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 940);
@@ -522,7 +528,7 @@ namespace DeepFeast
             frame.offsetMin = new Vector2(8, 3); frame.offsetMax = new Vector2(-8, -3);
             var art = frame.gameObject.AddComponent<RawImage>();
             art.raycastTarget = false;
-            var name = Label(bg.rectTransform, "", 11, new Color(0.88f, 0.96f, 0.94f, 0.9f), TextAnchor.LowerLeft, Vector2.zero, new Vector2(9, 5));
+            var name = Label(bg.rectTransform, "", 12, new Color(0.88f, 0.96f, 0.94f, 0.9f), TextAnchor.LowerLeft, Vector2.zero, new Vector2(9, 5));
             AddShadow(name, new Color(0, 0.06f, 0.1f, 0.9f), new Vector2(1, -1));
             var tile = new DexTile { sp = sp, art = art, name = name };
             bg.gameObject.AddComponent<FocusRelay>().onFocus = () => ShowDexEntry(tile);
@@ -579,7 +585,7 @@ namespace DeepFeast
         {
             bannerTitle.text = title;
             bannerSub.text = sub ?? "";
-            bannerGlow.color = U.WithA(glow, 0.32f);
+            bannerGlow.color = U.WithA(glow, 0.18f);
             bannerGrad.b = Color.Lerp(Color.white, glow, 0.2f);
             bannerGrad.c = Color.Lerp(Color.white, glow, 0.65f);
             bannerTitle.SetVerticesDirty();
@@ -715,7 +721,7 @@ namespace DeepFeast
                 float k = a > 0.85f ? 1 + (a - 0.85f) * 3 : 1;
                 f.t.fontSize = Mathf.RoundToInt(f.size * k);
                 f.t.color = U.WithA(f.col, Mathf.Min(1, a * 1.6f));
-                f.t.rectTransform.anchoredPosition = new Vector2(s.x, -(s.y - rise));
+                f.t.rectTransform.anchoredPosition = new Vector2(s.x, -Mathf.Max(s.y - rise, textTop + f.t.fontSize * 0.6f));
             }
 
             // "!" alerts + off-screen arrows
@@ -857,7 +863,7 @@ namespace DeepFeast
             var box = Panel(parent, new Color(0, 20 / 255f, 40 / 255f, 0.4f), 14);
             Place(box.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), pos, new Vector2(300, 78), new Vector2(0.5f, 1));
             var v = Label(box.rectTransform, "0", 30, Color.white, TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -6), display);
-            Label(box.rectTransform, label, 12, new Color(1, 1, 1, 0.65f), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -51));
+            Label(box.rectTransform, label, 14, new Color(1, 1, 1, 0.72f), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -50));
             return v;
         }
 
@@ -874,7 +880,7 @@ namespace DeepFeast
         {
             var card = Panel(parent, new Color(0.03f, 0.1f, 0.15f, 0.6f), 12);
             Place(card.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(x, -495), new Vector2(268, 68), new Vector2(0.5f, 1));
-            Label(card.rectTransform, heading, 11, U.Hex("#94c7bd"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(16, -11));
+            Label(card.rectTransform, heading, 13, U.Hex("#94c7bd"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(16, -11));
             return Label(card.rectTransform, description, 15, U.Hex("#d4e4df"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(16, -32));
         }
 

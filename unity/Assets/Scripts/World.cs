@@ -107,13 +107,16 @@ namespace DeepFeast
 
         void GenFloor()
         {
-            var n1 = new Noise1D(11); var n2 = new Noise1D(23); var n3 = new Noise1D(37);
+            var n1 = new Noise1D(11); var n2 = new Noise1D(23); var n3 = new Noise1D(37); var n4 = new Noise1D(53); var n5 = new Noise1D(71);
             int N = Mathf.CeilToInt(W / FSTEP) + 2;
             floorS = new float[N];
             for (int i = 0; i < N; i++)
             {
                 float x = i * FSTEP;
-                floorS[i] = Mathf.Clamp(ProfileY(x) + 260 * n1.At(x / 900) + 140 * n2.At(x / 300) + 30 * n3.At(x / 90), 700, 4180);
+                // The last two octaves break long slopes into shoulders and lumps; without them a
+                // zoomed-out ramp reads as a ruler-straight wedge of sand.
+                floorS[i] = Mathf.Clamp(ProfileY(x) + 260 * n1.At(x / 900) + 140 * n2.At(x / 300) + 30 * n3.At(x / 90)
+                    + 46 * n4.At(x / 170) + 11 * n5.At(x / 46), 700, 4180);
             }
         }
 
@@ -161,6 +164,25 @@ namespace DeepFeast
                 float s = 28 + R.Next() * 72;
                 PlaceRock(x, s);
                 if (R.Next() < 0.45f) PlaceRock(x + (R.Next() < 0.5f ? -1 : 1) * s * (0.9f + R.Next() * 0.4f), s * (0.35f + R.Next() * 0.25f));
+            }
+            // Steep faces show bedrock through the sand: low outcrops set into the slope, leaning with
+            // it and tinted toward the sediment around them. They have their own random stream so the
+            // rest of the decor keeps its layout.
+            var outcrops = new Mulberry(313);
+            for (float x = 140; x < W - 140; x += 150 + outcrops.Next() * 210)
+            {
+                float fy = FloorY(x), slope = (FloorY(x + 40) - FloorY(x - 40)) / 80;
+                float s = 34 + outcrops.Next() * 58, sink = 0.35f + outcrops.Next() * 0.9f, flip = outcrops.Next(), skip = outcrops.Next();
+                if (Mathf.Abs(slope) < 0.42f || fy > 3700 || skip < 0.25f) continue;
+                var sprite = paintedRock ?? rockSprites[(int)(flip * rockSprites.Count) % rockSprites.Count];
+                var sr = Gfx.SpriteObject("Outcrop", rocksT, sprite, Layer.Rocks + ri++);
+                if (paintedRock != null) sr.sharedMaterial = PaintedArt.SceneryMaterial;
+                float y = fy + s * sink;
+                sr.transform.localPosition = U.V3(x, y);
+                sr.transform.localScale = new Vector3(flip < 0.5f ? -s : s, s * 0.72f, 1);
+                sr.transform.localRotation = Quaternion.Euler(0, 0, -Mathf.Atan(slope) * Mathf.Rad2Deg * 0.45f);
+                var sediment = FloorCol(y) * 0.78f; sediment.a = 1;
+                sr.color = Color.Lerp(Color.Lerp(Color.white, sediment, 0.42f), WaterAt(y), Mathf.Clamp01((y - 1200) / 3500) * 0.38f);
             }
 
             // coral reef on shallow floors
@@ -345,18 +367,25 @@ namespace DeepFeast
             var (_, mesh, mr) = Gfx.MeshObject("Floor", root, Layer.Floor);
             mr.sharedMaterial = new Material(Gfx.Alpha) { mainTexture = Gfx.Sand };
             var m = new MeshBuilder();
-            const int ROWS = 8;
+            // Rows by depth below the surface: dense near the face, where the sediment bands lie.
+            float[] rowDepth = { 0, 12, 28, 42, 54, 68, 92, 122, 152, 180, 210, 260, 340, 460, 640, 900, 1350, 2100, 3300, 5200 };
+            int ROWS = rowDepth.Length - 1;
             const float BOTTOM = 5200f, TEX = 1 / 240f;
             int cols = floorS.Length;
+            static float Bump(float d, float center, float width) { float u = (d - center) / width; return Mathf.Exp(-u * u); }
             for (int i = 0; i < cols; i++)
             {
                 float x = i * FSTEP, fy = floorS[i];
+                // Two wet, darker bands follow the face a little below it, wandering in depth.
+                float wander = (Mathf.PerlinNoise(x / 260f, 0.5f) - 0.5f) * 36;
                 for (int k = 0; k <= ROWS; k++)
                 {
-                    float t = k / (float)ROWS;
-                    float y = Mathf.Lerp(fy, BOTTOM, t * t);
-                    float shade = Mathf.Lerp(1.04f, 0.74f, Mathf.Clamp01((y - fy) / 420f));
-                    var c = FloorCol(y) * shade; c.a = 1;
+                    float y = k == ROWS ? BOTTOM : Mathf.Min(fy + rowDepth[k], BOTTOM), below = y - fy;
+                    float shade = Mathf.Lerp(1.05f, 0.68f, Mathf.SmoothStep(0, 1, Mathf.Clamp01(below / 560f)));
+                    float band = Bump(below, 50 + wander, 15) * 0.08f + Bump(below, 175 + wander * 1.6f, 28) * 0.065f;
+                    // Broad patches of coarser sand keep a large slope from reading as one flat fill.
+                    float patch = (Mathf.PerlinNoise(x / 620f + 3.1f, y / 410f + 7.7f) - 0.5f) * 0.18f;
+                    var c = FloorCol(y) * (shade * (1 - band) * (1 + patch)); c.a = 1;
                     m.Vert(x, -y, c, x * TEX, -y * TEX);
                 }
             }
@@ -376,7 +405,8 @@ namespace DeepFeast
             {
                 float x = i * FSTEP, h = U.Hash(x * 0.37f);
                 if (h < 0.5f) continue;
-                float px = x + h * FSTEP, py = FloorY(px) + 8 + U.Hash(x) * 70, pr = 2 + U.Hash(x * 1.7f) * 6;
+                float depth = U.Hash(x); // most pebbles lie near the face, a few deep in a large slope
+                float px = x + h * FSTEP, py = FloorY(px) + 8 + depth * depth * 240, pr = 2 + U.Hash(x * 1.7f) * 6;
                 var baseC = FloorCol(py);
                 var dark = Color.Lerp(baseC, new Color(0.25f, 0.2f, 0.15f), 0.45f); dark.a = 0.85f;
                 var lite = Color.Lerp(baseC, Color.white, 0.35f); lite.a = 0.7f;
