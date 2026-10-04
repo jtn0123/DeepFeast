@@ -87,6 +87,7 @@ namespace DeepFeast
             var camera = new GameObject("FishdexCamera").AddComponent<Camera>();
             camera.enabled = false;
             camera.orthographic = true;
+            camera.cullingMask = ~(1 << Presenter.UiLayer);
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.nearClipPlane = 0.1f; camera.farClipPlane = 5000;
             Shader.SetGlobalColor("_SceneLight", new Color(0.92f, 0.98f, 0.94f));

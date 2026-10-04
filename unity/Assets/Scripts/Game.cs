@@ -30,6 +30,7 @@ namespace DeepFeast
 
         // ------------------------------------------------------------------ systems
         Camera cam3;
+        Presenter presenter;
         World world;
         SceneFx fx;
         Hud hud;
@@ -109,10 +110,10 @@ namespace DeepFeast
             ParseArgs();
             if (scenery != null) UnityEngine.Random.InitState(20261003);
             Application.runInBackground = true;
-#if !UNITY_WEBGL
-            Application.targetFrameRate = 60;
-#endif
-            QualitySettings.vSyncCount = 1;
+            GameSettings.Load(Persist, Arg("-set"));
+            GameSettings.ApplyAtBoot();
+            // The scene is multisampled in its own target; the screen itself needs no samples.
+            QualitySettings.antiAliasing = 0;
 
             var camGo = new GameObject("Camera");
             cam3 = camGo.AddComponent<Camera>();
@@ -121,6 +122,7 @@ namespace DeepFeast
             cam3.backgroundColor = U.Hex("#03121f");
             cam3.nearClipPlane = 0.1f; cam3.farClipPlane = 5000;
             camGo.AddComponent<AudioListener>();
+            presenter = Presenter.Create(cam3);
 
             worldRoot = new GameObject("WorldRoot").transform;
             world = new World(worldRoot);
@@ -143,14 +145,15 @@ namespace DeepFeast
             {
                 captureTarget = new RenderTexture((int)ArgF("-screen-width", 1280), (int)ArgF("-screen-height", 720), 24);
                 captureTarget.Create();
-                cam3.targetTexture = captureTarget;
-                hud.UseCaptureCamera(cam3);
+                hud.UseCaptureCamera(presenter.CaptureTo(captureTarget));
             }
             hud.OnPlay = StartGame;
             hud.OnResume = () => TogglePause(false);
             hud.OnMute = ToggleMute;
             hud.OnContinue = KeepSwimming;
             hud.SetMuted(sfx.Muted);
+            GameSettings.Changed += ApplySettings;
+            ApplySettings();
 
             best = PlayerPrefs.GetInt("deepfeast.best", 0);
             Fishdex.Load(Persist);
@@ -300,7 +303,7 @@ namespace DeepFeast
         {
             if (captureName == null) return;
             Canvas.ForceUpdateCanvases();
-            cam3.Render();
+            presenter.RenderNow();
             var old = RenderTexture.active;
             var image = new Texture2D(captureTarget.width, captureTarget.height, TextureFormat.RGB24, false);
             try
@@ -316,6 +319,7 @@ namespace DeepFeast
 
         void OnDestroy()
         {
+            GameSettings.Changed -= ApplySettings;
             if (captureTarget == null) return;
             captureTarget.Release();
             Destroy(captureTarget);
@@ -482,6 +486,12 @@ namespace DeepFeast
             if (interfaceReview == "menu" || interfaceReview == "flow") { state = GState.Menu; pActive = false; hud.ShowMenu(4240); }
             else if (interfaceReview == "pause") { state = GState.Paused; hud.ShowPause(true); }
             else if (interfaceReview == "victory") { state = GState.Victory; hud.ShowVictory(48210, 512, 1312, 48210); }
+            else if (interfaceReview == "settings")
+            {
+                state = GState.Menu; pActive = false; hud.ShowMenu(4240); hud.OpenSettings();
+                // -settingspage N shows another page; its first row takes focus.
+                for (int i = 0; i < (int)ArgF("-settingspage", 0); i++) hud.SettingsTab(1);
+            }
             else if (interfaceReview == "dex")
             {
                 // A sample collection: most of the reef and kelp, a little of the deep, no sharks yet.
@@ -498,6 +508,11 @@ namespace DeepFeast
                 if (state != expected || hud.ActiveOverlay != overlay)
                     throw new InvalidOperationException($"UI flow {action} failed: state={state}, overlay={hud.ActiveOverlay}.");
                 Debug.Log($"[DeepFeast] UI flow {action} passed: state={state}, overlay={overlay}.");
+            }
+            void CheckSetting(bool ok, string action)
+            {
+                if (!ok) throw new InvalidOperationException($"UI flow {action} failed: selected={hud.Selected}, settings={JsonUtility.ToJson(GameSettings.Data)}.");
+                Debug.Log($"[DeepFeast] UI flow {action} passed: selected={hud.Selected}.");
             }
             switch (uiFlowStage)
             {
@@ -517,7 +532,24 @@ namespace DeepFeast
                 case 13 when realTime > 10: hud.SubmitButton("FISHDEX"); Check(GState.Over, "fishdex", "fishdex submit"); uiFlowStage++; break;
                 case 14 when realTime > 10.6f: Shot("fishdex"); uiFlowStage++; break;
                 case 15 when realTime > 11: hud.SubmitButton("BACK"); Check(GState.Over, "over", "fishdex back"); uiFlowStage++; break;
-                case 16 when realTime > 11.4f: Debug.Log("[DeepFeast] complete native UI flow passed."); uiFlowStage++; break;
+                case 16 when realTime > 11.4f: hud.SubmitPrimary(); Check(GState.Play, "none", "retry after fishdex"); uiFlowStage++; break;
+                case 17 when realTime > 11.8f: TogglePause(true); Check(GState.Paused, "pause", "pause again"); uiFlowStage++; break;
+                case 18 when realTime > 12.2f: hud.SubmitButton("SETTINGS"); Check(GState.Paused, "settings", "settings submit"); uiFlowStage++; break;
+                case 19 when realTime > 12.8f: Shot("settings"); uiFlowStage++; break;
+                case 20 when realTime > 13.2f:
+                    hud.FocusSetting("master"); hud.MoveFocused(UnityEngine.EventSystems.MoveDirection.Left);
+                    CheckSetting(GameSettings.Data.master == 90, "left lowers the master volume");
+                    uiFlowStage++; break;
+                case 21 when realTime > 13.8f:
+                    Shot("settings_sound"); hud.MoveFocused(UnityEngine.EventSystems.MoveDirection.Right);
+                    CheckSetting(GameSettings.Data.master == 100, "right raises it again");
+                    uiFlowStage++; break;
+                case 22 when realTime > 14.2f:
+                    hud.SubmitButton("BACK"); Check(GState.Paused, "pause", "settings back");
+                    CheckSetting(hud.Selected == "Button_SETTINGS", "focus returns to the settings button");
+                    uiFlowStage++; break;
+                case 23 when realTime > 14.6f: hud.SubmitPrimary(); Check(GState.Play, "none", "resume after settings"); uiFlowStage++; break;
+                case 24 when realTime > 15: Debug.Log("[DeepFeast] complete native UI flow passed."); uiFlowStage++; break;
             }
         }
 
@@ -556,6 +588,12 @@ namespace DeepFeast
         {
             if (state == GState.Play && force != false) { state = GState.Paused; hud.ShowPause(true); }
             else if (state == GState.Paused && force != true) { state = GState.Play; hud.ShowPause(false); }
+        }
+
+        void ApplySettings()
+        {
+            var d = GameSettings.Data;
+            sfx.SetLevels(d.master / 100f, d.effects / 100f, d.ambience / 100f);
         }
 
         void ToggleMute()
@@ -939,6 +977,7 @@ namespace DeepFeast
             if (!portraitsTaken) { portraitsTaken = true; Fishdex.EnsurePortraits(); }
             float rdt = Mathf.Min(0.1f, Time.unscaledDeltaTime);
             float dt = Mathf.Min(0.05f, Time.deltaTime);
+            GameSettings.Tick(rdt);
             Resize();
             if (scenery != null)
             {
@@ -970,6 +1009,7 @@ namespace DeepFeast
             pxPerRef = Mathf.Min(w, h) / 820f;
             refW = w / pxPerRef; refH = h / pxPerRef;
             hud?.Resize(pxPerRef, refW);
+            presenter.Fit((int)w, (int)h);
         }
 
         void Step(float dt)
@@ -1052,7 +1092,12 @@ namespace DeepFeast
             }
             hud.ShowTouch(touchMode && state == GState.Play);
 
-            if (hud.DexOpen)
+            if (hud.SettingsOpen)
+            {
+                if (Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Backspace)) hud.CloseSettings();
+                if (Input.GetKeyDown(KeyCode.Tab)) hud.SettingsTab(Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? -1 : 1);
+            }
+            else if (hud.DexOpen)
             {
                 if (Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Backspace)) hud.CloseDex();
             }
@@ -1616,7 +1661,7 @@ namespace DeepFeast
             var habitat = Habitat.At(cam.y);
             Shader.SetGlobalColor("_SceneLight", habitat.light);
             hud.SetHabitat(habitat.name, habitat.accent);
-            float shk = state == GState.Paused ? 0 : shake;
+            float shk = state == GState.Paused ? 0 : shake * GameSettings.Data.shake / 100f;
             float shx = (U.Rand() - 0.5f) * shk * 2 / zoom, shy = (U.Rand() - 0.5f) * shk * 2 / zoom;
             cam3.orthographicSize = refH / 2 / zoom;
             var camPos = new Vector3(cam.x + shx, -(cam.y + shy), -2000);

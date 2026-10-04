@@ -56,14 +56,15 @@ namespace DeepFeast
     public sealed class FocusRelay : MonoBehaviour, ISelectHandler, IPointerEnterHandler
     {
         public Action onFocus;
+        public bool hover = true;
         public void OnSelect(BaseEventData e) => onFocus?.Invoke();
-        public void OnPointerEnter(PointerEventData e) => onFocus?.Invoke();
+        public void OnPointerEnter(PointerEventData e) { if (hover) onFocus?.Invoke(); }
     }
 
     public struct Alert { public Vector2 screen; public bool onScreen, quarry; public float bounce, angle, pulse; }
 
     /// <summary>All UI: HUD, banners, menus and screen-space world labels — built from code.</summary>
-    public sealed class Hud
+    public sealed partial class Hud
     {
         public Action OnPlay, OnResume, OnMute, OnContinue;
         public bool DashHeld => dashHold != null && dashHold.held;
@@ -127,6 +128,7 @@ namespace DeepFeast
             var lilita = Resources.Load<Font>("Fonts/LilitaOne-Regular");
             display = lilita != null ? lilita : font;
             var cgo = new GameObject("UI");
+            cgo.layer = Presenter.UiLayer;
             canvas = cgo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 10;
@@ -264,22 +266,23 @@ namespace DeepFeast
             MenuFish(mp, Data.Player, new Vector2(-230, -257), new Vector2(342, 208), 0);
             MenuFish(mp, Data.SpeciesMap["clown"], new Vector2(-355, -150), new Vector2(102, 72), -9);
             MenuFish(mp, Data.SpeciesMap["tang"], new Vector2(-103, -363), new Vector2(96, 72), 7);
-            Button(mp, "FISHDEX", new Vector2(232, -400), OpenDex, 250, true);
-            menuDex = Label(mp, "", 13, U.Hex("#9dd6c6"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(232, -473), display);
+            Button(mp, "FISHDEX", new Vector2(126, -400), OpenDex, 200, true);
+            Button(mp, "SETTINGS", new Vector2(338, -400), OpenSettings, 200, true);
+            menuDex = Label(mp, "", 13, U.Hex("#9dd6c6"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(126, -473), display);
             guideSteer = Guide(mp, "STEER", "", -290);
             guideDash = Guide(mp, "DASH", "", 0);
             guideBreak = Guide(mp, "TAKE A BREAK", "", 290);
 
             // ---------------------------------------------------------- pause
-            pause = Overlay("Pause", out var pp, new Vector2(600, 340));
+            pause = Overlay("Pause", out var pp, new Vector2(600, 420));
             pauseCard = pp;
             Label(pp, "YOUR SWIM IS ON HOLD", 12, U.Hex("#a7dacc"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -28));
             Label(pp, "PAUSED", 62, U.Hex("#eff7e8"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -66), display);
             Label(pp, "Take a breath. The sharks will wait.", 18, U.Hex("#b8ced2"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -156));
             Button(pp, "KEEP SWIMMING", new Vector2(0, -221), () => OnResume?.Invoke(), 350);
-            pauseHint = Label(pp, "", 13, U.Hex("#8baebc"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -305));
+            Button(pp, "SETTINGS", new Vector2(0, -299), OpenSettings, 350, true);
+            pauseHint = Label(pp, "", 13, U.Hex("#8baebc"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -385));
             pause.SetActive(false);
-            ApplyControls();
 
             // ---------------------------------------------------------- game over
             over = Overlay("Over", out var op, new Vector2(740, 560));
@@ -336,6 +339,11 @@ namespace DeepFeast
             Button(dexPanel, "BACK", new Vector2(440, -672), CloseDex, 240, true);
             dex.SetActive(false);
 
+            // ---------------------------------------------------------- settings
+            BuildFpsCounter();
+            BuildSettings();
+            ApplyControls();
+
             focusRing = Panel(rootRT, U.Hex("#ffd447"), 35).rectTransform;
             focusRing.gameObject.name = "FocusRing";
             focusRing.gameObject.SetActive(false);
@@ -375,6 +383,7 @@ namespace DeepFeast
             overCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 740);
             victoryCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 740);
             dexCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 1200);
+            settingsCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 1040);
         }
         public void UseCaptureCamera(Camera camera)
         {
@@ -398,14 +407,14 @@ namespace DeepFeast
         {
             bestMenu.text = "PERSONAL BEST  " + best.ToString("N0");
             menuDex.text = $"{Fishdex.FoundCount} / {Fishdex.Entries.Count} SPECIES FOUND";
-            menu.SetActive(true); over.SetActive(false); pause.SetActive(false); victory.SetActive(false); dex.SetActive(false);
+            menu.SetActive(true); over.SetActive(false); pause.SetActive(false); victory.SetActive(false); dex.SetActive(false); settings.SetActive(false);
             hudTarget = 0;
             FocusPrimary();
         }
 
         public void StartPlay()
         {
-            menu.SetActive(false); over.SetActive(false); pause.SetActive(false); victory.SetActive(false); dex.SetActive(false);
+            menu.SetActive(false); over.SetActive(false); pause.SetActive(false); victory.SetActive(false); dex.SetActive(false); settings.SetActive(false);
             hudTarget = 1;
             // Nothing stays selected in play, so the dash button can't also press a hidden card.
             focusDelay = 0;
@@ -612,6 +621,7 @@ namespace DeepFeast
             guideDash.text = pad ? (ps ? "Hold Cross or R2" : "Hold A or RT") : "Hold click / Space";
             guideBreak.text = pad ? (ps ? "Options pauses  ·  Share mutes" : "Start pauses  ·  View mutes") : "P pauses  ·  M mutes";
             pauseHint.text = pad ? (ps ? "OPTIONS / CIRCLE to resume" : "START / B to resume") : "P / ESC to resume";
+            settingsTabsHint.text = pad ? (ps ? "L1 / R1  CHANGE PAGE" : "LB / RB  CHANGE PAGE") : "TAB  CHANGE PAGE";
         }
 
         public string Selected => EventSystem.current?.currentSelectedGameObject?.name;
@@ -653,6 +663,7 @@ namespace DeepFeast
         {
             if (focusDelay > 0 && (focusDelay -= rdt) <= 0) FocusPrimary();
             UpdateFocusRing();
+            TickSettings(rdt);
             hudAlpha = Mathf.MoveTowards(hudAlpha, hudTarget, rdt * 2);
             hudGroup.alpha = hudAlpha;
             shownGrowth = Mathf.Lerp(shownGrowth, targetGrowth, 1 - Mathf.Exp(-rdt * 10));
@@ -677,7 +688,7 @@ namespace DeepFeast
             }
 
             // banner animation (2.6 s); it waits behind the pause card and never covers an overlay
-            if (!pause.activeSelf) bannerT += rdt;
+            if (!pause.activeSelf && !settings.activeSelf) bannerT += rdt;
             float T = bannerT / 2.6f, alpha, sc, dy;
             if (T >= 1) { alpha = 0; sc = 1; dy = 0; }
             else if (T < 0.1f) { float k = U.Smooth(T / 0.1f); alpha = k; sc = Mathf.Lerp(0.7f, 1.06f, k); dy = Mathf.Lerp(-18, 0, k); }
@@ -884,13 +895,14 @@ namespace DeepFeast
             ExecuteEvents.Execute(button.gameObject, new BaseEventData(EventSystem.current), ExecuteEvents.submitHandler);
         }
 
-        public string ActiveOverlay => dex.activeSelf ? "fishdex" : menu.activeSelf ? "menu" : pause.activeSelf ? "pause" : over.activeSelf ? "over" : victory.activeSelf ? "victory" : "none";
+        public string ActiveOverlay => settings.activeSelf ? "settings" : dex.activeSelf ? "fishdex" : menu.activeSelf ? "menu" : pause.activeSelf ? "pause" : over.activeSelf ? "over" : victory.activeSelf ? "victory" : "none";
 
-        GameObject ActiveScreen => dex.activeSelf ? dex : menu.activeSelf ? menu : pause.activeSelf ? pause : over.activeSelf ? over : victory.activeSelf ? victory : null;
+        GameObject ActiveScreen => settings.activeSelf ? settings : dex.activeSelf ? dex : menu.activeSelf ? menu : pause.activeSelf ? pause : over.activeSelf ? over : victory.activeSelf ? victory : null;
 
         void FocusPrimary()
         {
             focusDelay = 0;
+            if (SettingsOpen) { FocusFirstRow(); return; }
             var button = ActiveScreen?.GetComponentInChildren<UnityEngine.UI.Button>();
             if (button != null) EventSystem.current.SetSelectedGameObject(button.gameObject);
         }

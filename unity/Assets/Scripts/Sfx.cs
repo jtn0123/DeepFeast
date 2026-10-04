@@ -13,6 +13,9 @@ namespace DeepFeast
         readonly AudioSource ambient;
         AudioClip chomp, ding, tierUp, hurt, alert, shark, zap, pearl, dash, bump;
         public bool Muted { get; private set; }
+        // The player's volume settings, 0 to 1.
+        float master = 1, effects = 1;
+        const float Listener = 0.5f, AmbientLevel = 0.22f;
 
         public Sfx(GameObject host, bool forceMute)
         {
@@ -24,9 +27,9 @@ namespace DeepFeast
             ambient = host.AddComponent<AudioSource>();
             ambient.loop = true;
             ambient.playOnAwake = false;
-            ambient.volume = 0.22f;
+            ambient.volume = AmbientLevel;
             Muted = forceMute || PlayerPrefs.GetInt("deepfeast.muted", 0) == 1;
-            AudioListener.volume = Muted ? 0 : 0.5f;
+            AudioListener.volume = Muted ? 0 : Listener;
             Build();
             ambient.clip = Ambient();
             ambient.Play();
@@ -37,7 +40,14 @@ namespace DeepFeast
             Muted = m;
             PlayerPrefs.SetInt("deepfeast.muted", m ? 1 : 0);
             PlayerPrefs.Save();
-            AudioListener.volume = m ? 0 : 0.5f;
+            AudioListener.volume = m ? 0 : Listener * master;
+        }
+
+        public void SetLevels(float masterLevel, float effectsLevel, float ambienceLevel)
+        {
+            master = masterLevel; effects = effectsLevel;
+            ambient.volume = AmbientLevel * ambienceLevel;
+            AudioListener.volume = Muted ? 0 : Listener * master;
         }
 
         void Play(AudioClip c, float pitch = 1, float vol = 1)
@@ -45,7 +55,7 @@ namespace DeepFeast
             var v = voices[next];
             next = (next + 1) % voices.Length;
             v.pitch = pitch;
-            v.volume = vol;
+            v.volume = vol * effects;
             v.clip = c;
             v.Play();
         }

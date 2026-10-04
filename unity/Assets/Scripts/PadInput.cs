@@ -8,8 +8,8 @@ namespace DeepFeast
 {
     // Gamepad play. The left stick or d-pad steers, with speed following how far the stick is
     // pushed; the south button, right trigger or right bumper dashes; Start pauses; East backs out
-    // of the pause card and the Fishdex; Select mutes. Menus take the same pad through the UI
-    // module's navigate, submit and cancel actions.
+    // of the pause card, the Fishdex and the settings; the bumpers turn the settings pages; Select
+    // mutes. Menus take the same pad through the UI module's navigate, submit and cancel actions.
     public sealed partial class Game
     {
         const float PadDeadZone = 0.2f;
@@ -34,14 +34,18 @@ namespace DeepFeast
 
             if (pad.startButton.wasPressedThisFrame)
             {
-                if (state == GState.Play || state == GState.Paused) TogglePause();
+                if (hud.SettingsOpen) hud.CloseSettings();
+                else if (state == GState.Play || state == GState.Paused) TogglePause();
                 else if (!hud.DexOpen) hud.SubmitFocused();
             }
             if (pad.buttonEast.wasPressedThisFrame)
             {
-                if (hud.DexOpen) hud.CloseDex();
+                if (hud.SettingsOpen) hud.CloseSettings();
+                else if (hud.DexOpen) hud.CloseDex();
                 else if (state == GState.Paused) TogglePause(false);
             }
+            if (hud.SettingsOpen && pad.leftShoulder.wasPressedThisFrame) hud.SettingsTab(-1);
+            if (hud.SettingsOpen && pad.rightShoulder.wasPressedThisFrame) hud.SettingsTab(1);
             if (pad.selectButton.wasPressedThisFrame) ToggleMute();
         }
 
@@ -55,7 +59,8 @@ namespace DeepFeast
         }
 
         // -padtest: a virtual gamepad plays through the menu, steering, dashing, pausing, the
-        // results card and the Fishdex, checking each step through the same input path as a real pad.
+        // results card, the Fishdex and the settings, checking each step through the same input
+        // path as a real pad.
         Gamepad testPad;
         int padStage;
         float padStartX;
@@ -111,7 +116,23 @@ namespace DeepFeast
                 case 24: Check(!hud.DexOpen && hud.ActiveOverlay == "over", "east closes the Fishdex"); break;
                 case 27: Press(GamepadButton.South); break;
                 case 28: Release(); break;
-                case 29: Check(state == GState.Play, "south swims again"); Debug.Log("[DeepFeast] complete gamepad flow passed."); break;
+                case 29: Check(state == GState.Play, "south swims again"); Press(GamepadButton.Start); break;
+                case 30: Release(); break;
+                case 31: Check(state == GState.Paused && hud.Selected == "Button_KEEP SWIMMING", "start pauses again"); Press(GamepadButton.DpadDown); break;
+                case 32: Release(); break;
+                case 33: Check(hud.Selected == "Button_SETTINGS", "d-pad reaches settings"); Press(GamepadButton.South); break;
+                case 34: Release(); break;
+                case 35: Check(hud.SettingsOpen && hud.Selected == "Row_displayMode", "south opens settings"); Press(GamepadButton.RightShoulder); break;
+                case 36: Release(); break;
+                case 37: Check(hud.Selected == "Row_msaa", "right bumper turns the page"); Press(GamepadButton.DpadRight); break;
+                case 38: Release(); break;
+                case 39: Check(GameSettings.Data.msaa == 8, "d-pad right steps anti-aliasing up"); Press(GamepadButton.DpadLeft); break;
+                case 40: Release(); break;
+                case 41: Check(GameSettings.Data.msaa == 4, "d-pad left steps it back"); Shot("pad_settings"); Press(GamepadButton.East); break;
+                case 42: Release(); break;
+                case 43: Check(hud.ActiveOverlay == "pause" && hud.Selected == "Button_SETTINGS", "east closes settings"); Press(GamepadButton.Start); break;
+                case 44: Release(); break;
+                case 45: Check(state == GState.Play, "start resumes"); Debug.Log("[DeepFeast] complete gamepad flow passed."); break;
             }
             padStage++;
         }
