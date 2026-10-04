@@ -12,14 +12,32 @@ Shader "DeepFeast/FishVolume"
         float4 _Frame, _SpriteBounds, _Eye, _Head, _Profile, _FinRoot, _MouthShape;
         fixed4 _Base, _Dark, _Belly, _FogColor, _Accent, _WaterReflection, _GroundReflection;
         float _Phase, _Energy, _TailFlex, _TurnBend, _Flutter, _Mouth, _Height, _Fog, _Visibility, _Style, _Pattern, _Part, _Expression, _FrontView, _Facing, _ReflectionStrength, _SharkKind;
-        float _PaintedFins, _PaintedPectoral, _Painterly, _Glow, _Roll;
+        float _PaintedFins, _PaintedPectoral, _Painterly, _Glow, _Roll, _Snout;
+        // x: where the painted-outline fit ends; y: 1 when fitted. See FishVolume.FitToPainting.
+        float4 _Fit;
+        float _FitCenter[32], _FitScale[32];
         float4 _PectoralMask;
         fixed4 _GlowColor;
 
+        // Painted bodies: the centre-line shift and half-height scale that follow the painting's outline.
+        float2 bodyFit(float x)
+        {
+            float t=saturate((x+1.04)/(_Fit.x+1.04))*31;
+            int i=min((int)t,30);
+            float2 fit=lerp(float2(_FitCenter[i],_FitScale[i]),float2(_FitCenter[i+1],_FitScale[i+1]),t-i);
+            return _Fit.y>.5 && x<_Fit.x ? fit : float2(0,1);
+        }
         float bodyProfile(float x)
         {
-            if(x>=_Head.x) return pow(max(.000016,1-pow((x-_Head.x)/_Head.y,2)),_Profile.y);
-            return lerp(_Profile.z,1,pow(max(0,sin(saturate((x+1.04)/(_Head.x+1.04))*UNITY_PI*.5)),_Profile.x));
+            float profile=x>=_Head.x ? pow(max(.000016,1-pow((x-_Head.x)/_Head.y,2)),_Profile.y)
+                : lerp(_Profile.z,1,pow(max(0,sin(saturate((x+1.04)/(_Head.x+1.04))*UNITY_PI*.5)),_Profile.x));
+            return profile*bodyFit(x).y;
+        }
+        // The body's centre line: a slight rise to the shoulder, then a shark's raised snout.
+        float centerY(float x)
+        {
+            float snout=saturate((x-_Head.x)/_Head.y);
+            return _Profile.w*saturate((x+1.04)/(_Head.x+1.04))+_Snout*_Height*snout*snout+bodyFit(x).x;
         }
         float mouthCenter(float across)
         {
@@ -31,11 +49,13 @@ Shader "DeepFeast/FishVolume"
         void jaw(inout float3 p, inout float3 normal, float2 rigid)
         {
             bool shark=_Pattern==8;
-            float weight=smoothstep(shark?.24:.45,shark?.80:.95,p.x)*(1-smoothstep(-_Height*.45+_Profile.w,-_Height*.15+_Profile.w,p.y));
+            float center=centerY(p.x);
+            float weight=smoothstep(shark?.24:.45,shark?.80:.95,p.x)*(1-smoothstep(-_Height*.45+center,-_Height*.15+center,p.y));
             if (_Part<.5 && rigid.x>.5) weight=1;
             if (_Part<.5 && rigid.y>.5) weight=0;
             float angle=-_Mouth*_MouthShape.w*weight, s=sin(angle), c=cos(angle);
-            float2 hinge=float2(shark?.40:.58,-_Height*.18+_Profile.w);
+            float2 hinge=float2(shark?.40:.58,0);
+            hinge.y=-_Height*.18+centerY(hinge.x);
             float2 offset=p.xy-hinge;
             p.xy=float2(c*offset.x-s*offset.y,s*offset.x+c*offset.y)+hinge;
             normal.xy=float2(c*normal.x-s*normal.y,s*normal.x+c*normal.y);
@@ -58,7 +78,8 @@ Shader "DeepFeast/FishVolume"
                 float radial=pow(y/_Head.z,2)+pow(z/_Head.w,2);
                 float front=sqrt(max(.02,1-pow(radial,1/(2*_Profile.y))));
                 float inset=_Mouth*.15*(1-smoothstep(.78,1,length(v.surface)));
-                v.vertex.xyz=float3(_Head.x+_Head.y*front+.008-inset,y+_Profile.w,z);
+                float x=_Head.x+_Head.y*front+.008-inset;
+                v.vertex.xyz=float3(x,y+centerY(x),z);
                 float slope=2*_Profile.y*front/_Head.y*pow(max(.02,1-front*front),2*_Profile.y-1);
                 v.normal=normalize(float3(slope,y/(_Head.z*_Head.z),z/(_Head.w*_Head.w)));
             }
@@ -124,12 +145,14 @@ Shader "DeepFeast/FishVolume"
                 v2fo o;
                 // Fangs and the anglerfish's lure are too fine for the hull; it would ink them solid.
                 if (_Part > 1.5 || (_Part > .5 && (_Pattern != 8 || v.flex.y < 3.5)) || (_Part < .5 && v.color.a < .45)) { o.position = float4(2,2,2,1); return o; }
+                // A painted tail carries its own contour; the body's flat rear end runs into it unlined.
+                float ink = _Part < .5 && _PaintedFins > .5 ? smoothstep(-1.035,-.98,v.vertex.x) : 1;
                 Animate(v);
                 float4 clip = UnityObjectToClipPos(v.vertex);
                 float2 normal = mul((float3x3)UNITY_MATRIX_VP, UnityObjectToWorldNormal(normalize(v.normal))).xy;
                 float length2 = dot(normal,normal);
                 normal = length2 > 1e-8 ? normal*rsqrt(length2) : 0;
-                clip.xy += normal*InkPixels(clip)*2/_ScreenParams.xy*clip.w;
+                clip.xy += normal*InkPixels(clip)*ink*2/_ScreenParams.xy*clip.w;
                 o.position = clip;
                 return o;
             }
@@ -165,18 +188,19 @@ Shader "DeepFeast/FishVolume"
                 painted.a*=all(uv==saturate(uv));
                 return painted;
             }
-            // Paints over a baked feature with the surrounding illustration: four samples just
-            // outside the ellipse, weighted by distance and ignoring transparent or inked pixels.
+            // Paints over a baked feature with the surrounding illustration: a ring of samples just
+            // outside the ellipse, blended by inverse squared distance and ignoring transparent or
+            // inked pixels, so the fill shades smoothly instead of streaking along rows and columns.
             fixed3 inpaint(float2 skin, float4 ellipse, fixed3 fallback)
             {
-                float2 q=(skin-ellipse.xy)/ellipse.zw, r=ellipse.zw*1.15;
-                float4 sx=float4(ellipse.x-r.x,ellipse.x+r.x,skin.x,skin.x), sy=float4(skin.y,skin.y,ellipse.y+r.y,ellipse.y-r.y);
-                float4 distance=float4(q.x+1.15,1.15-q.x,1.15-q.y,q.y+1.15);
+                float2 q=(skin-ellipse.xy)/ellipse.zw;
                 fixed3 sum=fallback*.02; float total=.02;
-                [unroll] for (int j=0;j<4;j++)
+                [unroll] for (int j=0;j<12;j++)
                 {
-                    fixed4 c=painting(float2(sx[j],sy[j]));
-                    float w=c.a*smoothstep(.10,.24,dot(c.rgb,fixed3(.2126,.7152,.0722)))/max(.05,distance[j]);
+                    float angle=j*UNITY_PI/6;
+                    float2 ring=float2(cos(angle),sin(angle))*1.2, offset=q-ring;
+                    fixed4 c=painting(ellipse.xy+ring*ellipse.zw);
+                    float w=c.a*smoothstep(.10,.24,dot(c.rgb,fixed3(.2126,.7152,.0722)))/max(.01,dot(offset,offset));
                     sum+=c.rgb*w; total+=w;
                 }
                 return sum/total;
@@ -189,6 +213,8 @@ Shader "DeepFeast/FishVolume"
                 skin += _Base.rgb * exp(-pow((y-.18)*3,2)) * .07;
                 if (_Pattern == 8)
                 {
+                    // Shark markings follow the centre line, so the white runs up under the raised snout.
+                    y=(p.y-centerY(p.x))/max(_Height,.1);
                     float belly=1-smoothstep(-.27,-.10,y+.035*sin(p.x*8));
                     skin=lerp(lerp(_Base.rgb,_Dark.rgb,smoothstep(.18,.90,y)*.42),_Belly.rgb,belly*.96);
                     if (_SharkKind==4)
@@ -265,7 +291,7 @@ Shader "DeepFeast/FishVolume"
                     skin=lerp(skin,fixed3(.69,.61,.29),amber*.27);
                     skin=lerp(skin,_Dark.rgb,exp(-pow((p.x-.78+y*.45)*12,2))*.35);
                 }
-                if (_Pattern==12 || _Pattern==13)
+                if (_Pattern==12)
                 {
                     float2 uv=p.xy*float2(10,15);
                     float2 cell=floor(uv); float seed=frac(sin(dot(cell,float2(127.1,311.7)))*43758.5453);
@@ -275,13 +301,26 @@ Shader "DeepFeast/FishVolume"
                     float size=lerp(.08,.19,seed);
                     float spot=(1-smoothstep(size*.50,size,distance))*step(.27,seed2);
                     float mottling=.5+.5*sin(p.x*18+sin(y*13))*sin(y*21+p.x*4);
-                    skin=lerp(skin,_Dark.rgb,spot*.58+mottling*(_Pattern==13?.28:.18));
-                    if (_Pattern==12) skin=lerp(skin,_Dark.rgb,smoothstep(.79,.96,sin(p.x*15+y*.8))*.15);
-                    if (_Pattern==13)
-                    {
-                        float lateral=.08+.20*exp(-pow((p.x-.35)*2.8,2));
-                        skin=lerp(skin,_Dark.rgb,exp(-pow((y-lateral)*75,2))*.26);
-                    }
+                    skin=lerp(skin,_Dark.rgb,spot*.58+mottling*.18);
+                    skin=lerp(skin,_Dark.rgb,smoothstep(.79,.96,sin(p.x*15+y*.8))*.15);
+                }
+                if (_Pattern==13)
+                {
+                    // Halibut: the eyed side is one olive brown from edge to edge, with no pale belly,
+                    // clouded by soft darker and paler blotches.
+                    skin=lerp(_Base.rgb,_Dark.rgb,.10+.14*smoothstep(-.8,.8,y));
+                    float2 uv=p.xy*float2(5.5,7)+sin(p.yx*float2(11,9)+float2(.8,2.1))*.35, cell=floor(uv);
+                    float seed=frac(sin(dot(cell,float2(127.1,311.7)))*43758.5453), seed2=frac(sin(dot(cell,float2(269.5,183.3)))*43758.5453);
+                    float blotch=1-smoothstep(.05,.42,length(frac(uv)-float2(.3+seed*.4,.3+seed2*.4)));
+                    skin=lerp(skin,seed>.55?_Dark.rgb:_Base.rgb*1.16+.03,blotch*.26);
+                    // The lateral line arches high over the pectoral fin.
+                    float lateral=.02+.24*exp(-pow((p.x-.46)*3.0,2));
+                    skin=lerp(skin,_Dark.rgb*.8,exp(-pow((y-lateral)*70,2))*.38*(1-smoothstep(.60,.68,p.x)));
+                    // The big mouth's cleft runs from the snout tip back to below the lower eye.
+                    float t=(_Head.x+_Head.y-.02-p.x)/.36;
+                    float cleft=-.06-.13*t+.05*t*t;
+                    skin=lerp(skin,_Dark.rgb*.45,exp(-pow((y-cleft)*34,2))*smoothstep(-.05,.05,t)*(1-smoothstep(.90,1.04,t))*.85);
+                    skin=lerp(skin,_Base.rgb*1.15+.04,exp(-pow((y-cleft+.07)*24,2))*smoothstep(0,.1,t)*(1-smoothstep(.80,1.0,t))*.30);
                 }
                 if (_Pattern==14)
                 {
@@ -299,16 +338,22 @@ Shader "DeepFeast/FishVolume"
                     float spot=(1-smoothstep(.035,.09+seed*.035,length(frac(uv)-float2(.20+seed*.60,.20+seed2*.60))))*step(.48,seed);
                     skin=lerp(skin,fixed3(.03,.28,.59),spot*.84);
                 }
-                if (_Pattern==16 || _Pattern==17)
+                if (_Pattern==16)
                 {
                     float stripe=0;
-                    for(int j=0;j<7;j++)
-                    {
-                        float center=_Pattern==16?-.14-j*.095:.47-j*.15;
-                        float marking=1-smoothstep(.022,.036,abs(y-center-.012*sin(p.x*3)));
-                        stripe=max(stripe,marking*(_Pattern==16&&j>4?0:1));
-                    }
+                    for(int j=0;j<5;j++) stripe=max(stripe,1-smoothstep(.022,.036,abs(y+.14+j*.095-.012*sin(p.x*3))));
                     skin=lerp(skin,_Dark.rgb*.55,stripe*.85*(1-smoothstep(.60,.95,p.x)));
+                }
+                if (_Pattern==17)
+                {
+                    // Striped bass: seven bold, dark stripes run from the gill cover to the tail over
+                    // silver sides, closing up as the body tapers; the white belly below stays clear.
+                    float center=centerY(p.x), relative=(p.y-center)/max(_Height*lerp(1,bodyProfile(p.x),.6),.001);
+                    float stripe=0;
+                    [unroll] for(int j=0;j<7;j++) stripe=max(stripe,1-smoothstep(.038,.058,abs(relative-(.58-j*.15)-.012*sin(p.x*3+j))));
+                    float radius=_Height*.92, hinge=_Eye.x+radius*.35, rim=length(p.xy-float2(hinge,center-_Height*.10))-radius;
+                    stripe*=smoothstep(.030,.042,rim)*step(p.x,hinge)*smoothstep(-1.0,-.80,p.x);
+                    skin=lerp(skin,_Dark.rgb*.50,stripe*.90);
                 }
                 if (_Pattern==18)
                 {
@@ -362,7 +407,7 @@ Shader "DeepFeast/FishVolume"
                 if (_Pattern==25)
                 {
                     // Hatchetfish: mirror-silver flanks under a narrow dark back.
-                    float center=_Profile.w*saturate((p.x+1.04)/(_Head.x+1.04)), relative=(p.y-center)/max(_Height*bodyProfile(p.x),.001);
+                    float center=centerY(p.x), relative=(p.y-center)/max(_Height*bodyProfile(p.x),.001);
                     skin=lerp(_Belly.rgb,_Base.rgb,smoothstep(-.6,.3,relative)*.6);
                     skin=lerp(skin,_Dark.rgb,smoothstep(.55,.80,relative)*.9);
                     skin+=.05*smoothstep(.5,1,sin(p.x*26+relative*2));
@@ -414,7 +459,7 @@ Shader "DeepFeast/FishVolume"
                 if (_Pattern == 8)
                 {
                     gill=0;
-                    [unroll] for (int j=0;j<5;j++) gill+=exp(-pow((p.x-(.54-j*.065)+y*y*.07)*105,2))*(1-smoothstep(.25,.44,abs(y+.02)));
+                    [unroll] for (int j=0;j<5;j++) gill+=exp(-pow((p.x-(.60-j*.06)+y*y*.07)*105,2))*(1-smoothstep(.25,.44,abs(y+.02)));
                     skin*=1-gill*.30;
                     float nostril=exp(-pow((p.x-(_Head.x+_Head.y*.94))*38,2)-pow((y+.12)*30,2));
                     skin*=1-nostril*.45;
@@ -425,7 +470,7 @@ Shader "DeepFeast/FishVolume"
             // Photophores: rows of light organs along the belly, emissive in the dark.
             float photophores(float3 p)
             {
-                float center=_Profile.w*saturate((p.x+1.04)/(_Head.x+1.04)), relative=(p.y-center)/max(_Height*bodyProfile(p.x),.001);
+                float center=centerY(p.x), relative=(p.y-center)/max(_Height*bodyProfile(p.x),.001);
                 float glow=0;
                 if (_Pattern==24)
                 {
@@ -447,7 +492,7 @@ Shader "DeepFeast/FishVolume"
             // along the flank, an inked gill cover with a raised rim, and soft rows of scales.
             fixed3 painterly(float3 p, fixed3 skin)
             {
-                float center=_Profile.w*saturate((p.x+1.04)/(_Head.x+1.04));
+                float center=centerY(p.x);
                 float relative=(p.y-center)/max(_Height*bodyProfile(p.x),.001);
                 float sheen=exp(-pow((relative-.45)*5,2))*smoothstep(-1.0,-.6,p.x);
                 skin=lerp(skin,skin*1.15+.09,sheen*.6);
@@ -480,19 +525,20 @@ Shader "DeepFeast/FishVolume"
                     // Open a real aperture in the skin so the inset mouth bowl has visible depth.
                     // The test uses rest coordinates, before the shared jaw bend on skin and lip.
                     float across=i.skin.z/max(.001,_Head.w*_MouthShape.z);
-                    float vertical=((i.skin.y-_Profile.w)/_Height-mouthCenter(across))/mouthRadius();
+                    float vertical=((i.skin.y-centerY(i.skin.x))/_Height-mouthCenter(across))/mouthRadius();
                     if (_Mouth>.08 && i.color.a>.9 && i.skin.x>_Head.x+_Head.y*.20 && across*across+vertical*vertical<.82*.82) discard;
                     // Keep projected skin inside the illustration's body. Its outer black contour and
                     // baked dorsal/ventral fins belong to the flat silhouette, not the rounded surface.
                     float profile=bodyProfile(i.skin.x);
-                    float center=_Profile.w*saturate((i.skin.x+1.04)/(_Head.x+1.04));
+                    float center=centerY(i.skin.x);
                     float2 skin=float2(i.skin.x,i.skin.y*.78);
                     if (_PaintedFins>.5)
                     {
                         // Matched bodies sample the painting where it is; only the outer band is
                         // squeezed so the constant-width painted contour never lands on the curved back.
+                        // It keeps some slope on a thin snout, where one row would otherwise smear upward.
                         float halfHeight=max(_Height*profile,.001), relative=(i.skin.y-center)/halfHeight;
-                        float limit=max(.40,1-.075/halfHeight), knee=min(.60,limit), outer=abs(relative);
+                        float limit=max(.40,1-.075/halfHeight), knee=min(.60,limit*.75), outer=abs(relative);
                         if (outer>knee) outer=knee+(outer-knee)*(limit-knee)/(1-knee);
                         skin=float2(min(i.skin.x,_Head.x+_Head.y-.07),center+sign(relative)*outer*halfHeight);
                     }
@@ -538,7 +584,9 @@ Shader "DeepFeast/FishVolume"
                     float phase=i.surface.y*UNITY_PI*2*rays+i.surface.x*.25;
                     float ray=pow(saturate(.5+.5*cos(phase)),10), groove=pow(saturate(.5-.5*cos(phase)),12);
                     float strength=(_Pattern==8?0:1)*smoothstep(.12,.4,i.surface.x);
-                    rgb*=(.96+ray*(.09+.10*_Painterly)*strength)*(1-groove*.12*_Painterly*strength);
+                    // A pectoral the painting lacks is drawn in its manner, with dark rays like the painted fins.
+                    float drawn=_PaintedFins*_FinRoot.w*(1-_PaintedPectoral)*(1-_Style);
+                    rgb*=(.96+ray*(.09+.10*_Painterly)*strength*(1-drawn))*(1-groove*.12*_Painterly*strength)*(1-ray*.30*drawn*strength);
                     // Generated pectorals share the flank's colors; a pale membrane lets the fan
                     // read against the body instead of as an inked loop. Shark fins stay solid.
                     float fan=_Painterly*_FinRoot.w*(_Pattern==8?0:1);

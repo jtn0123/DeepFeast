@@ -66,14 +66,16 @@ namespace DeepFeast
         public static float Detail = 1;
 
         public readonly int W, H;
-        readonly float minX, minY, scale;
+        readonly float minX, minY, scale, detail;
         public readonly Color[] px;
         readonly float[] acc;
         readonly List<Vector2> xs = new List<Vector2>(64);
 
-        public Raster(float minX, float minY, float maxX, float maxY, float scale)
+        /// detail overrides the sprite detail for art the player never sees up close, or at all.
+        public Raster(float minX, float minY, float maxX, float maxY, float scale, float detail = 0)
         {
-            this.minX = minX; this.minY = minY; this.scale = scale * Detail;
+            this.detail = detail > 0 ? detail : Detail;
+            this.minX = minX; this.minY = minY; this.scale = scale * this.detail;
             W = Mathf.Max(2, Mathf.CeilToInt((maxX - minX) * this.scale));
             H = Mathf.Max(2, Mathf.CeilToInt((maxY - minY) * this.scale));
             px = new Color[W * H];
@@ -87,7 +89,7 @@ namespace DeepFeast
         public float ShapeX(int i) => minX + (i + 0.5f) / scale;
         public float ShapeY(int row) => minY + (H - 1 - row + 0.5f) / scale;
         // A radius in base pixels, in this raster's pixels.
-        static int Px(int rad) => rad <= 0 ? rad : Mathf.Max(1, Mathf.RoundToInt(rad * Detail));
+        int Px(int rad) => rad <= 0 ? rad : Mathf.Max(1, Mathf.RoundToInt(rad * detail));
 
         /// Scanline fill with non-zero winding and 4x vertical / analytic horizontal AA.
         public float[] Fill(Path path, float[] mask = null, float alpha = 1f)
@@ -308,7 +310,7 @@ namespace DeepFeast
             var L = light.normalized;
             var s = new float[mask.Length];
             // The finer the pixels, the gentler each step of the blurred slope.
-            float k = rad * Detail * depth;
+            float k = rad * detail * depth;
             for (int y = 0; y < H; y++)
             {
                 int up = (y < H - 1 ? y + 1 : y) * W, dn = (y > 0 ? y - 1 : y) * W, o = y * W;
@@ -411,7 +413,7 @@ namespace DeepFeast
                 }
             var next = new List<int>();
             var grown = new List<Color>();
-            for (int step = 0, steps = Mathf.CeilToInt(3 * Detail); step < steps && ring.Count > 0; step++)
+            for (int step = 0, steps = Mathf.CeilToInt(3 * detail); step < steps && ring.Count > 0; step++)
             {
                 grown.Clear();
                 foreach (int id in ring)
@@ -497,7 +499,7 @@ namespace DeepFeast
         {
             var tex = ToTexture();
             var piv = new Vector2((pivotShape.x - minX) * scale / W, 1f - (pivotShape.y - minY) * scale / H);
-            return Sprite.Create(tex, new Rect(0, 0, W, H), piv, ppu * Detail, 0, SpriteMeshType.FullRect);
+            return Sprite.Create(tex, new Rect(0, 0, W, H), piv, ppu * detail, 0, SpriteMeshType.FullRect);
         }
     }
 }

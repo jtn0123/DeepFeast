@@ -21,7 +21,8 @@ namespace DeepFeast
             {
                 "almaco_jack" => Form(0.84f, 0.24f, -0.10f, 1.47f, 1.18f, 0.63f, 0.14f, 0.025f),
                 "goliath_grouper" => Form(0.78f, 0.45f, 0.06f, 1.50f, 1.00f, 0.39f, 0.23f, 0.025f),
-                "atlantic_halibut" => Form(0.72f, 0.085f, -0.06f, 1.43f, 0.95f, 0.64f, 0.11f),
+                // A short, pointed head on an even oval that narrows into a distinct tail stalk.
+                "atlantic_halibut" => Form(0.70f, 0.085f, 0.06f, 1.20f, 1.10f, 0.52f, 0.11f),
                 "atlantic_mackerel" => Form(0.64f, 0.18f, -0.08f, 1.52f, 1.65f, 0.70f, 0.11f),
                 // Low front exponent gives the male mahi its steep, broad forehead rather than
                 // the pointed muzzle used by the tunas; the dorsal banner completes the outline.
@@ -77,10 +78,10 @@ namespace DeepFeast
                     return true;
 
                 case "atlantic_halibut":
-                    // Continuous dorsal/anal margins begin close to the head and taper into the
-                    // caudal stalk. The same thin body profile keeps their roots attached in turns.
+                    // Continuous margins: the dorsal begins above the upper eye, the anal fin behind the
+                    // gill cover. The same thin body profile keeps their roots attached in turns.
                     foreach (int side in new[] { -1, 1 })
-                        ExpandedSpine(b, sp, model, side, side > 0 ? 0.99f : 0.69f, -0.96f,
+                        ExpandedSpine(b, sp, model, side, side > 0 ? 0.80f : 0.50f, -0.96f,
                             side > 0 ? 0.17f : 0.15f, t => Mathf.Pow(FinSine(t), 0.57f)
                                 * (0.94f + 0.06f * Mathf.Abs(Mathf.Sin(t * Mathf.PI * 38))), 0.025f, 76);
                     return true;
@@ -108,13 +109,14 @@ namespace DeepFeast
                     return true;
 
                 case "striped_bass":
-                    ExpandedSpine(b, sp, model, 1, 0.49f, -0.06f, 0.28f,
-                        t => (t < 0.22f ? t / 0.22f : Mathf.Pow((1 - t) / 0.78f, 0.72f))
-                            * (0.87f + 0.13f * Mathf.Abs(Mathf.Sin(t * Mathf.PI * 8))), 0.055f, 40);
-                    ExpandedSpine(b, sp, model, 1, -0.12f, -0.76f, 0.26f,
-                        t => Mathf.Pow(FinSine(t), 0.61f), 0.075f);
-                    ExpandedSpine(b, sp, model, -1, -0.22f, -0.78f, 0.20f,
-                        t => Mathf.Pow(FinSine(t), 0.63f), 0.085f);
+                    // A tall spiny first dorsal, then a lower soft dorsal and anal fin that slope back.
+                    ExpandedSpine(b, sp, model, 1, 0.47f, -0.02f, 0.34f,
+                        t => (t < 0.25f ? Mathf.Pow(t / 0.25f, 0.8f) : Mathf.Pow((1 - t) / 0.75f, 0.95f))
+                            * (0.80f + 0.20f * Mathf.Abs(Mathf.Sin(t * Mathf.PI * 9))), 0.06f, 44);
+                    ExpandedSpine(b, sp, model, 1, -0.08f, -0.64f, 0.22f,
+                        t => Mathf.SmoothStep(0, 1, t / 0.18f) * Mathf.Lerp(1, 0.55f, t) * Mathf.Sqrt(Mathf.Clamp01((1 - t) / 0.10f)), 0.07f);
+                    ExpandedSpine(b, sp, model, -1, -0.20f, -0.68f, 0.20f,
+                        t => Mathf.SmoothStep(0, 1, t / 0.20f) * Mathf.Lerp(1, 0.60f, t) * Mathf.Sqrt(Mathf.Clamp01((1 - t) / 0.10f)), 0.08f);
                     return true;
 
                 case "yellowfin_tuna":
@@ -311,7 +313,7 @@ namespace DeepFeast
             {
                 "almaco_jack" => (new Vector2(0.80f, 0.13f), 0.150f),
                 "goliath_grouper" => (new Vector2(0.93f, 0.17f), 0.110f),
-                "atlantic_halibut" => (new Vector2(0.64f, 0.12f), 0.095f),
+                "atlantic_halibut" => (new Vector2(0.92f, 0.09f), 0.100f),
                 "atlantic_mackerel" => (new Vector2(0.80f, 0.08f), 0.130f),
                 "mahi_mahi" => (new Vector2(0.80f, 0.10f), 0.120f),
                 "skipjack_tuna" => (new Vector2(0.82f, 0.10f), 0.140f),
@@ -346,7 +348,7 @@ namespace DeepFeast
             {
                 "almaco_jack" => (new Vector2(0.40f, -0.10f), 0.62f, 10f, 0.09f, 0.10f, FinForm.Sickle),
                 "goliath_grouper" => (new Vector2(0.48f, -0.14f), 0.42f, 24f, 0.16f, 0f, FinForm.Paddle),
-                "atlantic_halibut" => (new Vector2(0.38f, -0.06f), 0.26f, 20f, 0.08f, 0f, FinForm.Paddle),
+                "atlantic_halibut" => (new Vector2(0.56f, -0.04f), 0.24f, 16f, 0.075f, 0f, FinForm.Paddle),
                 "atlantic_mackerel" => (new Vector2(0.42f, -0.05f), 0.34f, 14f, 0.06f, 0.05f, FinForm.Blade),
                 "mahi_mahi" => (new Vector2(0.42f, -0.14f), 0.42f, 16f, 0.08f, 0.05f, FinForm.Blade),
                 "skipjack_tuna" => (new Vector2(0.44f, -0.04f), 0.40f, 12f, 0.07f, 0.06f, FinForm.Blade),

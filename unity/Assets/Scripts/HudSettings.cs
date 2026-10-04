@@ -174,7 +174,7 @@ namespace DeepFeast
                     value = () => DetailNames[Opt.spriteDetail - 1] + (Opt.spriteDetail == GameSettings.ActiveSpriteDetail ? $"  ·  {Opt.spriteDetail}×" : "  ·  restart"),
                     step = dir => Opt.spriteDetail = Mathf.Clamp(Opt.spriteDetail + dir, 1, GameSettings.MaxSpriteDetail),
                     help = () => Opt.spriteDetail == GameSettings.ActiveSpriteDetail
-                        ? "How finely the game paints its own art: pearls, bubbles, rocks and coral. Sharper uses more memory."
+                        ? "How finely the game paints its own effects: pearls, bubbles, sparks and glows. Sharper uses more memory."
                         : $"Takes effect the next time Deep Feast starts. This run is painted at {GameSettings.ActiveSpriteDetail}×.",
                 },
                 new Option

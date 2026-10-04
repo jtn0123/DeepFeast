@@ -41,7 +41,7 @@ Menus, the results cards and the Fishdex navigate with arrows or the d-pad and c
 
 Settings are saved as JSON in PlayerPrefs (`deepfeast.settings`). The scene is drawn into its own half-float target at the render scale and MSAA level, then presented under the HUD through `Shaders/PostFx.shader`: a soft-threshold bloom chain, a colour grade blended between reef, kelp and abyss looks, and ring-shaped refraction ripples from dashes and hits. The text stays sharp and ungraded at any scale. Very large targets step down to fewer MSAA samples to stay under about 1.5 GB.
 
-Sprite detail sets how finely the game paints its generated art (fish skins without painted art, eyes, pearls, bubbles, particles) at launch: 2× by default, 1× on the web. Fish are painted on worker threads, so the whole bake takes about 0.6 s at 1×, 1.7 s at 2× and 3.2 s at 3× on an Apple-silicon Mac (`sprite detail` in the log). Effects detail scales marine snow, lens motes, vent and dash bubbles and the sparks of each bite. Fish near the sunlit seabed cast soft shadows on the sand. The playing HUD keeps inside `Screen.safeArea`, clear of a notch. Input runs on the Input System package with the legacy Input Manager still enabled (Active Input Handling: Both).
+Sprite detail sets how finely the game paints its generated effects (pearls, bubbles, sparks, glows and the HUD icons) at launch: 2× by default, 1× on the web. Fish don't use it: every fish is a 3D volume, painted from the atlas art or its own procedural skin, so their generated fallback sprites always bake at 1×. The bake runs on worker threads and the log reports it as `sprite detail`. Effects detail scales marine snow, lens motes, vent and dash bubbles and the sparks of each bite. Fish near the sunlit seabed cast soft shadows on the sand. The playing HUD keeps inside `Screen.safeArea`, clear of a notch. Input runs on the Input System package with the legacy Input Manager still enabled (Active Input Handling: Both).
 
 ### Test-harness flags (player builds)
 
@@ -54,7 +54,7 @@ Sprite detail sets how finely the game paints its generated art (fish skins with
 | `-startx <x>` | Start near the seabed at world x (e.g. `11000` for the deep trench) |
 | `-dumpart <dir>` | Write every baked sprite texture to `dir` as a PNG |
 | `-gallery` | Art review: every species, two jellies and one pearl of each kind in a grid; with `-shots` saves `gallery` and `gallery_bite` |
-| `-gallery -zoom <x> -focus <key>` | Move the gallery camera in `x` times, centred on one species by its key (the gallery log lists them, e.g. `atlantic_halibut`), to review sprite detail |
+| `-gallery -zoom <x> -focus <key>` | Move the gallery camera in `x` times, centred on one species by its key (the gallery log lists them, e.g. `atlantic_halibut`), to review fish up close |
 | `-gallery -animate-gallery` | Capture swimming and a repeating anticipation/open/recovery cycle; `-shotevery` sets the frame interval |
 | `-gallery -animate-turns` | Add direction changes to the animated species gallery |
 | `-interface <menu\|pause\|over\|victory\|dex\|settings\|flow>` | Fixed native menu/results review; `flow` verifies play, pause, resume, retry, victory, keep swimming, the Fishdex and settings through Unity Submit and Move events |

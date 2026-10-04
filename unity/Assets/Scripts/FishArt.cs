@@ -112,7 +112,7 @@ namespace DeepFeast
             Add(S("parrot", "oval", "#3ee0a8", "#1a8f8a", "#c8ffe9", "#ff7ac8", 1, "scales", 20, 60));
             Add(S("snapper", "oval", "#ff5f6f", "#b4253a", "#ffd0d4", "#ff7a88", 1, "none", 22, 64));
             Add(S("barracuda", "long", "#b4c3d1", "#5d6e80", "#eef4f9", "#8a9bab", 1, "bars", 34, 130));
-            var grouper = S("grouper", "fat", "#9a7650", "#5d432a", "#e2cba9", "#7d5d3c", 1, "spots", 48, 180);
+            var grouper = S("grouper", "fat", "#9a7650", "#5d432a", "#e2cba9", "#9c6b41", 1, "spots", 48, 180);
             grouper.spot = U.Hex("#3a2814");
             Add(grouper);
             Add(S("tuna", "torpedo", "#4d6d9c", "#1d2f52", "#e3e9f2", "#5a7bb0", 1, "finlets", 70, 600));
@@ -139,8 +139,9 @@ namespace DeepFeast
             var goliath = S("goliath_grouper", "fat", "#c6a663", "#5a4630", "#efdfb0", "#94794a", 1, "mottled", 70, 600);
             goliath.spot = U.Hex("#38382b"); goliath.canSchool = false;
             AddKnown(goliath, "Atlantic goliath grouper", "Epinephelus itajara", "atlantic-goliath-grouper");
-            var halibut = S("atlantic_halibut", "flat", "#a8916a", "#4e4434", "#f5f2e6", "#9a8463", 1, "halibut", 40, 400);
-            halibut.spot = U.Hex("#443f32"); halibut.canSchool = false;
+            // The halibut shows its eyed side, olive brown from edge to edge; only the hidden blind side is white.
+            var halibut = S("atlantic_halibut", "flat", "#80715a", "#3f382b", "#f5f2e6", "#5d5240", 1, "halibut", 40, 400);
+            halibut.spot = U.Hex("#3a3328"); halibut.canSchool = false;
             AddKnown(halibut, "Atlantic halibut", "Hippoglossus hippoglossus", "atlantic-halibut");
             AddKnown(S("atlantic_mackerel", "slim", "#7fd6cb", "#155f72", "#f4fbf7", "#5d93a0", 1, "mackerel", 9, 44),
                 "Atlantic mackerel", "Scomber scombrus", "atlantic-mackerel");
@@ -149,7 +150,7 @@ namespace DeepFeast
             AddKnown(mahi, "Atlantic mahi-mahi", "Coryphaena hippurus", "atlantic-mahi-mahi");
             AddKnown(S("skipjack_tuna", "torpedo", "#a6c4dc", "#2b3a78", "#f4f7f9", "#5a76a6", 1, "skipjack", 40, 260),
                 "Atlantic skipjack tuna", "Katsuwonus pelamis", "atlantic-skipjack-tuna");
-            AddKnown(S("striped_bass", "oval", "#c4d4c2", "#3f5b52", "#f8f7e9", "#8fa898", 1, "bass", 22, 150),
+            AddKnown(S("striped_bass", "oval", "#c3cbcc", "#323f45", "#f7f8f3", "#8b989a", 1, "bass", 22, 150),
                 "Atlantic striped bass", "Morone saxatilis", "atlantic-striped-bass");
             AddKnown(S("yellowfin_tuna", "torpedo", "#8fc7c0", "#163e74", "#f2f6e4", "#f2cf2e", 1, "yellowfin", 55, 600),
                 "Atlantic yellowfin tuna", "Thunnus albacares", "atlantic-yellowfin-tuna");
@@ -212,7 +213,7 @@ namespace DeepFeast
 
             Shark = Identify(S("shark", "shark", "#879da4", "#334957", "#f2f5ee", "#647e87", 1, "shark", 0, 0),
                 "White shark", "Carcharodon carcharias", noaa + "white-shark");
-            TigerShark = Identify(S("tiger_shark", "shark", "#a0a982", "#4b5747", "#eeeed6", "#7d8866", 1, "tiger", 0, 0),
+            TigerShark = Identify(S("tiger_shark", "shark", "#949a84", "#474f42", "#eeeed6", "#7d8866", 1, "tiger", 0, 0),
                 "Tiger shark", "Galeocerdo cuvier", "https://www.fisheries.noaa.gov/feature-story/climate-change-shifting-tiger-shark-populations-northward");
             MakoShark = Identify(S("mako_shark", "shark", "#4f88b8", "#163d6c", "#f1f8f8", "#3b72a0", 1, "mako", 0, 0),
                 "Shortfin mako shark", "Isurus oxyrinchus", noaa + "shortfin-mako-shark");
@@ -286,6 +287,23 @@ namespace DeepFeast
             public bool fallbackValidated;
             public Vector2 eyeSize;
             public Color lid;
+            public Outline outline;
+        }
+
+        /// A painting's measured body edges, sampled along x in sprite units.
+        public sealed class Outline
+        {
+            public float x0, dx;
+            public float[] top, bottom;
+
+            public float Top(float x) => At(top, x);
+            public float Bottom(float x) => At(bottom, x);
+            float At(float[] samples, float x)
+            {
+                float t = (x - x0) / dx;
+                int i = Mathf.Clamp((int)Mathf.Floor(t), 0, samples.Length - 2);
+                return Mathf.Lerp(samples[i], samples[i + 1], Mathf.Clamp01(t - i));
+            }
         }
 
         static readonly Dictionary<string, Art> cache = new Dictionary<string, Art>();
@@ -441,6 +459,10 @@ namespace DeepFeast
             }
         }
 
+        // Every fish on screen is a 3D volume that paints its own generated skin, so these sprites only
+        // supply proportions and a fallback; they stay at base detail whatever the setting.
+        const float BakedDetail = 1;
+
         // Paints one generated fish. Safe on any thread: plain arithmetic on its own rasters.
         static Baked Bake(Species sp)
         {
@@ -460,7 +482,7 @@ namespace DeepFeast
             baked.bodyOpen = BakeBody(sp, sh, hl, hh, minX, minY, maxX, maxY, scale, 1f, outline);
 
             float tl = hl * sh.tl, th = hl * sh.tH;
-            var tr = new Raster(-tl * 1.35f - pad, -th - pad, hl * 0.12f + pad, th + pad, scale);
+            var tr = new Raster(-tl * 1.35f - pad, -th - pad, hl * 0.12f + pad, th + pad, scale, BakedDetail);
             var tm = tr.Fill(TailPath(sh, hl, hh));
             if (outline) tr.Paint(tr.Dilate(tm, OutlinePx(scale)), OutlineCol);
             tr.Paint(tr.Dilate(tm, ContourPx(scale)), Navy);
@@ -518,7 +540,7 @@ namespace DeepFeast
 
         static Raster BakeBody(Species sp, Shape sh, float hl, float hh, float minX, float minY, float maxX, float maxY, float scale, float mouth, bool outline)
         {
-            var r = new Raster(minX, minY, maxX, maxY, scale);
+            var r = new Raster(minX, minY, maxX, maxY, scale, BakedDetail);
             bool shark = sh.tail == TailKind.Shark;
             var fins = r.Fill(FinsPath(sh, hl, hh));
             var body = r.Fill(BodyPath(hl, hh, sh));
@@ -767,7 +789,7 @@ namespace DeepFeast
         // ------------------------------------------------------------------ eyes (unit radius)
         static Sprite EyeSprite(System.Action<Raster> draw)
         {
-            var r = new Raster(-1.7f, -2.1f, 1.7f, 1.4f, 40);
+            var r = new Raster(-1.7f, -2.1f, 1.7f, 1.4f, 40, BakedDetail);
             draw(r);
             return r.ToSprite(Vector2.zero, 40);
         }
@@ -820,7 +842,7 @@ namespace DeepFeast
         public static Sprite FinOval => finOval ??= MakeFin();
         static Sprite MakeFin()
         {
-            var r = new Raster(-1.8f, -1.05f, 0.4f, 1.05f, 48);
+            var r = new Raster(-1.8f, -1.05f, 0.4f, 1.05f, 48, BakedDetail);
             r.Paint(r.Circle(-0.7f, 0, 1), Color.white);
             return r.ToSprite(Vector2.zero, 48);
         }

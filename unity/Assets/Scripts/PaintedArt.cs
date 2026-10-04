@@ -18,6 +18,8 @@ namespace DeepFeast
             public string key, atlas;
             public float ppu, eyeX, eyeY, eyeRX, eyeRY;
             public Frame closed, open;
+            // The painted body's outer top and bottom edges, where measured (see Catalog.outlineX0).
+            public float[] bodyTop, bodyBottom;
         }
 
         [System.Serializable]
@@ -29,7 +31,13 @@ namespace DeepFeast
         }
 
         [System.Serializable]
-        public sealed class Catalog { public FishEntry[] fish; public PropEntry[] props; }
+        public sealed class Catalog
+        {
+            // Body outline samples lie at x = outlineX0 + i * outlineDX, in sprite units.
+            public float outlineX0, outlineDX;
+            public FishEntry[] fish;
+            public PropEntry[] props;
+        }
 
         static Catalog catalog;
         static bool loaded;
@@ -119,6 +127,8 @@ namespace DeepFeast
                     body = closed, bodyOpen = open, whole = true, painted = true, lids = true,
                     hh = FishArt.HL * sp.Sh.hh, shark = sp.IsShark, fin = sp.fin,
                     eyePos = new Vector2(f.eyeX, f.eyeY), eyeSize = new Vector2(f.eyeRX, f.eyeRY), lid = sp.c0,
+                    outline = f.bodyTop != null && f.bodyTop.Length > 1 && f.bodyBottom != null && f.bodyBottom.Length == f.bodyTop.Length
+                        ? new FishArt.Outline { x0 = Entries.outlineX0, dx = Entries.outlineDX, top = f.bodyTop, bottom = f.bodyBottom } : null,
                 };
             }
             return null;

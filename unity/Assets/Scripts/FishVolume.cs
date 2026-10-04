@@ -14,13 +14,22 @@ namespace DeepFeast
         {
             public Mesh body, fins, nearFin, farFin, nearEye, farEye, mouth;
             public float height, depth;
+            // How far the centre line rises to the nose tip, in body heights: a shark's raised snout.
+            public float snout;
             public Vector4 head, profile, mouthParameters;
             public Vector3 nearNormal, farNormal;
             public Vector3 nearEyeCenter, farEyeCenter;
             public Vector3 nearFinRoot, farFinRoot;
             public Vector4 pectoralMask;
             public bool paintedFins, paintedPectoral;
+            // Painted bodies follow the painting's outline from the tail root to fitEnd: a shift of the
+            // centre line and a scale of the half height, at FitSamples even steps. Null elsewhere.
+            public float[] fitCenter, fitScale;
+            public float fitEnd;
         }
+        const int FitSamples = 32;
+        static readonly int FitId = Shader.PropertyToID("_Fit"), FitCenterId = Shader.PropertyToID("_FitCenter"),
+            FitScaleId = Shader.PropertyToID("_FitScale");
         static readonly Dictionary<string, Model> cache = new Dictionary<string, Model>();
         static readonly Color reefReflection = U.Hex("#c5af8a"), kelpReflection = U.Hex("#648b65"), abyssReflection = U.Hex("#546581");
         static Material material;
@@ -99,8 +108,13 @@ namespace DeepFeast
             var rect = sprite.rect;
             var bounds = sprite.bounds;
             float sin = Mathf.Sin(Yaw * Mathf.Deg2Rad);
-            // Banked toward the viewer on either heading, level when head-on in a turn.
-            float roll = species.key == Manta ? -MantaBank * Mathf.Deg2Rad * Mathf.Clamp(f.faceS, -1, 1) : 0;
+            // Banked toward the viewer on either heading, level when head-on in a turn: the manta shows
+            // its back, the hammerhead the top of its cephalofoil.
+            float bank = species.key == Manta ? MantaBank : species.key == "great_hammerhead" ? HammerBank : 0;
+            float roll = -bank * Mathf.Deg2Rad * Mathf.Clamp(f.faceS, -1, 1);
+            // Only the legacy painted fish project their illustration. The painted shark's flat
+            // drawing smears around a rounded, snouted body, so sharks paint procedural skin.
+            bool projected = art.painted && !species.IsShark;
             var habitat = Habitat.At(f.y);
             var waterReflection = Color.Lerp(World.WaterAt(Mathf.Max(0, f.y - 700)), habitat.light, 0.45f);
             var groundReflection = Color.Lerp(Color.Lerp(reefReflection, kelpReflection, habitat.kelp), abyssReflection, habitat.abyss);
@@ -111,12 +125,15 @@ namespace DeepFeast
                 block.SetVector("_Frame", new Vector4(rect.x / sprite.texture.width, rect.y / sprite.texture.height, rect.width / sprite.texture.width, rect.height / sprite.texture.height));
                 block.SetVector("_SpriteBounds", new Vector4(bounds.min.x, bounds.min.y, bounds.size.x, bounds.size.y));
                 // Painted art masks its baked eye; generated skins only need the sculpted eye's position.
-                block.SetVector("_Eye", art.painted ? new Vector4(art.eyePos.x, art.eyePos.y, art.eyeSize.x * 1.18f, art.eyeSize.y * 1.18f)
+                block.SetVector("_Eye", projected ? new Vector4(art.eyePos.x, art.eyePos.y, art.eyeSize.x * 1.18f, art.eyeSize.y * 1.18f)
                     : new Vector4(model.nearEyeCenter.x, model.nearEyeCenter.y, 0.1f, 0.1f));
                 block.SetColor("_Base", species.c0); block.SetColor("_Dark", species.c1); block.SetColor("_Belly", species.c2);
                 block.SetColor("_Accent", species.fin);
                 block.SetVector("_Head", model.head);
                 block.SetVector("_Profile", model.profile);
+                block.SetFloat("_Snout", model.snout);
+                block.SetVector(FitId, new Vector4(model.fitEnd, model.fitScale != null ? 1 : 0, 0, 0));
+                if (model.fitScale != null) { block.SetFloatArray(FitCenterId, model.fitCenter); block.SetFloatArray(FitScaleId, model.fitScale); }
                 block.SetVector("_MouthShape", model.mouthParameters);
                 block.SetFloat("_SharkKind", species.key switch { "tiger_shark" => 2, "mako_shark" => 3, "whale_shark" => 4, "great_hammerhead" => 5, _ => species.IsShark ? 1 : 0 });
                 // Bluefish shares the minnow's line pattern but also needs a pelagic dark back.
@@ -124,7 +141,7 @@ namespace DeepFeast
                 // Only real painted art is projected; generated fallback sprites smear on the rounded body,
                 // so those species paint their procedural skin with the illustrations' cues instead.
                 block.SetFloat("_Style", Style == Look.Sculpted ? 1 : 0);
-                block.SetFloat("_Painterly", Style == Look.Painted && !art.painted ? 1 : 0);
+                block.SetFloat("_Painterly", Style == Look.Painted && !projected ? 1 : 0);
                 block.SetFloat("_FrontView", Mathf.Pow(sin, 8));
                 block.SetFloat("_Facing", f.faceS);
                 block.SetFloat("_Part", i == 0 ? 0 : i < 4 ? 1 : i < 6 ? 2 : 3);
@@ -186,6 +203,7 @@ namespace DeepFeast
         static Model Build(Species sp, FishArt.Art art)
         {
             var model = Anatomy(sp, art);
+            if (HasPaintedFins(sp, art) && art.outline != null) FitToPainting(model, art.outline);
             model.mouthParameters = sp.key switch
             {
                 "shark" => new Vector4(-0.42f, 0.22f, 0.72f, 0.21f),
@@ -199,16 +217,20 @@ namespace DeepFeast
                 "viperfish" => new Vector4(-0.10f, 0.42f, 0.85f, 0.45f),
                 // The sunfish's small beak; the manta's wide, straight mouth spans the front of its head.
                 "ocean_sunfish" => new Vector4(-0.02f, 0.20f, 0.34f, 0.22f),
+                // The halibut's big mouth starts at the snout tip; its cleft is painted back to the lower eye.
+                "atlantic_halibut" => new Vector4(-0.06f, 0.30f, 0.90f, 0.30f),
                 Manta => new Vector4(-0.05f, 0.30f, 0.80f, 0.08f),
                 _ => new Vector4(-0.20f, 0.28f, 0.76f, 0.38f),
             };
             float h = model.height, depth = model.depth, headCenter = model.head.x, headLength = model.head.y;
             var b = new Builder();
             bool manta = sp.key == Manta;
-            int rings = manta ? 72 : 44, sides = manta ? 40 : 32;
+            int rings = manta ? 72 : 96, sides = manta ? 40 : 48;
             for (int ring = 0; ring <= rings; ring++)
             {
-                float u = ring / (float)rings, x = Mathf.Lerp(-1.04f, headCenter + headLength, u), profile = Profile(x, model);
+                // Rings crowd toward the nose and the tail, where the silhouette turns fastest.
+                float u = ring / (float)rings, along = manta ? u : u - 0.5f * Mathf.Sin(U.TAU * u) / U.TAU;
+                float x = Mathf.Lerp(-1.04f, headCenter + headLength, along), profile = Profile(x, model);
                 float width = manta ? MantaWidth(x, model) : depth * profile;
                 for (int side = 0; side <= sides; side++)
                 {
@@ -222,8 +244,8 @@ namespace DeepFeast
                     }
                 }
             }
-            int rearCap = b.Vertex(new Vector3(-1.04f, 0, 0), Color.white, Vector2.zero);
-            int noseCap = b.Vertex(new Vector3(headCenter + headLength, model.profile.w, 0), Color.white, Vector2.zero);
+            int rearCap = b.Vertex(new Vector3(-1.04f, CenterY(-1.04f, model), 0), Color.white, Vector2.zero);
+            int noseCap = b.Vertex(new Vector3(headCenter + headLength, CenterY(headCenter + headLength, model), 0), Color.white, Vector2.zero);
             for (int side = 0; side < sides; side++)
             {
                 b.Tri(rearCap, side + 1, side);
@@ -253,8 +275,8 @@ namespace DeepFeast
             }
             else if (PectoralOutline(sp, art, out var finBase, out float finRoot, out var finRim, out bool paintedFin))
             {
-                model.nearFin = TracedPectoral(sp, model, -1, finBase, finRoot, finRim);
-                model.farFin = TracedPectoral(sp, model, 1, finBase, finRoot, finRim);
+                model.nearFin = TracedPectoral(sp, model, -1, finBase, finRoot, finRim, !paintedFin);
+                model.farFin = TracedPectoral(sp, model, 1, finBase, finRoot, finRim, !paintedFin);
                 float rootZ = FlankZ(finBase.x, finBase.y, model) + 0.012f;
                 model.nearFinRoot = new Vector3(finBase.x, finBase.y, -rootZ); model.farFinRoot = new Vector3(finBase.x, finBase.y, rootZ);
                 // Only a fin present in the painting is sampled from it and shadowed on the flank.
@@ -290,8 +312,9 @@ namespace DeepFeast
                 // flank carries that face: the halibut never swims past as a blank, eyeless side.
                 model.nearNormal = new Vector3(0.36f, 0.08f, -0.93f).normalized;
                 model.farNormal = new Vector3(model.nearNormal.x, model.nearNormal.y, -model.nearNormal.z);
-                var lower = new Vector3(0.64f, h * 0.20f, -depth * Profile(0.64f, model) - 0.010f);
-                var upper = new Vector3(0.43f, h * 0.40f, -depth * Profile(0.43f, model) - 0.006f);
+                // The migrated upper eye sits just behind the lower one, close to the dorsal edge.
+                var lower = new Vector3(0.92f, h * 0.18f, -depth * Profile(0.92f, model) - 0.010f);
+                var upper = new Vector3(0.78f, h * 0.48f, -depth * Profile(0.78f, model) - 0.006f);
                 model.nearEyeCenter = lower; model.farEyeCenter = Opposite(lower);
                 model.nearEye = Eye(sp, art, model.nearNormal, lower, upper);
                 model.farEye = Eye(sp, art, model.farNormal, Opposite(lower), Opposite(upper));
@@ -311,7 +334,7 @@ namespace DeepFeast
                 // The eyes sit at the tips of the cephalofoil, looking out to each side.
                 model.nearNormal = new Vector3(0.35f, 0.12f, -0.93f).normalized;
                 model.farNormal = new Vector3(model.nearNormal.x, model.nearNormal.y, -model.nearNormal.z);
-                var tip = new Vector3(HammerX, CenterY(HammerX, model) + 0.012f, -HammerSpan * 0.94f);
+                var tip = new Vector3(HammerMid(0.94f), CenterY(HammerX, model) + 0.012f, -HammerSpan * 0.94f);
                 model.nearEyeCenter = tip; model.farEyeCenter = Opposite(tip);
                 model.nearEye = Eye(sp, art, model.nearNormal, tip);
                 model.farEye = Eye(sp, art, model.farNormal, Opposite(tip));
@@ -325,13 +348,49 @@ namespace DeepFeast
             return model;
         }
 
-        static float CenterY(float x, Model model) => model.profile.w * Mathf.InverseLerp(-1.04f, model.head.x, x);
+        // The body's centre line and half height (as a fraction of its height). They match centerY and
+        // bodyProfile in the shader.
+        static float CenterY(float x, Model model) => AuthoredCenterY(x, model) + Fit(model.fitCenter, x, model, 0);
+        static float Profile(float x, Model model) => AuthoredProfile(x, model) * Fit(model.fitScale, x, model, 1);
 
-        static float Profile(float x, Model model)
+        static float AuthoredCenterY(float x, Model model)
+        {
+            float snout = Mathf.Clamp01((x - model.head.x) / model.head.y);
+            return model.profile.w * Mathf.InverseLerp(-1.04f, model.head.x, x) + model.snout * model.height * snout * snout;
+        }
+
+        static float AuthoredProfile(float x, Model model)
         {
             if (x >= model.head.x) return Mathf.Pow(Mathf.Max(0.000016f, 1 - Mathf.Pow((x - model.head.x) / model.head.y, 2)), model.profile.y);
             float t = Mathf.InverseLerp(-1.04f, model.head.x, x);
             return Mathf.Lerp(model.profile.z, 1, Mathf.Pow(Mathf.Max(0, Mathf.Sin(t * Mathf.PI * 0.5f)), model.profile.x));
+        }
+
+        static float Fit(float[] samples, float x, Model model, float identity)
+        {
+            if (samples == null || x >= model.fitEnd) return identity;
+            float t = Mathf.Clamp01((x + 1.04f) / (model.fitEnd + 1.04f)) * (FitSamples - 1);
+            int i = Mathf.Min((int)t, FitSamples - 2);
+            return Mathf.Lerp(samples[i], samples[i + 1], t - i);
+        }
+
+        // The authored forms only approximate their paintings, and where the painted body edge strays
+        // from the sculpted one the fin envelopes sample a strip of painted body (or the body samples
+        // empty canvas). Behind the head the body takes the painting's measured edges instead, easing
+        // back into the authored head well before the mouth, which is fitted to that head.
+        static void FitToPainting(Model model, FishArt.Outline outline)
+        {
+            model.fitEnd = model.head.x + model.head.y * 0.35f;
+            model.fitCenter = new float[FitSamples];
+            model.fitScale = new float[FitSamples];
+            for (int i = 0; i < FitSamples; i++)
+            {
+                float x = Mathf.Lerp(-1.04f, model.fitEnd, i / (FitSamples - 1f));
+                float top = outline.Top(x), bottom = outline.Bottom(x);
+                float ease = 1 - Mathf.SmoothStep(0, 1, Mathf.InverseLerp(model.fitEnd - 0.35f, model.fitEnd, x));
+                model.fitCenter[i] = ((top + bottom) * 0.5f - AuthoredCenterY(x, model)) * ease;
+                model.fitScale[i] = Mathf.Lerp(1, (top - bottom) * 0.5f / (model.height * AuthoredProfile(x, model)), ease);
+            }
         }
 
         static Color FinColor(Color color, float weight, bool cartilage = false)
@@ -495,7 +554,7 @@ namespace DeepFeast
                 float y = model.height * (model.mouthParameters.x + 0.13f * surface.x * surface.x + 0.018f * surface.y);
                 float radial = Mathf.Pow(y / model.height, 2) + Mathf.Pow(z / model.depth, 2);
                 float x = model.head.x + model.head.y * Mathf.Sqrt(Mathf.Max(0.02f, 1 - Mathf.Pow(radial, 1 / (2 * model.profile.y)))) + 0.008f;
-                y += model.profile.w;
+                y += CenterY(x, model);
                 return b.Vertex(new Vector3(x, y, z), color, Vector2.zero, surface);
             }
             int center = Vertex(Vector2.zero, U.Hex("#102533"));

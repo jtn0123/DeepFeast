@@ -7,36 +7,42 @@ namespace DeepFeast
     // parts and shader flex contract remain shared with FishVolume's other species.
     public sealed partial class FishVolume
     {
-        // The hammerhead's cephalofoil: its center along the body and its half span across.
-        const float HammerX = 0.96f, HammerSpan = 0.50f;
+        // The hammerhead's cephalofoil: its center along the body and its half span across. The
+        // hammerhead banks toward the viewer (degrees) so the side view shows the blade's top.
+        const float HammerX = 1.04f, HammerSpan = 0.58f, HammerBank = 35;
+
+        // The blade's centre line along the body at a point across it (-1..1): its ends sweep back.
+        static float HammerMid(float across) => HammerX - 0.075f * across * across;
 
         static Model SharkBody(Species sp, FishArt.Art art)
         {
             if (sp.key == "whale_shark")
             {
-                // A broad, flattened giant: the wide head ends bluntly in the mouth.
-                float h = art.hh;
-                return new Model { height = h, depth = 0.42f, head = new Vector4(0.25f, 1.05f, h, 0.42f), profile = new Vector4(1.30f, 0.30f, 0.17f, 0) };
+                // A broad, flattened giant: the back humps behind a low, wide head that ends
+                // bluntly in the mouth (the centre line dips toward it).
+                float h = art.hh * 0.95f;
+                return new Model { height = h, depth = 0.44f, snout = -0.14f, head = new Vector4(0.18f, 1.10f, h, 0.44f), profile = new Vector4(1.25f, 0.42f, 0.16f, 0.02f) };
             }
             if (sp.key == "great_hammerhead")
             {
                 // A short snout under the cephalofoil, which is added with the keels.
-                float h = art.hh * 0.95f;
-                return new Model { height = h, depth = 0.28f, head = new Vector4(0.05f, 0.98f, h, 0.28f), profile = new Vector4(1.40f, 0.55f, 0.16f, 0.01f) };
+                float h = art.hh * 0.84f;
+                return new Model { height = h, depth = 0.26f, snout = 0.12f, head = new Vector4(0.24f, 0.90f, h, 0.26f), profile = new Vector4(1.30f, 0.75f, 0.14f, 0.01f) };
             }
             bool tiger = sp.key == "tiger_shark", mako = sp.key == "mako_shark";
-            float height = art.hh * (tiger ? 1.11f : mako ? 0.87f : 1.03f);
-            float depth = tiger ? 0.36f : mako ? 0.225f : 0.315f;
-            // A white shark's short cone belongs to a thick torpedo, while the very
-            // pointed nose belongs to the mako. The tiger keeps a fuller front half.
+            float height = art.hh * (tiger ? 0.92f : mako ? 0.80f : 0.88f);
+            float depth = tiger ? 0.32f : mako ? 0.22f : 0.29f;
+            // Sharks are deepest well forward, over the pectorals, and narrow in a long cone to a
+            // snout that rides high above the underslung mouth. The mako's cone is the sharpest,
+            // the tiger's short and blunt.
             return new Model
             {
-                height = height, depth = depth,
-                head = new Vector4(tiger ? 0.15f : mako ? -0.06f : 0.06f,
-                    tiger ? 1.08f : mako ? 1.48f : 1.24f, height, depth),
-                profile = new Vector4(tiger ? 1.55f : mako ? 1.55f : 1.32f,
-                    tiger ? 0.40f : mako ? 0.90f : 0.63f,
-                    tiger ? 0.20f : mako ? 0.16f : 0.18f, tiger ? 0.008f : 0.025f),
+                height = height, depth = depth, snout = tiger ? 0.28f : mako ? 0.38f : 0.40f,
+                head = new Vector4(tiger ? 0.30f : mako ? 0.22f : 0.28f,
+                    tiger ? 0.98f : mako ? 1.10f : 1.02f, height, depth),
+                profile = new Vector4(tiger ? 1.30f : mako ? 1.25f : 1.10f,
+                    tiger ? 0.70f : mako ? 1.05f : 0.95f,
+                    tiger ? 0.17f : mako ? 0.13f : 0.15f, tiger ? 0.01f : 0.015f),
             };
         }
 
@@ -57,7 +63,7 @@ namespace DeepFeast
             else if (hammer) SharkSpine(b, sp, model, 1, 0.16f, -0.30f, -0.34f, 0.66f);
             else SharkSpine(b, sp, model, 1, tiger ? -0.03f : 0.10f,
                 tiger ? -0.68f : -0.55f, tiger ? -0.34f : mako ? -0.30f : -0.19f,
-                tiger ? 0.38f : mako ? 0.39f : 0.43f);
+                tiger ? 0.36f : mako ? 0.39f : 0.44f);
             // Second dorsal and anal fins are distinctly smaller than the first.
             SharkSpine(b, sp, model, 1, -0.73f, -0.99f, -0.87f, tiger || hammer ? 0.14f : 0.105f);
             SharkSpine(b, sp, model, -1, -0.76f, -1.01f, -0.90f, tiger || hammer ? 0.13f : 0.085f);
@@ -66,7 +72,7 @@ namespace DeepFeast
 
         static void SharkCaudal(Builder b, Species sp, Model model)
         {
-            bool tiger = sp.key == "tiger_shark", mako = sp.key == "mako_shark";
+            bool tiger = sp.key == "tiger_shark";
             float stalk = model.height * model.profile.z, notchX = tiger ? -1.33f : -1.36f;
             var notch = new Vector3(notchX, 0, 0);
             // Close the small triangle between the peduncle and the tail's inner fork.
@@ -74,24 +80,24 @@ namespace DeepFeast
                 Vector3.Lerp(new Vector3(-1.04f, (along * 2 - 1) * stalk, 0), notch, weight), true);
             foreach (int side in new[] { -1, 1 })
             {
+                // The upper lobe carries the spine and outreaches the lower one. Only the fast
+                // mako's tail is close to symmetric.
                 var (height, tipX) = (side > 0, sp.key) switch
                 {
-                    (true, "tiger_shark") => (0.86f, -2.06f),
-                    (true, "mako_shark") => (0.65f, -1.89f),
-                    (true, "whale_shark") => (0.74f, -1.98f),
-                    (true, "great_hammerhead") => (0.80f, -2.02f),
-                    (true, _) => (0.65f, -1.86f),
-                    (false, "tiger_shark") => (0.46f, -1.86f),
-                    (false, "mako_shark") => (0.61f, -1.87f),
-                    (false, "whale_shark") => (0.50f, -1.88f),
-                    (false, "great_hammerhead") => (0.42f, -1.84f),
-                    (false, _) => (0.59f, -1.83f),
+                    (true, "tiger_shark") => (0.80f, -2.04f),
+                    (true, "mako_shark") => (0.66f, -1.92f),
+                    (true, "whale_shark") => (0.78f, -2.02f),
+                    (true, "great_hammerhead") => (0.82f, -2.06f),
+                    (true, _) => (0.72f, -1.96f),
+                    (false, "tiger_shark") => (0.40f, -1.74f),
+                    (false, "mako_shark") => (0.58f, -1.86f),
+                    (false, "whale_shark") => (0.46f, -1.82f),
+                    (false, "great_hammerhead") => (0.38f, -1.74f),
+                    (false, _) => (0.52f, -1.76f),
                 };
                 var leadingRoot = new Vector3(-1.04f, side * stalk, 0);
-                var leadingControl = new Vector3(tiger && side > 0 ? -1.47f : -1.39f,
-                    side * height * 0.88f, 0);
-                var trailingControl = new Vector3(tiger && side > 0 ? -1.56f : -1.44f,
-                    side * height * 0.37f, 0);
+                var leadingControl = new Vector3(-1.39f, side * height * 0.88f, 0);
+                var trailingControl = new Vector3(-1.44f, side * height * 0.37f, 0);
                 SharkTailPatch(b, sp, 20, 20, (weight, across) =>
                 {
                     // A short rounded rim joins independently curved leading and trailing
@@ -101,8 +107,6 @@ namespace DeepFeast
                     var leading = SharkCurve(leadingRoot, leadingControl, tip, weight);
                     var trailing = SharkCurve(notch, trailingControl, tip, weight);
                     var p = Vector3.Lerp(leading, trailing, across);
-                    if (tiger && side > 0)
-                        p.x += 0.075f * across * across * Mathf.Exp(-Mathf.Pow((weight - 0.78f) / 0.07f, 2));
                     p.z = 0.040f * Mathf.Sin(weight * Mathf.PI) * Mathf.Max(0, Mathf.Sin(across * Mathf.PI));
                     return p;
                 });
@@ -179,11 +183,22 @@ namespace DeepFeast
             }, true);
         }
 
+        // Each pectoral's root chord along the body, its tip (behind, and below the centre line in
+        // body heights) and how far it reaches out from the flank.
+        static (float front, float rear, Vector2 tip, float span) SharkPectoralShape(Species sp) => sp.key switch
+        {
+            "tiger_shark" => (0.40f, 0.02f, new Vector2(-0.20f, 1.25f), 0.33f),
+            "mako_shark" => (0.36f, 0.06f, new Vector2(-0.10f, 1.12f), 0.28f),
+            "great_hammerhead" => (0.34f, 0.04f, new Vector2(-0.10f, 1.05f), 0.28f),
+            "whale_shark" => (0.52f, 0.10f, new Vector2(-0.16f, 1.15f), 0.40f),
+            _ => (0.40f, 0.04f, new Vector2(-0.14f, 1.22f), 0.30f),
+        };
+
         static Vector3 SharkPectoralRoot(Species sp, Model model, int side, float along)
         {
-            bool tiger = sp.key == "tiger_shark";
-            float x = Mathf.Lerp(tiger ? 0.16f : 0.24f, tiger ? -0.24f : -0.16f, along);
-            float profile = Profile(x, model), relativeY = -model.height * profile * Mathf.Lerp(0.30f, 0.56f, along);
+            var shape = SharkPectoralShape(sp);
+            float x = Mathf.Lerp(shape.front, shape.rear, along);
+            float profile = Profile(x, model), relativeY = -model.height * profile * Mathf.Lerp(0.42f, 0.62f, along);
             float z = model.depth * profile * Mathf.Sqrt(Mathf.Max(0.01f,
                 1 - Mathf.Pow(relativeY / (model.height * profile), 2)));
             return new Vector3(x, CenterY(x, model) + relativeY, side * (z - 0.004f));
@@ -192,16 +207,18 @@ namespace DeepFeast
         static Mesh SharkPectoral(Species sp, Model model, int side)
         {
             var b = new Builder();
-            bool tiger = sp.key == "tiger_shark", mako = sp.key == "mako_shark";
-            float span = tiger ? 0.62f : mako ? 0.48f : 0.57f;
+            var shape = SharkPectoralShape(sp);
             var front = SharkPectoralRoot(sp, model, side, 0);
             var rear = SharkPectoralRoot(sp, model, side, 1);
-            var tip = new Vector3(tiger ? -0.56f : mako ? -0.60f : -0.46f,
-                -model.height * (tiger ? 0.72f : mako ? 0.70f : 0.78f), front.z + side * span);
-            var lead = new Vector3(Mathf.Lerp(front.x, tip.x, 0.32f), front.y - 0.075f,
-                front.z + side * span * 0.73f);
-            var trail = new Vector3(Mathf.Lerp(tip.x, rear.x, 0.45f), rear.y - 0.035f,
-                rear.z + side * span * 0.33f);
+            // The wings angle down and out, so the side view shows their broad sickle: a convex
+            // leading edge sweeping back to a pointed tip, then a concave trailing edge.
+            var tip = new Vector3(shape.tip.x, CenterY(shape.tip.x, model) - model.height * shape.tip.y, front.z + side * shape.span);
+            var lead = new Vector3(Mathf.Lerp(front.x, tip.x, 0.10f), Mathf.Lerp(front.y, tip.y, 0.62f), Mathf.Lerp(front.z, tip.z, 0.62f));
+            var middle = (tip + rear) * 0.5f;
+            var trail = middle + (front - middle) * 0.10f;
+            // The wing's normal, across its chord and its drop: up and outward.
+            var drop = new Vector3(0, tip.y - (front.y + rear.y) * 0.5f, tip.z - (front.z + rear.z) * 0.5f).normalized;
+            var normal = new Vector3(0, side * drop.z, -side * drop.y);
             const int radial = 14, across = 32;
             for (int layer = 0; layer < 2; layer++)
                 for (int u = 0; u <= radial; u++)
@@ -209,14 +226,13 @@ namespace DeepFeast
                     {
                         float weight = u / (float)radial, along = t / (float)across;
                         var root = SharkPectoralRoot(sp, model, side, along);
-                        var edge = along <= 0.43f ? SharkCurve(front, lead, tip, along / 0.43f)
-                            : SharkCurve(tip, trail, rear, (along - 0.43f) / 0.57f);
+                        var edge = along <= 0.45f ? SharkCurve(front, lead, tip, along / 0.45f)
+                            : SharkCurve(tip, trail, rear, (along - 0.45f) / 0.55f);
                         var p = Vector3.Lerp(root, edge, weight);
                         float chord = Mathf.Max(0, Mathf.Sin(along * Mathf.PI));
-                        p.y += 0.035f * Mathf.Sin(weight * Mathf.PI) * chord;
-                        // Thickness normal to the horizontal wing, with a convex foil and thin rim.
+                        // A cambered foil, thick at the root and thin at the rim.
                         float thickness = Mathf.Lerp(0.023f, 0.002f, weight) * (0.30f + 0.70f * chord);
-                        p.y += (layer == 0 ? 1 : -1) * thickness;
+                        p += normal * (0.03f * Mathf.Sin(weight * Mathf.PI) * chord + (layer == 0 ? 1 : -1) * thickness);
                         b.Vertex(p, FinColor(sp.fin, weight, true), new Vector2(weight, side), new Vector2(weight, along));
                     }
             int count = (radial + 1) * (across + 1);
@@ -246,8 +262,8 @@ namespace DeepFeast
         {
             const int radial = 8, across = 20;
             int count = (radial + 1) * (across + 1);
-            // Use the same solid horizontal foil as the pectorals, inside the shared fins mesh.
-            // Builder.Membrane thickens along Z and is therefore reserved for vertical fins.
+            // A solid foil like the pectorals', inside the shared fins mesh. Builder.Membrane
+            // thickens along Z and is therefore reserved for vertical fins.
             int first = -1;
             for (int layer = 0; layer < 2; layer++)
                 for (int u = 0; u <= radial; u++)
@@ -259,7 +275,8 @@ namespace DeepFeast
                         float z = side * model.depth * profile * Mathf.Sqrt(1 - 0.83f * 0.83f);
                         var root = new Vector3(x, CenterY(x, model) + y, z);
                         float outline = Mathf.Pow(Mathf.Max(0, Mathf.Sin(along * Mathf.PI)), 0.78f);
-                        var p = root + new Vector3(-0.17f, -0.045f, side * 0.22f) * weight * outline;
+                        // Like the pectorals, the pelvics angle down and out rather than lying flat.
+                        var p = root + new Vector3(-0.15f, -0.12f, side * 0.12f) * weight * outline;
                         p.y += (layer == 0 ? 1 : -1) * Mathf.Lerp(0.012f, 0.002f, weight);
                         int vertex = b.Vertex(p, FinColor(sp.fin, weight, true), new Vector2(weight, 3), new Vector2(weight, along));
                         if (first < 0) first = vertex;
@@ -284,6 +301,31 @@ namespace DeepFeast
             }
         }
 
+        // The cephalofoil: a flat blade across the head, deepest over the snout, its rounded ends swept
+        // back and narrowing to the eyes. Laid out like Builder.Ellipsoid with its axis across the body.
+        static void AddCephalofoil(Builder b, Model model)
+        {
+            const int rings = 28, sides = 20;
+            float y = CenterY(HammerX, model) + 0.01f;
+            int start = -1;
+            for (int ring = 0; ring <= rings; ring++)
+            {
+                float theta = ring * Mathf.PI / rings, across = Mathf.Cos(theta), round = Mathf.Pow(Mathf.Max(0, Mathf.Sin(theta)), 0.22f);
+                float chord = (0.10f - 0.03f * across * across) * round, thickness = (0.042f - 0.012f * across * across) * round;
+                for (int side = 0; side <= sides; side++)
+                {
+                    float phi = side * U.TAU / sides;
+                    int v = b.Vertex(new Vector3(HammerMid(across) + Mathf.Cos(phi) * chord, y + Mathf.Sin(phi) * thickness, across * HammerSpan), Color.white, Skull);
+                    if (start < 0) start = v;
+                    if (ring < rings && side < sides)
+                    {
+                        int a = start + ring * (sides + 1) + side, c = a + sides + 1;
+                        b.Tri(a, c, a + 1); b.Tri(a + 1, c, c + 1);
+                    }
+                }
+            }
+        }
+
         static void AddSharkKeels(Builder b, Species sp, Model model)
         {
             bool tiger = sp.key == "tiger_shark";
@@ -301,10 +343,7 @@ namespace DeepFeast
                         }
                         b.Tube(ridge, t => 0.011f * Mathf.Sqrt(Mathf.Max(0, Mathf.Sin(t * Mathf.PI))), Vector2.one, Color.white, Vector2.zero, 6);
                     }
-            if (sp.key == "great_hammerhead")
-                // The cephalofoil: a flat blade across the head with the eyes at its tips.
-                b.Ellipsoid(new Vector3(HammerX, CenterY(HammerX, model) + 0.01f, 0), new Vector3(0.17f, 0.048f, HammerSpan),
-                    Quaternion.identity, Color.white, 10, 24, default, Skull);
+            if (sp.key == "great_hammerhead") AddCephalofoil(b, model);
             // Low cartilage ridges blend into the peduncle, well before the tail fin.
             foreach (int side in new[] { -1, 1 })
                 b.Ellipsoid(new Vector3(-0.94f, CenterY(-0.94f, model), side * model.depth * Profile(-0.94f, model) * 0.98f),

@@ -121,18 +121,18 @@ namespace DeepFeast
 
         static void PaintedCaudal(Builder b, Species sp, Model model, float tip, float top, float bottom)
         {
-            float root = model.height * model.profile.z;
+            float root = model.height * Profile(-1.04f, model), center = CenterY(-1.04f, model);
             b.Membrane(sp.tailCol, 12, 36, 4, (weight, across) =>
             {
                 // The edges open quickly from the narrow stalk so rounded fans and forked lobes both fit.
-                float y = Mathf.Lerp(Mathf.Lerp(-root, root, across), Mathf.Lerp(bottom, top, across), Mathf.Pow(weight, 0.4f));
+                float y = Mathf.Lerp(Mathf.Lerp(center - root, center + root, across), Mathf.Lerp(bottom, top, across), Mathf.Pow(weight, 0.4f));
                 return new Vector3(Mathf.Lerp(-1.04f, tip, weight), y, Mathf.Sin(weight * Mathf.PI) * 0.03f);
             });
         }
 
         // Pectorals traced from the illustrations: a short root on the flank and the rim, ordered
-        // from the upper edge round the free end to the lower edge, all in sprite units. The grouper
-        // and barracuda paintings show none, so theirs are drawn to suit and shaded as fins.
+        // from the upper edge round the free end to the lower edge, all in sprite units. The grouper's
+        // painting shows none, so its broad, rounded fan is drawn to suit in the painted fins' manner.
         static bool PectoralOutline(Species sp, FishArt.Art art, out Vector2 basePoint, out float root, out Vector2[] rim, out bool painted)
         {
             static Vector2 P(float x, float y) => new Vector2(x, y);
@@ -147,11 +147,11 @@ namespace DeepFeast
                 "snapper" => (P(0.440f, -0.230f), 0.060f, new[] { P(0.400f, -0.144f), P(0.300f, -0.088f), P(0.175f, -0.031f), P(0.050f, 0.006f), P(-0.094f, 0.019f), P(-0.037f, -0.062f), P(0.050f, -0.169f), P(0.138f, -0.275f), P(0.225f, -0.338f), P(0.300f, -0.344f), P(0.400f, -0.331f) }),
                 "tuna" => (P(0.370f, -0.125f), 0.055f, new[] { P(0.320f, -0.050f), P(0.190f, 0.006f), P(0.050f, 0.045f), P(-0.100f, 0.072f), P(-0.250f, 0.085f), P(-0.120f, 0.020f), P(0.030f, -0.054f), P(0.160f, -0.121f), P(0.260f, -0.167f), P(0.340f, -0.185f) }),
                 "player" => (P(0.380f, -0.110f), 0.080f, new[] { P(0.336f, -0.031f), P(0.263f, 0.025f), P(0.142f, 0.065f), P(-0.027f, 0.073f), P(-0.003f, -0.031f), P(0.029f, -0.112f), P(0.094f, -0.177f), P(0.142f, -0.217f), P(0.207f, -0.241f), P(0.255f, -0.249f), P(0.312f, -0.233f), P(0.344f, -0.225f), P(0.376f, -0.201f) }),
-                "grouper" => (P(0.450f, -0.150f), 0.070f, new[] { P(0.380f, -0.050f), P(0.250f, -0.020f), P(0.120f, -0.050f), P(0.050f, -0.120f), P(0.040f, -0.200f), P(0.090f, -0.280f), P(0.200f, -0.310f), P(0.330f, -0.270f), P(0.400f, -0.220f) }),
-                "barracuda" => (P(0.450f, -0.120f), 0.030f, new[] { P(0.400f, -0.080f), P(0.280f, -0.085f), P(0.180f, -0.120f), P(0.170f, -0.150f), P(0.280f, -0.170f), P(0.400f, -0.160f) }),
+                "grouper" => (P(0.470f, -0.140f), 0.030f, new[] { P(0.430f, -0.100f), P(0.370f, -0.070f), P(0.290f, -0.055f), P(0.210f, -0.065f), P(0.140f, -0.100f), P(0.100f, -0.150f), P(0.095f, -0.205f), P(0.120f, -0.255f), P(0.180f, -0.290f), P(0.260f, -0.300f), P(0.340f, -0.280f), P(0.410f, -0.225f), P(0.440f, -0.180f) }),
+                "barracuda" => (P(0.290f, -0.176f), 0.016f, new[] { P(0.270f, -0.150f), P(0.230f, -0.128f), P(0.180f, -0.105f), P(0.140f, -0.090f), P(0.105f, -0.090f), P(0.115f, -0.118f), P(0.150f, -0.160f), P(0.190f, -0.182f), P(0.240f, -0.192f), P(0.280f, -0.192f) }),
                 _ => (Vector2.zero, 0f, null)
             };
-            painted = sp.key != "grouper" && sp.key != "barracuda";
+            painted = sp.key != "grouper";
             return rim != null && HasPaintedFins(sp, art);
         }
 
@@ -176,7 +176,7 @@ namespace DeepFeast
             return rim[0];
         }
 
-        static Mesh TracedPectoral(Species sp, Model model, int side, Vector2 basePoint, float root, Vector2[] rim)
+        static Mesh TracedPectoral(Species sp, Model model, int side, Vector2 basePoint, float root, Vector2[] rim, bool opaque = false)
         {
             var b = new Builder();
             const int radial = 10, across = 24, count = (radial + 1) * (across + 1);
@@ -192,7 +192,10 @@ namespace DeepFeast
                         float z = FlankZ(xy.x, xy.y, model) + 0.012f + 0.05f * weight + (layer == 0 ? 0.004f : -0.004f);
                         var p = new Vector3(xy.x, xy.y, side * z);
                         points[layer * count + u * (across + 1) + t] = p;
-                        b.Vertex(p, FinColor(sp.fin, weight), new Vector2(weight, side), new Vector2(weight, along));
+                        var color = FinColor(sp.fin, weight);
+                        // A fin drawn for a painting stays as solid as the painted fins around it.
+                        if (opaque) color.a = Mathf.Lerp(0.98f, 0.88f, weight * weight);
+                        b.Vertex(p, color, new Vector2(weight, side), new Vector2(weight, along));
                     }
             // The outer layer faces away from the body and the inner layer faces it.
             void Face(int a, int c, int d, int layer)
