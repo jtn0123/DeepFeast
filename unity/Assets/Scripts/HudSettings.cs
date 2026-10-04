@@ -80,7 +80,8 @@ namespace DeepFeast
 
         public bool SettingsOpen => settings.activeSelf;
         static SettingsData Opt => GameSettings.Data;
-        static readonly string[] GlowNames = { "Off", "Subtle", "Medium", "Strong" }, GradeNames = { "Off", "Subtle", "Rich" };
+        static readonly string[] GlowNames = { "Off", "Subtle", "Medium", "Strong" }, GradeNames = { "Off", "Subtle", "Rich" },
+            DetailNames = { "Standard", "Sharp", "Ultra" }, DensityNames = { "Low", "Normal", "High" };
         static float Hz => GameSettings.RefreshRate;
 
         void BuildSettings()
@@ -166,6 +167,28 @@ namespace DeepFeast
                     key = "ripples", label = "WATER RIPPLES",
                     value = () => Opt.ripples ? "On" : "Off", step = _ => Opt.ripples = !Opt.ripples,
                     help = () => "Dashing and taking a hit send rings through the water that bend the scene behind them.",
+                },
+                new Option
+                {
+                    key = "spriteDetail", label = "SPRITE DETAIL",
+                    value = () => DetailNames[Opt.spriteDetail - 1] + (Opt.spriteDetail == GameSettings.ActiveSpriteDetail ? $"  ·  {Opt.spriteDetail}×" : "  ·  restart"),
+                    step = dir => Opt.spriteDetail = Mathf.Clamp(Opt.spriteDetail + dir, 1, GameSettings.MaxSpriteDetail),
+                    help = () => Opt.spriteDetail == GameSettings.ActiveSpriteDetail
+                        ? "How finely the game paints its own art: pearls, bubbles, rocks and coral. Sharper uses more memory."
+                        : $"Takes effect the next time Deep Feast starts. This run is painted at {GameSettings.ActiveSpriteDetail}×.",
+                },
+                new Option
+                {
+                    key = "effectDensity", label = "EFFECTS DETAIL",
+                    value = () => DensityNames[Opt.effectDensity],
+                    step = dir => Opt.effectDensity = Mathf.Clamp(Opt.effectDensity + dir, 0, DensityNames.Length - 1),
+                    help = () => "How much marine snow drifts by, and how many bubbles and sparks fly when a fish is eaten.",
+                },
+                new Option
+                {
+                    key = "shadows", label = "FISH SHADOWS",
+                    value = () => Opt.shadows ? "On" : "Off", step = _ => Opt.shadows = !Opt.shadows,
+                    help = () => "Fish near the seabed cast soft shadows on the sunlit sand.",
                 },
             });
             AddPage(card, "SOUND & PLAY", new[]

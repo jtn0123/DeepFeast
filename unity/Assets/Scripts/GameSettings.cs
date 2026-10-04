@@ -20,6 +20,15 @@ namespace DeepFeast
         public int glow = 2;             // off, subtle, medium, strong
         public int grading = 2;          // off, subtle, rich
         public bool ripples = true;
+        // How finely generated art is painted: 1x, 2x or 3x. It is painted once, at launch.
+        public int spriteDetail =
+#if UNITY_WEBGL
+            1;
+#else
+            2;
+#endif
+        public int effectDensity = 1;    // low, normal, high: marine snow, motes, bubbles and sparks
+        public bool shadows = true;
         public bool showFps;
         public int shake = 100;          // percent
         public int master = 100, effects = 100, ambience = 100;
@@ -44,6 +53,8 @@ namespace DeepFeast
         public static readonly int[] FpsPresets = { 0, 30, 60, 90, 120, 144, 165, 240, 360, -1 };
         public static readonly int[] RenderScales = { 50, 67, 75, 85, 100, 125, 150, 175, 200 };
         public static readonly int[] MsaaLevels = { 1, 2, 4, 8 };
+        public static readonly float[] Densities = { 0.5f, 1, 2 };
+        public const int MaxSpriteDetail = 3;
         public const int MinFps = 20, MaxCustomFps = 1000;
 
         public static void Load(bool save, string overrides)
@@ -89,6 +100,8 @@ namespace DeepFeast
             if (Array.IndexOf(MsaaLevels, d.msaa) < 0) d.msaa = 4;
             d.glow = Mathf.Clamp(d.glow, 0, 3);
             d.grading = Mathf.Clamp(d.grading, 0, 2);
+            d.spriteDetail = Mathf.Clamp(d.spriteDetail, 1, MaxSpriteDetail);
+            d.effectDensity = Mathf.Clamp(d.effectDensity, 0, Densities.Length - 1);
             d.shake = Mathf.Clamp(d.shake, 0, 150);
             d.master = Mathf.Clamp(d.master, 0, 100);
             d.effects = Mathf.Clamp(d.effects, 0, 100);
@@ -112,10 +125,18 @@ namespace DeepFeast
             Commit(true);
         }
 
+        /// The sprite detail this run's art was painted at; a new choice waits for the next launch.
+        public static int ActiveSpriteDetail { get; private set; } = 1;
+
+        /// How many effects to make, relative to normal.
+        public static float EffectDensity => Densities[Data.effectDensity];
+
         /// Startup: a saved choice puts the window back as the player left it; with nothing saved
-        /// yet the rows simply describe the window the game opened in.
+        /// yet the rows simply describe the window the game opened in. Call before any art is made.
         public static void ApplyAtBoot()
         {
+            ActiveSpriteDetail = Data.spriteDetail;
+            Raster.Detail = ActiveSpriteDetail;
             ApplyFrameRate();
             if (saved) ApplyDisplay(true);
             else SyncFromScreen();

@@ -72,7 +72,7 @@ namespace DeepFeast
         readonly Canvas canvas;
         readonly CanvasScaler scaler;
         readonly Font font, display;
-        readonly RectTransform rootRT, worldLayer;
+        readonly RectTransform rootRT, worldLayer, hudRT;
         readonly CanvasGroup hudGroup, bannerGroup;
         readonly Text score, combo, tierName, tierNext, depth, bannerTitle, bannerSub, dashLabel, habitatName;
         readonly Image growth, dash, bannerGlow, comboPill, livesBg;
@@ -149,7 +149,7 @@ namespace DeepFeast
             Stretch(worldLayer);
 
             // ---------------------------------------------------------- HUD
-            var hud = Node("Hud", rootRT); Stretch(hud);
+            var hud = hudRT = Node("Hud", rootRT); Stretch(hud);
             hudGroup = hud.gameObject.AddComponent<CanvasGroup>();
             hudGroup.alpha = 0; hudGroup.blocksRaycasts = false;
 
@@ -373,9 +373,13 @@ namespace DeepFeast
         }
 
         // ------------------------------------------------------------------ public API
-        public void Resize(float pxPerRef, float refW)
+        /// insets: the screen's unsafe margins (a notch, rounded corners) in reference units, as
+        /// left, bottom, right, top. The playing HUD stays inside them.
+        public void Resize(float pxPerRef, float refW, Vector4 insets)
         {
             scaler.scaleFactor = pxPerRef;
+            hudRT.offsetMin = new Vector2(insets.x, insets.y);
+            hudRT.offsetMax = new Vector2(-insets.z, -insets.w);
             // narrow screens: drop the lives below the tier panel so they don't collide
             livesRT.anchoredPosition = refW < 960 ? new Vector2(-16, -86) : new Vector2(-16, -12);
             menuCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 940);

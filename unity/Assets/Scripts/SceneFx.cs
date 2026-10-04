@@ -29,8 +29,10 @@ namespace DeepFeast
         readonly FarLayer[] far;
 
         struct Flake { public float x, y, z, ph; }
-        readonly Flake[] snow = new Flake[120];
-        readonly Flake[] motes = new Flake[14];
+        // Flakes and motes at normal effects detail; the arrays hold enough for the highest.
+        const int SnowCount = 120, MoteCount = 14;
+        readonly Flake[] snow = new Flake[SnowCount * 2];
+        readonly Flake[] motes = new Flake[MoteCount * 2];
 
         /// A distant school: lives in world depth, drawn with parallax factor k.
         sealed class BgSchool { public float x, y, vx, k, size, alpha; public Vector3[] fish; }
@@ -437,7 +439,9 @@ namespace DeepFeast
             mb.Clear();
             var habitat = Habitat.At(cam.y);
             float SW = refW + 40, SH = refH + 40;
-            for (int i = 0; i < snow.Length; i++)
+            float density = GameSettings.EffectDensity;
+            int flakes = Mathf.Min(snow.Length, Mathf.RoundToInt(SnowCount * density));
+            for (int i = 0; i < flakes; i++)
             {
                 var p = snow[i];
                 float fx = Mod(p.x - cam.x * zoom * p.z, SW) - 20;
@@ -453,7 +457,8 @@ namespace DeepFeast
             // big out-of-focus motes drifting past the lens
             mb.Clear();
             float MW = refW + 200, MH = refH + 200;
-            for (int i = 0; i < motes.Length; i++)
+            int moteN = Mathf.Min(motes.Length, Mathf.RoundToInt(MoteCount * density));
+            for (int i = 0; i < moteN; i++)
             {
                 var p = motes[i];
                 float fx = Mod(p.x - cam.x * zoom * p.z - time * 6, MW) - 100;

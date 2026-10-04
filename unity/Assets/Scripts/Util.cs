@@ -22,9 +22,19 @@ namespace DeepFeast
             return (float)(s - Math.Floor(s));
         }
 
+        // Parses #rgb, #rrggbb and #rrggbbaa without the engine, so art can be painted off the main thread.
         public static Color Hex(string h, float a = 1f)
         {
-            ColorUtility.TryParseHtmlString(h, out var c);
+            Color c = Color.black;
+            int len = h.Length - 1;
+            if (h.Length > 0 && h[0] == '#' && (len == 3 || len == 6 || len == 8) && uint.TryParse(h.Substring(1),
+                    System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out uint v))
+            {
+                if (len == 3) c = new Color32((byte)((v >> 8 & 0xf) * 17), (byte)((v >> 4 & 0xf) * 17), (byte)((v & 0xf) * 17), 255);
+                else if (len == 6) c = new Color32((byte)(v >> 16), (byte)(v >> 8), (byte)v, 255);
+                else c = new Color32((byte)(v >> 24), (byte)(v >> 16), (byte)(v >> 8), (byte)v);
+            }
+            else ColorUtility.TryParseHtmlString(h, out c);
             c.a *= a;
             return c;
         }
@@ -254,11 +264,11 @@ namespace DeepFeast
 
         static Sprite glow, disc, ring, bubble, arrow, rounded, vignette, spark;
         /// Soft radial falloff, radius 0.5 units.
-        public static Sprite Glow => glow ??= MakeRadial(128, d => { float t = Mathf.Clamp01(1 - d); return t * t; }, 128);
-        /// Hard anti-aliased disc, radius 0.5 units.
-        public static Sprite Disc => disc ??= MakeRadial(64, d => Mathf.Clamp01((1 - d) * 32f), 64);
-        public static Sprite Ring => ring ??= MakeRadial(128, d => Mathf.Clamp01(1 - Mathf.Abs(d - 0.9f) * 20f), 128);
-        public static Sprite Spark => spark ??= MakeRadial(64, d => Mathf.Pow(Mathf.Clamp01(1 - d), 3f), 64);
+        public static Sprite Glow => glow ??= MakeRadial(128, (d, _) => { float t = Mathf.Clamp01(1 - d); return t * t; });
+        /// Hard anti-aliased disc, radius 0.5 units, with a one-pixel edge at any sprite detail.
+        public static Sprite Disc => disc ??= MakeRadial(64, (d, rad) => Mathf.Clamp01((1 - d) * rad));
+        public static Sprite Ring => ring ??= MakeRadial(128, (d, _) => Mathf.Clamp01(1 - Mathf.Abs(d - 0.9f) * 20f));
+        public static Sprite Spark => spark ??= MakeRadial(64, (d, _) => Mathf.Pow(Mathf.Clamp01(1 - d), 3f));
 
         public static Sprite Bubble
         {
@@ -409,19 +419,22 @@ namespace DeepFeast
             return tex;
         }
 
-        static Sprite MakeRadial(int size, Func<float, float> alphaOf, float ppu)
+        // A one unit square sprite of `size` base pixels; alphaOf gets the distance from the centre
+        // (1 at the rim) and the radius in pixels.
+        static Sprite MakeRadial(int baseSize, Func<float, float, float> alphaOf)
         {
-            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            int size = Mathf.RoundToInt(baseSize * Raster.Detail);
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear };
             var px = new Color[size * size];
             for (int y = 0; y < size; y++)
                 for (int x = 0; x < size; x++)
                 {
                     float dx = (x + 0.5f) / size - 0.5f, dy = (y + 0.5f) / size - 0.5f;
                     float d = Mathf.Sqrt(dx * dx + dy * dy) * 2f;
-                    px[y * size + x] = new Color(1, 1, 1, alphaOf(d));
+                    px[y * size + x] = new Color(1, 1, 1, alphaOf(d, size * 0.5f));
                 }
-            tex.SetPixels(px); tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), ppu);
+            tex.SetPixels(px); tex.Apply(true, true);
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
         }
 
         public static (GameObject go, Mesh mesh, MeshRenderer mr) MeshObject(string name, Transform parent, int order, bool additive = false)

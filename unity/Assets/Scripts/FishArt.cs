@@ -294,14 +294,29 @@ namespace DeepFeast
         public static Art Get(Species sp)
         {
             if (cache.TryGetValue(sp.key, out var a)) return a;
-            a = PaintedArt.Fish(sp) ?? LoadConcept(sp) ?? Bake(sp);
+            a = PaintedArt.Fish(sp) ?? LoadConcept(sp) ?? Bake(sp).Finish();
             cache[sp.key] = a;
             return a;
         }
 
         public static void Prewarm()
         {
-            foreach (var s in Data.AllSpecies) Get(s);
+            // Generated fish are painted on worker threads; only their textures are made here.
+            var todo = new List<Species>();
+            foreach (var s in Data.AllSpecies)
+            {
+                if (cache.ContainsKey(s.key)) continue;
+                var art = PaintedArt.Fish(s) ?? LoadConcept(s);
+                if (art != null) cache[s.key] = art;
+                else todo.Add(s);
+            }
+            var baked = new Baked[todo.Count];
+#if UNITY_WEBGL
+            for (int i = 0; i < todo.Count; i++) baked[i] = Bake(todo[i]);
+#else
+            System.Threading.Tasks.Parallel.For(0, todo.Count, i => baked[i] = Bake(todo[i]));
+#endif
+            for (int i = 0; i < todo.Count; i++) cache[todo[i].key] = baked[i].Finish();
             _ = EyeNormal; _ = EyeShark; _ = EyeSharkAngry; _ = FinOval;
             _ = LidBlink; _ = LidHappy; _ = LidAngry;
         }
@@ -410,7 +425,24 @@ namespace DeepFeast
         // ------------------------------------------------------------------ baking
         const float PPU = 150f; // raster pixels per shape unit (r = 1)
 
-        static Art Bake(Species sp)
+        // A generated fish painted but not yet turned into textures, which only the main thread can make.
+        sealed class Baked
+        {
+            public Art art;
+            public Raster body, bodyOpen, tail;
+            public float scale;
+
+            public Art Finish()
+            {
+                art.body = body.ToSprite(Vector2.zero, scale);
+                art.bodyOpen = bodyOpen.ToSprite(Vector2.zero, scale);
+                art.tail = tail.ToSprite(Vector2.zero, scale);
+                return art;
+            }
+        }
+
+        // Paints one generated fish. Safe on any thread: plain arithmetic on its own rasters.
+        static Baked Bake(Species sp)
         {
             var sh = sp.Sh;
             float hl = HL, hh = hl * sh.hh;
@@ -423,8 +455,9 @@ namespace DeepFeast
             float minX = -hl * 1.0f - pad, maxX = hl * 1.08f + pad;
 
             var art = new Art { shark = shark, hh = hh, fin = sp.fin, lids = !shark, lid = Color.Lerp(sp.c1, sp.c0, 0.6f) };
-            art.body = BakeBody(sp, sh, hl, hh, minX, minY, maxX, maxY, scale, 0f, outline);
-            art.bodyOpen = BakeBody(sp, sh, hl, hh, minX, minY, maxX, maxY, scale, 1f, outline);
+            var baked = new Baked { art = art, scale = scale };
+            baked.body = BakeBody(sp, sh, hl, hh, minX, minY, maxX, maxY, scale, 0f, outline);
+            baked.bodyOpen = BakeBody(sp, sh, hl, hh, minX, minY, maxX, maxY, scale, 1f, outline);
 
             float tl = hl * sh.tl, th = hl * sh.tH;
             var tr = new Raster(-tl * 1.35f - pad, -th - pad, hl * 0.12f + pad, th + pad, scale);
@@ -447,17 +480,17 @@ namespace DeepFeast
                 Raster.Mul(rays, tm);
                 tr.Paint(rays, new Color(0, 0.05f, 0.1f, 0.16f));
             }
-            art.tail = VerifiedFallbackSprite(tr, sp.key, Vector2.zero, scale);
+            baked.tail = Verified(tr, sp.key);
             art.fallbackValidated = true;
 
             float ex = hl * (shark ? 0.62f : 0.56f), ey = -hh * 0.22f;
             art.eyePos = new Vector2(ex, -ey);
             art.eyeR = hl * (sp.eye > 0 ? sp.eye : sh.eye) * (shark ? 1 : 1.2f);
-            return art;
+            return baked;
         }
 
         static readonly Color OutlineCol = new Color(0.94f, 1f, 1f, 1f);
-        static Sprite VerifiedFallbackSprite(Raster raster, string key, Vector2 pivot, float scale)
+        static Raster Verified(Raster raster, string key)
         {
             // Raster uploads discard CPU pixel copies; inspect the actual generated buffer before upload.
             bool clear = false, visible = false;
@@ -468,7 +501,8 @@ namespace DeepFeast
                 clear |= pixel.a == 0; visible |= pixel.a > 0.5f;
             }
             if (!clear || !visible) throw new System.InvalidOperationException("Generated fish needs visible pixels and transparent padding: " + key);
-            return raster.ToSprite(pivot, scale);
+            raster.Finish();
+            return raster;
         }
         // string.GetHashCode varies between runtimes; reviews and fallback sprites need repeatable markings.
         static uint StableSeed(string key)
@@ -482,7 +516,7 @@ namespace DeepFeast
         internal static readonly Color Navy = new Color(0.05f, 0.09f, 0.16f, 1f);
         static int ContourPx(float scale) => Mathf.Max(2, Mathf.RoundToInt(scale * 0.022f));
 
-        static Sprite BakeBody(Species sp, Shape sh, float hl, float hh, float minX, float minY, float maxX, float maxY, float scale, float mouth, bool outline)
+        static Raster BakeBody(Species sp, Shape sh, float hl, float hh, float minX, float minY, float maxX, float maxY, float scale, float mouth, bool outline)
         {
             var r = new Raster(minX, minY, maxX, maxY, scale);
             bool shark = sh.tail == TailKind.Shark;
@@ -727,7 +761,7 @@ namespace DeepFeast
                 var pf = new Path().Move(hl * 0.3f, hh * 0.55f).Line(hl * 0.3f - hl * 0.32f, hh * 0.55f + hh * 1.3f).Line(hl * 0.3f - hl * 0.18f, hh * 0.55f);
                 r.Paint(r.Fill(pf), sp.fin);
             }
-            return VerifiedFallbackSprite(r, sp.key, Vector2.zero, scale);
+            return Verified(r, sp.key);
         }
 
         // ------------------------------------------------------------------ eyes (unit radius)

@@ -92,8 +92,8 @@ namespace DeepFeast
         // ------------------------------------------------------------------ test harness (command line)
         bool autoplay, noPause, gallery, animateGallery, padTest;
         string shotDir, scenery, interfaceReview;
-        float worstFrame, shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, finaleDelay = 12, pearlEvery, realTime, statT, botWanderDir = 1, restartT = -1;
-        int shotN, uiFlowStage;
+        float worstFrame, shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, finaleDelay = 12, pearlEvery, realTime, statT, botWanderDir = 1, restartT = -1, notch;
+        int shotN, uiFlowStage, captureFrame = -1, gcSeen;
         bool menuShotDone, turnReviewLogged, portraitsTaken, rippleShown;
 
         float FocusR => pActive ? player.r : 22;
@@ -124,20 +124,26 @@ namespace DeepFeast
             camGo.AddComponent<AudioListener>();
             presenter = Presenter.Create(cam3);
 
+            var bake = System.Diagnostics.Stopwatch.StartNew();
             worldRoot = new GameObject("WorldRoot").transform;
             world = new World(worldRoot);
             fx = new SceneFx(cam3, worldRoot);
+            var shadows = Gfx.MeshObject("FishShadows", worldRoot, Layer.Caustic + 1);
+            shadows.mr.sharedMaterial = new Material(Gfx.Alpha) { mainTexture = Gfx.Glow.texture };
+            shadowMesh = shadows.mesh;
             fishRoot = new GameObject("Fish").transform; fishRoot.SetParent(worldRoot, false);
             haloRoot = new GameObject("Halos").transform; haloRoot.SetParent(worldRoot, false);
             fxRoot = new GameObject("Fx").transform; fxRoot.SetParent(worldRoot, false);
             jellyMesh = Gfx.MeshObject("JellyTentacles", fxRoot, Layer.Jelly - 1).mesh;
             parts = new Particles(fxRoot);
             FishArt.Prewarm();
+            BuildPearlArt();
+            _ = Gfx.Bubble; _ = Gfx.Spark; _ = Gfx.Ring;
+            Debug.Log($"[DeepFeast] sprite detail {Raster.Detail}x: painted {Raster.Baked} textures, {Raster.BakedPixels / 1e6f:0.0} MP, in {bake.ElapsedMilliseconds} ms");
             var watch = System.Diagnostics.Stopwatch.StartNew();
             int volumes = FishVolume.Prewarm();
             Debug.Log($"[DeepFeast] prewarmed {volumes} fish volumes in {watch.ElapsedMilliseconds} ms");
             BuildPlayerView();
-            BuildPearlArt();
 
             sfx = new Sfx(gameObject, autoplay || Has("-mute"));
             hud = new Hud();
@@ -283,6 +289,7 @@ namespace DeepFeast
             finaleDelay = ArgF("-finale", 12);
             // Test runs can drop pearls on a fixed beat, cycling through every kind.
             pearlEvery = ArgF("-pearlevery", 0);
+            notch = ArgF("-notch", 0);
             float ts = ArgF("-timescale", 1);
             if (ts != 1) Time.timeScale = ts;
             if (shotDir != null) System.IO.Directory.CreateDirectory(shotDir);
@@ -314,7 +321,7 @@ namespace DeepFeast
                 System.IO.File.WriteAllBytes(System.IO.Path.Combine(shotDir, captureName + ".png"), image.EncodeToPNG());
                 Debug.Log($"[DeepFeast] native camera shot {captureName} ({image.width}x{image.height})");
             }
-            finally { RenderTexture.active = old; Destroy(image); captureName = null; }
+            finally { RenderTexture.active = old; Destroy(image); captureName = null; captureFrame = Time.frameCount; }
         }
 
         void OnDestroy()
@@ -348,7 +355,16 @@ namespace DeepFeast
             if (state == GState.Play && autoplay)
             {
                 statT -= rdt;
-                worstFrame = Mathf.Max(worstFrame, Time.unscaledDeltaTime);
+                // Every long frame is reported with what it overlapped: a screenshot being written
+                // (test runs only) or a garbage collection.
+                int gc = System.GC.CollectionCount(0);
+                if (Time.unscaledDeltaTime > 0.05f)
+                    Debug.Log($"[DeepFeast] long frame {Time.unscaledDeltaTime * 1000:0} ms at t={playTime:0.0}: " +
+                        (captureFrame == Time.frameCount - 1 ? "after a screenshot" : gc != gcSeen ? $"garbage collection ({System.GC.CollectionCount(1)} gen1, {System.GC.CollectionCount(2)} gen2 so far)" : "no capture or collection") +
+                        $", fish={fish.Count}, particles={parts.list.Count}");
+                gcSeen = gc;
+                // Screenshots are the harness's own cost, not the game's.
+                if (captureFrame != Time.frameCount - 1) worstFrame = Mathf.Max(worstFrame, Time.unscaledDeltaTime);
                 if (statT <= 0)
                 {
                     statT = 10;
@@ -402,6 +418,15 @@ namespace DeepFeast
                 else
                     for (int k = 0; k < Powers.Count; k++) AddPearl(x + (k - 1.5f) * cw * 0.22f, y, 9, (PearlKind)k);
             }
+            // Detail reviews: -zoom <times> moves in close, on -focus <species key> if given.
+            zoom *= ArgF("-zoom", 1);
+            string focusKey = Arg("-focus");
+            if (focusKey != null)
+            {
+                var focus = fish.Find(f => f.sp.key == focusKey);
+                if (focus != null) cam = new Vector2(focus.x, focus.y);
+                else Debug.LogWarning($"[DeepFeast] -focus: no species with key '{focusKey}'.");
+            }
             Debug.Log($"[DeepFeast] native gallery: {all.Count} catalog identities, {columns} columns, {rows} rows; " +
                 string.Join(", ", System.Linq.Enumerable.Select(all, sp => sp.key + "=" + sp.displayName)));
         }
@@ -450,7 +475,12 @@ namespace DeepFeast
             player.x = x; player.y = cam.y; player.wag = 2;
             var species = new[] { Data.SpeciesMap["clown"], Data.SpeciesMap["tang"], Data.SpeciesMap["snapper"], Data.SpeciesMap["angel"] };
             for (int i = 0; i < species.Length; i++)
-                fish.Add(MakeFish(species[i], 17 + i * 2, x + (i - 1.5f) * 250, cam.y - 100 + (i % 2) * 90, i % 2 == 0 ? 1 : -1));
+            {
+                float fx = x + (i - 1.5f) * 250;
+                // -nearfloor: the fish swim just above the sand, to review their shadows.
+                float fy = Has("-nearfloor") ? world.FloorY(fx) - 40 - i * 45 : cam.y - 100 + (i % 2) * 90;
+                fish.Add(MakeFish(species[i], 17 + i * 2, fx, fy, i % 2 == 0 ? 1 : -1));
+            }
             Debug.Log($"[DeepFeast] scenery {scenery}: camera={cam}, zoom={zoom}, fixed seed=20261003.");
         }
 
@@ -952,19 +982,23 @@ namespace DeepFeast
         void Bubble(float x, float y, float s, float? vy = null)
             => parts.Add(new Particle { type = PType.Bubble, x = x, y = y, vx = U.Rand(-0.3f, 0.3f) * s, vy = vy ?? -U.Rand(2.5f, 5) * s, life = U.Rand(1.2f, 2.6f), max = 2.6f, size = s * U.Rand(0.5f, 1.2f), ph = U.Rand(0, U.TAU) });
 
+        // How many of an effect to make at the player's effects detail.
+        static int Fx(int n) => Mathf.Max(1, Mathf.RoundToInt(n * GameSettings.EffectDensity));
+
         void Burst(float x, float y, float r, Color col)
         {
-            for (int i = 0; i < 6; i++)
+            for (int i = 0, n = Fx(6); i < n; i++)
             {
                 float a = U.Rand(0, U.TAU), sp = U.Rand(0.6f, 2.4f) * r;
                 parts.Add(new Particle { type = PType.Bit, x = x, y = y, vx = Mathf.Cos(a) * sp, vy = Mathf.Sin(a) * sp, life = U.Rand(0.5f, 1), max = 1, size = r * U.Rand(0.1f, 0.22f), col = col });
             }
-            for (int i = 0; i < 4; i++) Bubble(x + U.Rand(-r, r) * 0.6f, y + U.Rand(-r, r) * 0.6f, r * 0.14f);
+            for (int i = 0, n = Fx(4); i < n; i++) Bubble(x + U.Rand(-r, r) * 0.6f, y + U.Rand(-r, r) * 0.6f, r * 0.14f);
             parts.Add(new Particle { type = PType.Ring, x = x, y = y, life = 0.34f, max = 0.34f, size = r * 0.9f, col = Color.Lerp(col, Color.white, 0.55f) });
         }
 
         void Sparkle(float x, float y, float r, int n, Color col)
         {
+            n = Fx(n);
             for (int i = 0; i < n; i++)
             {
                 float a = U.Rand(0, U.TAU), sp = U.Rand(0.5f, 2) * r;
@@ -1011,7 +1045,12 @@ namespace DeepFeast
             float h = captureTarget != null ? captureTarget.height : Mathf.Max(1, Screen.height);
             pxPerRef = Mathf.Min(w, h) / 820f;
             refW = w / pxPerRef; refH = h / pxPerRef;
-            hud?.Resize(pxPerRef, refW);
+            // A notched display reports a safe area below the camera housing. Headless checks can
+            // fake one with -notch <pixels>.
+            var safe = captureTarget != null ? new Rect(0, 0, w, h) : Screen.safeArea;
+            if (notch > 0) safe.yMax = Mathf.Min(safe.yMax, h - notch);
+            var insets = new Vector4(Mathf.Max(0, safe.xMin), Mathf.Max(0, safe.yMin), Mathf.Max(0, w - safe.xMax), Mathf.Max(0, h - safe.yMax));
+            hud?.Resize(pxPerRef, refW, insets / pxPerRef);
             presenter.Fit((int)w, (int)h);
         }
 
@@ -1044,7 +1083,7 @@ namespace DeepFeast
             float hw = ViewW / 2 + 200;
             foreach (var v in world.vents)
             {
-                if (Mathf.Abs(v.x - cam.x) > hw || !U.Chance(dt * 7)) continue;
+                if (Mathf.Abs(v.x - cam.x) > hw || !U.Chance(dt * 7 * GameSettings.EffectDensity)) continue;
                 float s = U.Rand(2.5f, 6);
                 parts.Add(new Particle { type = PType.Bubble, x = v.x + U.Rand(-5, 5), y = v.y - 6, vx = U.Rand(-4, 4), vy = -U.Rand(70, 120), life = U.Rand(3, 5.5f), max = 5.5f, size = s, ph = U.Rand(0, U.TAU) });
             }
@@ -1170,7 +1209,7 @@ namespace DeepFeast
             {
                 if (!Powered(PearlKind.Burst)) pStamina -= dt * 0.85f;
                 if (pStamina <= 0) { pStamina = 0; pTired = true; pDashing = false; }
-                if (U.Rand() < dt * 30) Bubble(player.x - player.face * player.r, player.y + U.Rand(-0.4f, 0.4f) * player.r, player.r * 0.18f, -U.Rand(0.5f, 1.5f) * player.r);
+                if (U.Rand() < dt * 30 * GameSettings.EffectDensity) Bubble(player.x - player.face * player.r, player.y + U.Rand(-0.4f, 0.4f) * player.r, player.r * 0.18f, -U.Rand(0.5f, 1.5f) * player.r);
             }
             else pStamina = Mathf.Min(1, pStamina + dt * 0.3f);
             if (pDashing && !was) sfx.Dash();
@@ -1189,7 +1228,7 @@ namespace DeepFeast
                 rippleT = 0.16f;
                 Ripple(player.x - player.face * player.r * 0.8f, player.y, 0.7f);
             }
-            if (Powered(PearlKind.Magnet) && U.Rand() < dt * 28)
+            if (Powered(PearlKind.Magnet) && U.Rand() < dt * 28 * GameSettings.EffectDensity)
             {
                 // Pink motes stream in from the edge of the magnet's reach.
                 float a = U.Rand(0, U.TAU), reach = MagnetReach;
@@ -1527,7 +1566,7 @@ namespace DeepFeast
             int jTarget = cam.y > 900 ? 4 : 2;
             if (jellies.Count < jTarget && U.Rand() < dt * 0.5f) SpawnJelly();
 
-            if (U.Rand() < dt * 6)
+            if (U.Rand() < dt * 6 * GameSettings.EffectDensity)
             {
                 float x = cam.x + U.Rand(-0.5f, 0.5f) * vw, fy = world.FloorY(x);
                 if (fy < cam.y + vh / 2) Bubble(x, fy - 4, U.Rand(2, 5) / zoom, -U.Rand(25, 60) / zoom);
@@ -1671,6 +1710,44 @@ namespace DeepFeast
         }
 
         readonly List<Fish> sorted = new List<Fish>();
+        readonly MeshBuilder shadowMb = new MeshBuilder();
+        Mesh shadowMesh;
+        // How far above the sand a fish of no size still casts a shadow, in world units.
+        const float ShadowReach = 460;
+
+        // Soft shadows on the sand under the fish swimming near it: darker and tighter the lower
+        // they swim, fading out with the sunlight in deeper water.
+        void RenderShadows()
+        {
+            shadowMb.Clear();
+            if (GameSettings.Data.shadows)
+            {
+                foreach (var f in sorted) CastShadow(f.x, f.y, f.r);
+                if (pActive && pAlive) CastShadow(player.x, player.y, player.r);
+            }
+            shadowMb.Apply(shadowMesh);
+        }
+
+        void CastShadow(float x, float y, float r)
+        {
+            float floor = world.FloorY(x), reach = ShadowReach + r * 4;
+            float t = Mathf.Clamp01((floor - y - r * 0.6f) / reach);
+            float a = 0.62f * (1 - t) * (1 - t) * (1 - World.DarkAt(floor) / 0.58f);
+            if (a < 0.004f || y > floor) return;
+            float hw = r * (1.5f + t * 1.6f), hh = hw * 0.26f;
+            // Lie along the slope of the sand, tucked just under its edge.
+            var along = new Vector2(2 * hw, world.FloorY(x + hw) - world.FloorY(x - hw)).normalized;
+            var down = new Vector2(-along.y, along.x);
+            var c = new Vector2(x, floor) + down * hh * 0.55f;
+            Vector2 A = along * hw, D = down * hh;
+            var col = new Color(0.02f, 0.06f, 0.1f, a);
+            Vector2 p0 = c - A - D, p1 = c + A - D, p2 = c + A + D, p3 = c - A + D;
+            int i0 = shadowMb.Vert(p0.x, -p0.y, col, 0, 0);
+            shadowMb.Vert(p1.x, -p1.y, col, 1, 0);
+            shadowMb.Vert(p2.x, -p2.y, col, 1, 1);
+            shadowMb.Vert(p3.x, -p3.y, col, 0, 1);
+            shadowMb.Quad(i0, i0 + 1, i0 + 2, i0 + 3);
+        }
 
         void Render(float dt, float rdt)
         {
@@ -1698,6 +1775,7 @@ namespace DeepFeast
                 sorted.Add(f);
             }
             sorted.Sort((a, b) => a.shark != b.shark ? (a.shark ? 1 : -1) : b.r != a.r ? b.r.CompareTo(a.r) : a.id.CompareTo(b.id));
+            RenderShadows();
             for (int i = 0; i < sorted.Count; i++)
             {
                 var f = sorted[i];

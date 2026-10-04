@@ -36,22 +36,25 @@ Menus, the results cards and the Fishdex navigate with arrows or the d-pad and c
 | Page | Options |
 | --- | --- |
 | Display | Fullscreen or windowed, resolution, render scale (50–200% of the output), VSync, max frame rate (Unlimited, 30, 60, 90, 120, 144, 165, 240, 360 or Custom), custom frame rate (20–1000), FPS counter |
-| Graphics | Anti-aliasing (off, 2×, 4×, 8× MSAA), glow (off, subtle, medium, strong), colour grading (off, subtle, rich), water ripples |
+| Graphics | Anti-aliasing (off, 2×, 4×, 8× MSAA), glow (off, subtle, medium, strong), colour grading (off, subtle, rich), water ripples, sprite detail (1×, 2×, 3×; next launch), effects detail (low, normal, high), fish shadows |
 | Sound & play | Master, effects and ambience volume; screen shake |
 
-Settings are saved as JSON in PlayerPrefs (`deepfeast.settings`). The scene is drawn into its own half-float target at the render scale and MSAA level, then presented under the HUD through `Shaders/PostFx.shader`: a soft-threshold bloom chain, a colour grade blended between reef, kelp and abyss looks, and ring-shaped refraction ripples from dashes and hits. The text stays sharp and ungraded at any scale. Very large targets step down to fewer MSAA samples to stay under about 1.5 GB. Input runs on the Input System package with the legacy Input Manager still enabled (Active Input Handling: Both).
+Settings are saved as JSON in PlayerPrefs (`deepfeast.settings`). The scene is drawn into its own half-float target at the render scale and MSAA level, then presented under the HUD through `Shaders/PostFx.shader`: a soft-threshold bloom chain, a colour grade blended between reef, kelp and abyss looks, and ring-shaped refraction ripples from dashes and hits. The text stays sharp and ungraded at any scale. Very large targets step down to fewer MSAA samples to stay under about 1.5 GB.
+
+Sprite detail sets how finely the game paints its generated art (fish skins without painted art, eyes, pearls, bubbles, particles) at launch: 2× by default, 1× on the web. Fish are painted on worker threads, so the whole bake takes about 0.6 s at 1×, 1.7 s at 2× and 3.2 s at 3× on an Apple-silicon Mac (`sprite detail` in the log). Effects detail scales marine snow, lens motes, vent and dash bubbles and the sparks of each bite. Fish near the sunlit seabed cast soft shadows on the sand. The playing HUD keeps inside `Screen.safeArea`, clear of a notch. Input runs on the Input System package with the legacy Input Manager still enabled (Active Input Handling: Both).
 
 ### Test-harness flags (player builds)
 
 | Flag | Effect |
 | --- | --- |
-| `-autoplay` | A bot plays the game (and restarts on game over) |
+| `-autoplay` | A bot plays the game (and restarts on game over); every frame over 50 ms is logged with what it overlapped |
 | `-shots <dir>` / `-shotevery <s>` | Save screenshots of the menu and every N seconds of play |
 | `-quitafter <s>` | Quit after N real seconds |
 | `-size <r>` | Start at radius `r` (jump straight to bigger tiers) |
 | `-startx <x>` | Start near the seabed at world x (e.g. `11000` for the deep trench) |
 | `-dumpart <dir>` | Write every baked sprite texture to `dir` as a PNG |
 | `-gallery` | Art review: every species, two jellies and one pearl of each kind in a grid; with `-shots` saves `gallery` and `gallery_bite` |
+| `-gallery -zoom <x> -focus <key>` | Move the gallery camera in `x` times, centred on one species by its key (the gallery log lists them, e.g. `atlantic_halibut`), to review sprite detail |
 | `-gallery -animate-gallery` | Capture swimming and a repeating anticipation/open/recovery cycle; `-shotevery` sets the frame interval |
 | `-gallery -animate-turns` | Add direction changes to the animated species gallery |
 | `-interface <menu\|pause\|over\|victory\|dex\|settings\|flow>` | Fixed native menu/results review; `flow` verifies play, pause, resume, retry, victory, keep swimming, the Fishdex and settings through Unity Submit and Move events |
@@ -60,6 +63,8 @@ Settings are saved as JSON in PlayerPrefs (`deepfeast.settings`). The scene is d
 | `-scenery kelp -turn-review -turn <facing>` | Hold facing interpolation near the midpoint for native turn-visibility regression captures |
 | `-scenery <reef\|kelp\|abyss\|surface>` | Fixed camera, fish placement and visual time for native environment comparisons; saves `scenery.png` after 3.1 seconds |
 | `-scenery <name> -ripple` | Send a water ripple from the hero just before the shot |
+| `-scenery <name> -nearfloor` | Place the fish just above the sand to review their shadows |
+| `-notch <px>` | Fake a notch this many pixels tall at the top of the screen; the playing HUD moves below it |
 | `-scenery kelp -animate-scenery` | Capture rooted plant motion; `-shotevery` sets the frame interval, with a 3.1-second HUD settling period |
 | `-batchmode -shots <dir>` | Render native camera/HUD captures offscreen when no active display is available; omit `-nographics` |
 | `-shark <s>` | First shark arrives after N seconds |

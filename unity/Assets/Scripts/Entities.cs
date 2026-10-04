@@ -63,7 +63,7 @@ namespace DeepFeast
     /// <summary>Pooled sprite renderers for bubbles, crumbs, sparks and shock rings.</summary>
     public sealed class Particles
     {
-        public const int MAX = 600;
+        public const int MAX = 800;
         public readonly List<Particle> list = new List<Particle>(MAX);
         readonly SpriteRenderer[] pool = new SpriteRenderer[MAX];
         readonly bool[] additive = new bool[MAX];
