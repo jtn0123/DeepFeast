@@ -97,6 +97,8 @@ namespace DeepFeast
         float targetGrowth, shownGrowth, growthPulse, scorePulse;
         bool growthInitialized;
         const float BAR_W = 440, DASH_W = 178, LIFE_STEP = 38;
+        sealed class PowerChip { public GameObject go; public RectTransform rt, fill; public Image bar; }
+        readonly List<PowerChip> powerChips = new List<PowerChip>();
 
         static readonly Color PanelCol = new Color(0.02f, 0.11f, 0.2f, 0.6f);
         static readonly Color EdgeCol = new Color(0.63f, 0.94f, 1, 0.22f);
@@ -199,6 +201,21 @@ namespace DeepFeast
             var dg = dash.gameObject.AddComponent<VertexGradient>();
             dg.horizontal = true; dg.a = U.Hex("#ff9f43"); dg.b = U.Hex("#ffc145"); dg.c = U.Hex("#ffe066");
             Shine(dashRT, 6);
+
+            // active pearl powers stack above the dash panel, each with its time running down
+            for (int i = 0; i < Powers.Count; i++)
+            {
+                var chip = Panel(hud, PanelCol, 13);
+                Place(chip.rectTransform, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(DASH_W + 40, 30), Vector2.zero);
+                AddOutline(chip, U.WithA(Powers.Colors[i], 0.45f), 1.5f);
+                Label(chip.rectTransform, Powers.Names[i], 13, Powers.Colors[i], TextAnchor.MiddleLeft, new Vector2(0, 0.5f), new Vector2(14, 1), display);
+                var track = Panel(chip.rectTransform, TrackCol, 4);
+                Place(track.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-12, 0), new Vector2(104, 8), new Vector2(1, 0.5f));
+                var timeBar = Panel(track.rectTransform, Powers.Colors[i], 4);
+                Place(timeBar.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), Vector2.zero, new Vector2(104, 8), new Vector2(0, 0.5f));
+                chip.gameObject.SetActive(false);
+                powerChips.Add(new PowerChip { go = chip.gameObject, rt = chip.rectTransform, fill = timeBar.rectTransform, bar = timeBar });
+            }
 
             // ---------------------------------------------------------- banner
             bannerRT = Node("Banner", rootRT);
@@ -494,6 +511,22 @@ namespace DeepFeast
             dash.GetComponent<VertexGradient>().enabled = !tired;
             SetText(dashLabel, tired ? "RECOVER" : "DASH");
             SetText(depth, $"DEPTH {depthM} m");
+        }
+
+        public void UpdatePowers(float[] left)
+        {
+            int row = 0;
+            for (int i = 0; i < powerChips.Count; i++)
+            {
+                var chip = powerChips[i];
+                bool on = left[i] > 0;
+                SetActive(chip.go, on);
+                if (!on) continue;
+                chip.rt.anchoredPosition = new Vector2(14, 110 + row++ * 36);
+                chip.fill.sizeDelta = new Vector2(Mathf.Max(8, left[i] / Powers.Durations[i] * 104), 8);
+                // The bar flickers through its last two seconds.
+                chip.bar.color = U.WithA(Powers.Colors[i], left[i] < 2 && Mathf.FloorToInt(left[i] * 8) % 2 == 0 ? 0.35f : 1);
+            }
         }
 
         public void PulseGrowth(bool tierUp)

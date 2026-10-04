@@ -57,7 +57,12 @@ namespace DeepFeast
 
         readonly Fish player = new Fish { sp = null };
         bool pActive, pAlive, pTired, pDashing;
-        float pInvuln, pStamina = 1, pBlink, pBlinkT = 3, pShield, pStun, pStungCool, wakeT;
+        float pInvuln, pStamina = 1, pBlink, pBlinkT = 3, pStun, pStungCool, wakeT;
+        // Seconds left on each pearl power, indexed by PearlKind.
+        readonly float[] power = new float[Powers.Count];
+        float pShield => power[(int)PearlKind.Shield];
+        bool Powered(PearlKind k) => power[(int)k] > 0;
+        float MagnetReach => player.r * 6 + 60;
         FishView playerView;
         RenderTexture captureTarget;
         string captureName;
@@ -68,12 +73,15 @@ namespace DeepFeast
         readonly List<School> schools = new List<School>();
         readonly List<Jelly> jellies = new List<Jelly>();
         readonly List<Pearl> pearls = new List<Pearl>();
+        // The few fish the magnet is reeling in right now, nearest first.
+        readonly List<(float d, Fish f)> magnetPull = new List<(float, Fish)>();
+        const int MagnetHold = 4;
         readonly Stack<FishView> viewPool = new Stack<FishView>();
         readonly List<Hole> holes = new List<Hole>();
         readonly List<Alert> alerts = new List<Alert>();
         readonly Dictionary<float, Sprite> bellSprites = new Dictionary<float, Sprite>();
         Sprite pearlSprite, pearlStar, pearlRing;
-        int nextId = 1, nextSharkVariant;
+        int nextId = 1, nextSharkVariant, pearlSeq;
 
         // ------------------------------------------------------------------ input
         bool kbMode, pointerMode, touchMode;
@@ -83,7 +91,7 @@ namespace DeepFeast
         // ------------------------------------------------------------------ test harness (command line)
         bool autoplay, noPause, gallery, animateGallery;
         string shotDir, scenery, interfaceReview;
-        float worstFrame, shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, finaleDelay = 12, realTime, statT, botWanderDir = 1, restartT = -1;
+        float worstFrame, shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, finaleDelay = 12, pearlEvery, realTime, statT, botWanderDir = 1, restartT = -1;
         int shotN, uiFlowStage;
         bool menuShotDone, turnReviewLogged, portraitsTaken;
 
@@ -190,13 +198,13 @@ namespace DeepFeast
             r.Paint(r.Ellipse(-0.38f, -0.42f, 0.27f, 0.19f, -0.6f), new Color(1, 1, 1, 0.92f));
             pearlSprite = r.ToSprite(Vector2.zero, 64);
 
-            // thin cyan halo ring with a soft glow
+            // thin halo ring with a soft glow, white so each kind of pearl can tint it
             var h = new Raster(-1.75f, -1.75f, 1.75f, 1.75f, 48);
             var ring = h.Circle(0, 0, 1.5f);
             var inner = h.Circle(0, 0, 1.42f);
             for (int i = 0; i < ring.Length; i++) ring[i] = Mathf.Clamp01(ring[i] - inner[i]);
-            h.Paint(h.Blur(ring, 4), new Color(0.45f, 0.9f, 1, 0.9f));
-            h.Paint(ring, new Color(0.75f, 0.97f, 1, 1));
+            h.Paint(h.Blur(ring, 4), new Color(0.7f, 0.95f, 1, 0.9f));
+            h.Paint(ring, new Color(0.9f, 0.99f, 1, 1));
             pearlRing = h.ToSprite(Vector2.zero, 48);
 
             // long, thin four-point sparkle
@@ -269,6 +277,8 @@ namespace DeepFeast
             firstShark = ArgF("-shark", -1);
             nextSharkVariant = (int)ArgF("-sharkvariant", 0);
             finaleDelay = ArgF("-finale", 12);
+            // Test runs can drop pearls on a fixed beat, cycling through every kind.
+            pearlEvery = ArgF("-pearlevery", 0);
             float ts = ArgF("-timescale", 1);
             if (ts != 1) Time.timeScale = ts;
             if (shotDir != null) System.IO.Directory.CreateDirectory(shotDir);
@@ -383,7 +393,8 @@ namespace DeepFeast
                     fish.Add(f);
                 }
                 else if (i < all.Count + 2) AddJelly(x, y - 20, 20, i == all.Count ? 270 : 190);
-                else AddPearl(x, y, 12);
+                else
+                    for (int k = 0; k < Powers.Count; k++) AddPearl(x + (k - 1.5f) * cw * 0.22f, y, 9, (PearlKind)k);
             }
             Debug.Log($"[DeepFeast] native gallery: {all.Count} catalog identities, {columns} columns, {rows} rows; " +
                 string.Join(", ", System.Linq.Enumerable.Select(all, sp => sp.key + "=" + sp.displayName)));
@@ -518,7 +529,7 @@ namespace DeepFeast
             pearls.Clear();
             parts.Clear(); hud.ClearTexts();
             state = GState.Play; score = 0; lives = 3; combo = 0; comboT = 0; eaten = 0; newSpecies = 0; playTime = 0; tier = 0;
-            sharkT = firstShark > 0 ? firstShark : U.Rand(32, 40); pearlT = U.Rand(14, 20); slowT = 0; shake = 0; dieT = 0;
+            sharkT = firstShark > 0 ? firstShark : U.Rand(32, 40); pearlT = pearlEvery > 0 ? 2 : U.Rand(14, 20); pearlSeq = 0; slowT = 0; shake = 0; dieT = 0;
             finaleT = -1; victoryT = -1; biteCool = 0; finaleBites = 0; endless = false; finale = null;
             hints.Clear();
             var s = world.FindStart();
@@ -531,7 +542,7 @@ namespace DeepFeast
                 for (int i = 0; i < Data.Tiers.Length; i++) if (player.r >= Data.Tiers[i].r) tier = i;
                 if (Legend) finaleT = finaleDelay;
             }
-            pInvuln = 2; pStamina = 1; pTired = false; pDashing = false; pActive = true; pAlive = true; pShield = 0; pStun = 0; pStungCool = 0;
+            pInvuln = 2; pStamina = 1; pTired = false; pDashing = false; pActive = true; pAlive = true; System.Array.Clear(power, 0, power.Length); pStun = 0; pStungCool = 0;
             zoom = Data.ZoomFor(player.r);
             cam = new Vector2(player.x, player.y);
             for (int i = 0; i < 70; i++) SpawnOne(true);
@@ -860,18 +871,35 @@ namespace DeepFeast
             {
                 float x = cam.x + U.Rand(-0.38f, 0.38f) * vw, y = cam.y + U.Rand(-0.36f, 0.36f) * vh;
                 if (!world.InWater(x, y, pr) || Dist(x - player.x, y - player.y) < pr * 5) continue;
-                AddPearl(x, y, Mathf.Max(6, pr * 0.32f));
+                AddPearl(x, y, Mathf.Max(6, pr * 0.32f), NextPearlKind());
                 return;
             }
         }
 
-        Pearl AddPearl(float x, float y, float r)
+        bool Reeling(Fish f)
         {
-            var p = new Pearl { x = x, y = y, r = r, life = 16, ph = U.Rand(0, U.TAU) };
+            foreach (var m in magnetPull) if (m.f == f) return true;
+            return false;
+        }
+
+        // Shields, magnets and bursts anywhere; the lantern turns up only where the water is dark.
+        PearlKind NextPearlKind()
+        {
+            if (pearlEvery > 0) return (PearlKind)(pearlSeq++ % Powers.Count);
+            if (World.DarkAt(player.y) > 0.2f && U.Chance(0.4f)) return PearlKind.Lantern;
+            float roll = U.Rand();
+            return roll < 0.4f ? PearlKind.Shield : roll < 0.7f ? PearlKind.Magnet : PearlKind.Burst;
+        }
+
+        Pearl AddPearl(float x, float y, float r, PearlKind kind = PearlKind.Shield)
+        {
+            var col = Powers.Colors[(int)kind];
+            var p = new Pearl { x = x, y = y, r = r, life = 16, ph = U.Rand(0, U.TAU), kind = kind };
             p.glow = Gfx.SpriteObject("PearlGlow", fxRoot, Gfx.Glow, Layer.Glow, true);
-            p.glow.color = new Color(0.7f, 0.88f, 1, 0.22f);
+            p.glow.color = U.WithA(col, 0.26f);
             p.ring = Gfx.SpriteObject("PearlRing", fxRoot, pearlRing, Layer.Pearl - 1, true);
             p.body = Gfx.SpriteObject("Pearl", fxRoot, pearlSprite, Layer.Pearl);
+            p.body.color = Color.Lerp(Color.white, col, 0.4f);
             p.star = Gfx.SpriteObject("PearlStar", fxRoot, pearlStar, Layer.Pearl + 1);
             pearls.Add(p);
             return p;
@@ -1053,7 +1081,7 @@ namespace DeepFeast
         {
             float bas = Data.SpeedFor(player.r);
             pInvuln = Mathf.Max(0, pInvuln - dt);
-            pShield = Mathf.Max(0, pShield - dt);
+            for (int pk = 0; pk < power.Length; pk++) power[pk] = Mathf.Max(0, power[pk] - dt);
             pStun = Mathf.Max(0, pStun - dt);
             pStungCool = Mathf.Max(0, pStungCool - dt);
             biteCool = Mathf.Max(0, biteCool - dt);
@@ -1085,21 +1113,29 @@ namespace DeepFeast
             pDashing = want && !pTired && pStun <= 0;
             if (pDashing)
             {
-                pStamina -= dt * 0.85f;
+                if (!Powered(PearlKind.Burst)) pStamina -= dt * 0.85f;
                 if (pStamina <= 0) { pStamina = 0; pTired = true; pDashing = false; }
                 if (U.Rand() < dt * 30) Bubble(player.x - player.face * player.r, player.y + U.Rand(-0.4f, 0.4f) * player.r, player.r * 0.18f, -U.Rand(0.5f, 1.5f) * player.r);
             }
             else pStamina = Mathf.Min(1, pStamina + dt * 0.3f);
             if (pDashing && !was) sfx.Dash();
             wakeT = Mathf.Max(0, wakeT - dt);
-            if (pDashing && wakeT <= 0)
+            bool burst = Powered(PearlKind.Burst);
+            if ((pDashing || (burst && mag > 0.2f)) && wakeT <= 0)
             {
                 wakeT = 0.055f;
                 parts.Add(new Particle { type = PType.Wake, x = player.x - player.face * player.r * 1.55f, y = player.y,
-                    vx = player.vx, vy = player.vy, life = 0.25f, max = 0.25f, size = player.r * 0.55f, col = U.Hex("#97ece2") });
+                    vx = player.vx, vy = player.vy, life = 0.25f, max = 0.25f, size = player.r * 0.55f, col = burst ? Powers.Colors[(int)PearlKind.Burst] : U.Hex("#97ece2") });
+            }
+            if (Powered(PearlKind.Magnet) && U.Rand() < dt * 28)
+            {
+                // Pink motes stream in from the edge of the magnet's reach.
+                float a = U.Rand(0, U.TAU), reach = MagnetReach;
+                parts.Add(new Particle { type = PType.Spark, x = player.x + Mathf.Cos(a) * reach, y = player.y + Mathf.Sin(a) * reach,
+                    vx = -Mathf.Cos(a) * reach * 2.2f, vy = -Mathf.Sin(a) * reach * 2.2f, life = 0.55f, max = 0.55f, size = player.r * 0.24f, col = Powers.Colors[(int)PearlKind.Magnet] });
             }
 
-            float spd = bas * mag * (pDashing ? 1.85f : 1) * (pStun > 0 ? 0.3f : 1);
+            float spd = bas * mag * (pDashing ? 1.85f : 1) * (burst ? 1.3f : 1) * (pStun > 0 ? 0.3f : 1);
             float k = Mathf.Min(1, dt * (pDashing ? 9 : 6));
             player.vx += (dx * spd - player.vx) * k;
             player.vy += (dy * spd - player.vy) * k;
@@ -1191,14 +1227,23 @@ namespace DeepFeast
                 {
                     pearls.RemoveAt(i);
                     DestroyPearl(p);
-                    pShield = 7; pStamina = 1; pTired = false;
+                    int kind = (int)p.kind;
+                    power[kind] = Powers.Durations[kind]; pStamina = 1; pTired = false;
                     int pts = 100 * (tier + 1);
                     score += pts;
-                    hud.AddText(p.x, p.y - p.r * 2, "SHIELD +" + pts, U.Hex("#bff6ff"), 24);
+                    var col = Powers.Colors[kind];
+                    hud.AddText(p.x, p.y - p.r * 2, Powers.Names[kind] + " +" + pts, Color.Lerp(col, Color.white, 0.5f), 24);
                     Sparkle(p.x, p.y, pr, 22, Color.white);
-                    parts.Add(new Particle { type = PType.Ring, x = p.x, y = p.y, life = 0.6f, max = 0.6f, size = pr * 3, col = new Color(190 / 255f, 250 / 255f, 1) });
+                    parts.Add(new Particle { type = PType.Ring, x = p.x, y = p.y, life = 0.6f, max = 0.6f, size = pr * 3, col = Color.Lerp(col, Color.white, 0.4f) });
                     sfx.Pearl();
-                    Hint("pearl", "BUBBLE SHIELD", "Predators bounce off you for a few seconds", new Color(140 / 255f, 240 / 255f, 1));
+                    Debug.Log($"[DeepFeast] pearl: {p.kind} at t={playTime:0}");
+                    switch (p.kind)
+                    {
+                        case PearlKind.Shield: Hint("pearl", "BUBBLE SHIELD", "Predators bounce off you for a few seconds", col); break;
+                        case PearlKind.Magnet: Hint("magnet", "PEARL MAGNET", "Fish small enough to eat are reeled in", col); break;
+                        case PearlKind.Burst: Hint("burst", "SPEED BURST", "Swim faster and dash without tiring", col); break;
+                        default: Hint("lantern", "ABYSS LANTERN", "Light up the deep — hunters lose your trail", col); break;
+                    }
                 }
             }
         }
@@ -1222,6 +1267,21 @@ namespace DeepFeast
                 s.wasFleeing = s.fleeT > 0;
                 if (s.turnT <= 0) { s.turnT = U.Rand(7, 15); if (U.Chance(0.4f)) s.dir *= -1; }
                 if (s.cx < 300) s.dir = 1; else if (s.cx > World.W - 300) s.dir = -1;
+            }
+
+            // The magnet holds only its nearest few catches, so it reels in a steady stream
+            // rather than a whole school at once.
+            magnetPull.Clear();
+            if (active && Powered(PearlKind.Magnet))
+            {
+                float reach = MagnetReach;
+                foreach (var f in fish)
+                {
+                    float d = Dist(player.x - f.x, player.y - f.y);
+                    if (f != finale && f.r / pr <= Data.EAT && d < reach) magnetPull.Add((d, f));
+                }
+                magnetPull.Sort((a, b) => a.d.CompareTo(b.d));
+                if (magnetPull.Count > MagnetHold) magnetPull.RemoveRange(MagnetHold, magnetPull.Count - MagnetHold);
             }
 
             foreach (var f in fish)
@@ -1270,7 +1330,7 @@ namespace DeepFeast
                 else
                 {
                     if (active && ratio >= Data.DANGER && f.state != FState.Chase && f.cool <= 0 && d < sight &&
-                        pInvuln <= 0 && pShield <= 0 && U.Rand() < dt * 0.7f * f.aggro)
+                        pInvuln <= 0 && pShield <= 0 && !Powered(PearlKind.Lantern) && U.Rand() < dt * 0.7f * f.aggro)
                     {
                         f.state = FState.Chase; f.chaseT = U.Rand(3, 5.5f); f.alertT = 1.1f;
                         sfx.Alert();
@@ -1279,7 +1339,7 @@ namespace DeepFeast
                     if (f.state == FState.Chase)
                     {
                         f.chaseT -= dt;
-                        if (!active || ratio < Data.DANGER || pInvuln > 0 || pShield > 0 || f.chaseT <= 0 || d > sight * 1.7f)
+                        if (!active || ratio < Data.DANGER || pInvuln > 0 || pShield > 0 || Powered(PearlKind.Lantern) || f.chaseT <= 0 || d > sight * 1.7f)
                         {
                             f.state = FState.Wander; f.cool = U.Rand(4, 8); f.dir = f.vx >= 0 ? 1 : -1;
                         }
@@ -1320,6 +1380,12 @@ namespace DeepFeast
                         ty = Mathf.Clamp((f.homeY - f.y) / (f.r * 20), -0.4f, 0.4f) + Mathf.Sin(time * 0.9f + f.phase) * 0.12f;
                         spd = bas * f.cruise; agility = 1.5f;
                     }
+                }
+
+                // The magnet pearl reels in its catches, fastest from close in.
+                if (Reeling(f))
+                {
+                    tx = dx / d; ty = dy / d; spd = bas * Mathf.Lerp(0.8f, 0.35f, d / MagnetReach); agility = 4;
                 }
 
                 if (!f.shark || f.state != FState.Leave)
@@ -1436,7 +1502,7 @@ namespace DeepFeast
                 sharkT = U.Rand(35, 55);
             }
             pearlT -= dt;
-            if (pearlT <= 0) { if (pearls.Count == 0) SpawnPearl(); pearlT = U.Rand(24, 38); }
+            if (pearlT <= 0) { if (pearls.Count == 0) SpawnPearl(); pearlT = pearlEvery > 0 ? pearlEvery : U.Rand(20, 32); }
         }
 
         void UpdateCamera(float dt)
@@ -1604,9 +1670,19 @@ namespace DeepFeast
                 playerView.Pose(player, Layer.Player, mode, dt);
                 float deep = Mathf.Clamp01((player.y - 1200) / 2500);
                 playerGlow.transform.localPosition = U.V3(player.x, player.y);
+                // The aura takes the color of the strongest active power; the lantern burns wide and warm.
+                var aura = new Color(80 / 255f, 1, 220 / 255f, 0.1f + deep * 0.16f + Mathf.Sin(time * 2.4f) * 0.025f);
                 float gd = player.r * 8;
+                for (int k = 1; k < Powers.Count; k++)
+                {
+                    float on = Mathf.Clamp01(power[k] / 1.5f);
+                    if (on <= 0) continue;
+                    var c = Powers.Colors[k];
+                    aura = Color.Lerp(aura, new Color(c.r, c.g, c.b, k == (int)PearlKind.Lantern ? 0.42f : 0.26f), on);
+                    if (k == (int)PearlKind.Lantern) gd = Mathf.Lerp(gd, player.r * 15, on);
+                }
                 playerGlow.transform.localScale = new Vector3(gd, gd, 1);
-                playerGlow.color = new Color(80 / 255f, 1, 220 / 255f, 0.1f + deep * 0.16f + Mathf.Sin(time * 2.4f) * 0.025f);
+                playerGlow.color = aura;
             }
             bool sh = pv && pShield > 0;
             shieldRing.enabled = shieldFill.enabled = shieldShine.enabled = sh;
@@ -1687,7 +1763,7 @@ namespace DeepFeast
                 var pos = U.V3(p.x, p.y + bob);
                 p.body.transform.localPosition = pos; p.body.transform.localScale = Vector3.one * p.r;
                 p.ring.transform.localPosition = pos; p.ring.transform.localScale = Vector3.one * p.r * (1 + 0.04f * Mathf.Sin(time * 3 + p.ph));
-                p.ring.color = new Color(1, 1, 1, 0.52f + 0.12f * Mathf.Sin(time * 2 + p.ph));
+                p.ring.color = U.WithA(Color.Lerp(Powers.Colors[(int)p.kind], Color.white, 0.25f), 0.6f + 0.14f * Mathf.Sin(time * 2 + p.ph));
                 float tw = 0.85f + 0.15f * Mathf.Sin(time * 5 + p.ph);
                 p.star.transform.localPosition = pos; p.star.transform.localScale = Vector3.one * p.r * tw * 0.62f;
                 p.star.transform.localRotation = Quaternion.Euler(0, 0, Mathf.Sin(time * 0.8f + p.ph) * 12);
@@ -1698,7 +1774,12 @@ namespace DeepFeast
 
             // light holes in the abyss
             holes.Clear();
-            if (pv) holes.Add(new Hole(player.x, player.y, player.r * 8, 0.9f));
+            if (pv)
+            {
+                // The lantern opens a wide pool of light, shrinking back as it runs out.
+                float lamp = Mathf.Clamp01(power[(int)PearlKind.Lantern] / 1.5f);
+                holes.Add(new Hole(player.x, player.y, Mathf.Lerp(player.r * 8, Mathf.Max(player.r * 22, ViewH * 0.55f), lamp), Mathf.Lerp(0.9f, 1, lamp)));
+            }
             foreach (var j in jellies) holes.Add(new Hole(j.x, j.y + j.r * 0.5f, j.r * 4, 0.75f));
             foreach (var p in pearls) holes.Add(new Hole(p.x, p.y, p.r * 8, 0.8f));
             foreach (var f in fish)
@@ -1745,6 +1826,7 @@ namespace DeepFeast
                 float prog = hasNext ? Mathf.Clamp01((player.r - cur.r) / (Data.Tiers[tier + 1].r - cur.r)) : 1;
                 hud.UpdateHud(score, combo, comboT > 0, cur.name, prog, hasNext ? "next: " + Data.Tiers[tier + 1].name.ToUpperInvariant() : endless ? "ENDLESS DEEP" : "finale: WHALE SHARK",
                     lives, pStamina, pTired, Mathf.Max(0, Mathf.RoundToInt(player.y / 8)));
+                hud.UpdatePowers(power);
             }
             hud.Tick(dt, rdt, (x, y) => ToScreen(x, y), alerts, interfaceReview != null ? time : Time.unscaledTime);
         }

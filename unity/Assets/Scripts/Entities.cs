@@ -34,7 +34,21 @@ namespace DeepFeast
     public sealed class Pearl
     {
         public float x, y, r, life, ph;
+        public PearlKind kind;
         public SpriteRenderer body, star, glow, ring;
+    }
+
+    public enum PearlKind { Shield, Magnet, Burst, Lantern }
+
+    // What each pearl grants: predators bounce off the shield, the magnet reels in fish small
+    // enough to eat, the burst gives speed and a dash that never tires, and the abyss lantern
+    // lights the dark so hunters lose your trail.
+    public static class Powers
+    {
+        public const int Count = 4;
+        public static readonly string[] Names = { "SHIELD", "MAGNET", "BURST", "LANTERN" };
+        public static readonly Color[] Colors = { U.Hex("#8cf0ff"), U.Hex("#ff86d8"), U.Hex("#a6ff5c"), U.Hex("#ffc35a") };
+        public static readonly float[] Durations = { 7, 7, 6, 14 };
     }
 
     public enum PType { Bubble, Bit, Spark, Ring, Wake }
