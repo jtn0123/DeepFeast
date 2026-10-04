@@ -26,7 +26,7 @@ namespace DeepFeast
     /// <summary>The whole game loop: state machine, player, AI, spawning, camera and rendering glue.</summary>
     public sealed class Game : MonoBehaviour
     {
-        enum GState { Menu, Play, Paused, Over }
+        enum GState { Menu, Play, Paused, Over, Victory }
 
         // ------------------------------------------------------------------ systems
         Camera cam3;
@@ -43,6 +43,12 @@ namespace DeepFeast
         GState state = GState.Menu;
         int score, lives = 3, combo, eaten, tier, best;
         float comboT, playTime, sharkT = 30, pearlT = 18, slowT, shake, dieT, time;
+        // The finale: once the hero is a Legend the whale shark arrives, too big to swallow; each
+        // bite takes a chunk out of it until it is small enough to eat, which wins the game.
+        float finaleT = -1, victoryT = -1, biteCool;
+        int finaleBites;
+        bool endless;
+        Fish finale;
         readonly HashSet<string> hints = new HashSet<string>();
 
         Vector2 cam = new Vector2(7000, 1500);
@@ -77,7 +83,7 @@ namespace DeepFeast
         // ------------------------------------------------------------------ test harness (command line)
         bool autoplay, noPause, gallery, animateGallery;
         string shotDir, scenery, interfaceReview;
-        float worstFrame, shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, realTime, statT, botWanderDir = 1, restartT = -1;
+        float worstFrame, shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, finaleDelay = 12, realTime, statT, botWanderDir = 1, restartT = -1;
         int shotN, uiFlowStage;
         bool menuShotDone, turnReviewLogged;
 
@@ -85,6 +91,7 @@ namespace DeepFeast
         float ViewW => refW / zoom;
         float ViewH => refH / zoom;
         bool Playing => state == GState.Play && pActive && pAlive;
+        bool Legend => tier >= Data.Tiers.Length - 1;
 
         // ================================================================== setup
         void Awake()
@@ -132,6 +139,7 @@ namespace DeepFeast
             hud.OnPlay = StartGame;
             hud.OnResume = () => TogglePause(false);
             hud.OnMute = ToggleMute;
+            hud.OnContinue = KeepSwimming;
             hud.SetMuted(sfx.Muted);
 
             best = PlayerPrefs.GetInt("deepfeast.best", 0);
@@ -257,6 +265,7 @@ namespace DeepFeast
             startX = ArgF("-startx", -1);
             firstShark = ArgF("-shark", -1);
             nextSharkVariant = (int)ArgF("-sharkvariant", 0);
+            finaleDelay = ArgF("-finale", 12);
             float ts = ArgF("-timescale", 1);
             if (ts != 1) Time.timeScale = ts;
             if (shotDir != null) System.IO.Directory.CreateDirectory(shotDir);
@@ -331,6 +340,13 @@ namespace DeepFeast
                     Debug.Log($"[DeepFeast] cast y={player.y:0} zone={Habitat.At(player.y).name}: " + string.Join(", ", System.Linq.Enumerable.Select(cast, c => c.Key + "=" + c.Value)));
                     worstFrame = 0;
                 }
+            }
+            if (state == GState.Victory && autoplay)
+            {
+                if (restartT < 0) { restartT = 3; }
+                restartT -= rdt;
+                if (restartT <= 1.5f && restartT + rdt > 1.5f) Shot($"victory_{shotN++:00}");
+                if (restartT <= 0) { restartT = -1; hud.SubmitPrimary(); nextShot = playTime + 2; }
             }
             if (state == GState.Over && autoplay)
             {
@@ -449,6 +465,7 @@ namespace DeepFeast
         {
             if (interfaceReview == "menu" || interfaceReview == "flow") { state = GState.Menu; pActive = false; hud.ShowMenu(4240); }
             else if (interfaceReview == "pause") { state = GState.Paused; hud.ShowPause(true); }
+            else if (interfaceReview == "victory") { state = GState.Victory; hud.ShowVictory(48210, 512, 1312, 48210); }
             else { state = GState.Over; pActive = false; hud.ShowOver(2340, "Predator", 42, 164, false, 4240); }
         }
 
@@ -471,7 +488,10 @@ namespace DeepFeast
                 case 6 when realTime > 6.4f: GameOver(); Check(GState.Over, "over", "game over"); uiFlowStage++; break;
                 case 7 when realTime > 7: Shot("over"); uiFlowStage++; break;
                 case 8 when realTime > 7.4f: hud.SubmitPrimary(); Check(GState.Play, "none", "retry submit"); uiFlowStage++; break;
-                case 9 when realTime > 8: Debug.Log("[DeepFeast] complete native UI flow passed."); uiFlowStage++; break;
+                case 9 when realTime > 8: Victory(); Check(GState.Victory, "victory", "victory"); uiFlowStage++; break;
+                case 10 when realTime > 8.6f: Shot("victory"); uiFlowStage++; break;
+                case 11 when realTime > 9: hud.SubmitPrimary(); Check(GState.Play, "none", "keep swimming submit"); uiFlowStage++; break;
+                case 12 when realTime > 9.6f: Debug.Log("[DeepFeast] complete native UI flow passed."); uiFlowStage++; break;
             }
         }
 
@@ -486,6 +506,7 @@ namespace DeepFeast
             parts.Clear(); hud.ClearTexts();
             state = GState.Play; score = 0; lives = 3; combo = 0; comboT = 0; eaten = 0; playTime = 0; tier = 0;
             sharkT = firstShark > 0 ? firstShark : U.Rand(32, 40); pearlT = U.Rand(14, 20); slowT = 0; shake = 0; dieT = 0;
+            finaleT = -1; victoryT = -1; biteCool = 0; finaleBites = 0; endless = false; finale = null;
             hints.Clear();
             var s = world.FindStart();
             if (startX >= 0) s = new Vector2(startX, world.FloorY(startX) - 260);
@@ -495,6 +516,7 @@ namespace DeepFeast
             {
                 player.r = startSize;
                 for (int i = 0; i < Data.Tiers.Length; i++) if (player.r >= Data.Tiers[i].r) tier = i;
+                if (Legend) finaleT = finaleDelay;
             }
             pInvuln = 2; pStamina = 1; pTired = false; pDashing = false; pActive = true; pAlive = true; pShield = 0; pStun = 0; pStungCool = 0;
             zoom = Data.ZoomFor(player.r);
@@ -527,6 +549,27 @@ namespace DeepFeast
             Debug.Log($"[DeepFeast] game over t={(int)playTime} score={score} tier={Data.Tiers[tier].name} eaten={eaten}");
         }
 
+        void Victory()
+        {
+            state = GState.Victory;
+            pDashing = false;
+            if (score > best) { best = score; PlayerPrefs.SetInt("deepfeast.best", best); PlayerPrefs.Save(); }
+            hud.ShowVictory(score, eaten, playTime, best);
+            Debug.Log($"[DeepFeast] victory t={(int)playTime} score={score} r={player.r:0.0} eaten={eaten}");
+        }
+
+        // After the finale the swim goes on: same ocean, no more whale shark.
+        void KeepSwimming()
+        {
+            if (state != GState.Victory) return;
+            state = GState.Play;
+            endless = true;
+            pInvuln = 2;
+            hud.HideVictory();
+            Banner("ENDLESS DEEP", "The ocean is yours. Feast for as long as you last", new Color(80 / 255f, 240 / 255f, 220 / 255f));
+            Debug.Log("[DeepFeast] endless swim continues");
+        }
+
         void Banner(string title, string sub, Color glow) => hud.Banner(title, sub, glow);
 
         void Hint(string key, string title, string sub, Color glow)
@@ -542,6 +585,7 @@ namespace DeepFeast
             for (int i = 0; i < Data.Tiers.Length; i++) if (player.r >= Data.Tiers[i].r) t = i;
             if (t <= tier) return;
             tier = t;
+            if (Legend && !endless) finaleT = finaleDelay;
             bool extra = lives < 5;
             if (extra) lives++;
             Banner(Data.Tiers[t].name.ToUpperInvariant() + "!", Data.Tiers[t].blurb + (extra ? "  +1 life" : ""), new Color(1, 212 / 255f, 71 / 255f));
@@ -560,6 +604,9 @@ namespace DeepFeast
             player.chomp = 0.22f;
             // Young fish grow fast so the first tiers come quickly; the boost fades out by Hunter.
             float growth = Data.GROW * Mathf.Lerp(1.8f, 1, Mathf.InverseLerp(Data.Tiers[0].r, Data.Tiers[2].r, pr));
+            // Past Legend growth tapers off, so the hero never outgrows the screen.
+            float legendR = Data.Tiers[Data.Tiers.Length - 1].r;
+            growth *= Mathf.Lerp(1, 0.15f, Mathf.InverseLerp(legendR, legendR * 1.5f, pr));
             player.r = Mathf.Sqrt(pr * pr + f.r * f.r * growth);
             combo = comboT > 0 ? Mathf.Min(combo + 1, 12) : 1;
             comboT = 1.8f;
@@ -575,6 +622,41 @@ namespace DeepFeast
             sfx.Chomp(f.r / pr, combo);
             shake = Mathf.Max(shake, 2 + (f.r / pr) * 3);
             CheckTier();
+            if (f == finale) WinFinale(f);
+        }
+
+        void WinFinale(Fish f)
+        {
+            finale = null;
+            const int bonus = 10000;
+            score += bonus;
+            hud.AddText(player.x, player.y - player.r * 2.2f - 40 / zoom, "LEGEND BONUS +" + bonus.ToString("N0"), U.Hex("#ffd447"), 30);
+            Banner("LEGEND OF THE DEEP!", "You caught the whale shark", new Color(1, 212 / 255f, 71 / 255f));
+            for (int k = 0; k < 3; k++)
+                parts.Add(new Particle { type = PType.Ring, x = player.x, y = player.y, life = 0.7f + k * 0.25f, max = 0.7f + k * 0.25f, size = player.r * (3 + k * 1.4f), col = new Color(1, 220 / 255f, 120 / 255f) });
+            Sparkle(player.x, player.y, player.r * 1.6f, 40, U.Hex("#ffe38a"));
+            sfx.TierUp();
+            slowT = 0.9f; shake = Mathf.Max(shake, 10);
+            victoryT = 1.6f;
+        }
+
+        // A bite out of the whale shark: it shrinks, bolts, and after a few bites fits in your mouth.
+        void BiteFinale(Fish f)
+        {
+            biteCool = 0.5f;
+            finaleBites++;
+            f.r *= 0.8f; f.cool = 1.4f;
+            player.chomp = 0.22f;
+            int pts = 1500 * finaleBites;
+            score += pts;
+            float mx = player.x + player.face * player.r * 0.9f;
+            Burst(mx, player.y, f.r * 0.45f, f.sp.c0);
+            hud.AddText(mx, player.y - player.r * 1.5f - 10 / zoom, "BITE! +" + pts.ToString("N0"), U.Hex("#ffd447"), 26);
+            sfx.Chomp(0.9f, finaleBites);
+            shake = Mathf.Max(shake, 6);
+            hud.PulseGrowth(false);
+            Debug.Log($"[DeepFeast] finale: bite {finaleBites}, whale shark radius={f.r:0.0} player={player.r:0.0}");
+            if (f.r <= player.r * Data.EAT) Banner("SWALLOW IT!", "The whale shark is small enough now", new Color(1, 212 / 255f, 71 / 255f));
         }
 
         void KillPlayer(Fish killer)
@@ -595,7 +677,7 @@ namespace DeepFeast
             float sight = ViewW;
             foreach (var f in fish)
             {
-                if (f.r >= player.r * Data.DANGER && Dist(f.x - player.x, f.y - player.y) < sight)
+                if (f != finale && f.r >= player.r * Data.DANGER && Dist(f.x - player.x, f.y - player.y) < sight)
                 {
                     f.state = f.shark ? FState.Leave : FState.Wander;
                     f.cool = 6;
@@ -644,7 +726,8 @@ namespace DeepFeast
         void SpawnOne(bool initial)
         {
             float pr = FocusR, vw = ViewW, vh = ViewH;
-            float threatP = tier >= 5 ? 0.08f : 0.2f + Mathf.Min(tier, 3) * 0.03f;
+            // Legends see fewer giants, so the last tier is a sea of prey rather than a wall of titans.
+            float threatP = Legend ? 0.04f : tier >= 5 ? 0.08f : 0.2f + Mathf.Min(tier, 3) * 0.03f;
             float r; bool threat = false, school = false;
             if (U.Rand() < threatP) { r = pr * U.Rand(1.25f, 2.3f); threat = true; }
             else
@@ -658,7 +741,7 @@ namespace DeepFeast
             {
                 int threats = 0;
                 foreach (var f in fish) if (f.r >= pr * Data.DANGER) threats++;
-                if (threats >= 7) { r = pr * U.Rand(0.4f, 0.86f); threat = false; }
+                if (threats >= (Legend ? 3 : 7)) { r = pr * U.Rand(0.4f, 0.86f); threat = false; }
             }
             r = Mathf.Max(3, r);
             float x, y; int dir;
@@ -723,6 +806,24 @@ namespace DeepFeast
             Debug.Log($"[DeepFeast] shark encounter: key={identity.key}, name={identity.displayName}, aggressive={identity.aggressive}, chaseMultiplier={identity.chaseSpeedMultiplier:0.00}, edible={edible}, radius={r:0.0}, life={s.life:0.0}.");
             if (edible) Banner("SHARK!", "You are the Leviathan now — hunt it down!", new Color(1, 200 / 255f, 60 / 255f));
             else Banner("SHARK!", "Hold click / Space to dash away", new Color(1, 60 / 255f, 80 / 255f));
+            sfx.Shark();
+        }
+
+        // The ocean's largest fish cruises in at twice the Legend's size. It never hunts.
+        void SpawnWhaleShark()
+        {
+            float pr = player.r, vw = ViewW;
+            int side = -(int)Mathf.Sign(player.face);
+            if (side == 0) side = 1;
+            float r = pr * 2;
+            float x = Mathf.Clamp(player.x + side * (vw * 0.62f + r * 2), 200, World.W - 200);
+            float y = Mathf.Clamp(player.y + U.Rand(-120, 120), 120 + r, world.FloorY(x) - r - 60);
+            finale = MakeFish(Data.WhaleShark, r, x, y, -side);
+            finale.life = 50; finale.leaveDir = side;
+            finaleBites = 0;
+            fish.Add(finale);
+            Debug.Log($"[DeepFeast] finale: whale shark radius={r:0.0} player={pr:0.0}");
+            Banner("THE WHALE SHARK", "Too big to swallow. Bite it down to size", new Color(1, 212 / 255f, 71 / 255f));
             sfx.Shark();
         }
 
@@ -821,6 +922,13 @@ namespace DeepFeast
                 if (pAlive) UpdatePlayer(dt);
                 UpdateEvents(dt);
             }
+            else if (state == GState.Victory)
+            {
+                // The hero coasts to a stop behind the victory card.
+                float k = Mathf.Min(1, dt * 2);
+                player.vx -= player.vx * k; player.vy -= player.vy * k;
+                AnimateFish(player, dt, false);
+            }
             UpdateFish(dt);
             UpdateJellies(dt);
             UpdateSpawner(dt);
@@ -913,6 +1021,7 @@ namespace DeepFeast
             pShield = Mathf.Max(0, pShield - dt);
             pStun = Mathf.Max(0, pStun - dt);
             pStungCool = Mathf.Max(0, pStungCool - dt);
+            biteCool = Mathf.Max(0, biteCool - dt);
 
             float dx = 0, dy = 0, mag = 0;
             bool wantDash;
@@ -966,7 +1075,7 @@ namespace DeepFeast
             bool open = false;
             foreach (var f in fish)
             {
-                if (f.r > player.r * Data.EAT) continue;
+                if (f.r > player.r * Data.EAT && f != finale) continue;
                 float ox = f.x - player.x, oy = f.y - player.y;
                 if (ox * player.face < -player.r * 0.3f) continue;
                 if (Dist(ox, oy) < (player.r + f.r) * 2.3f) { open = true; break; }
@@ -986,7 +1095,17 @@ namespace DeepFeast
                 float ox = f.x - player.x, oy = f.y - player.y, d = Dist(ox, oy);
                 if (d > pr + f.r) continue;
                 float ratio = f.r / pr;
-                if (ratio <= Data.EAT)
+                if (f == finale && ratio > Data.EAT)
+                {
+                    // Too big to swallow and harmless: bump against it and take a bite.
+                    if (d < (pr + f.r) * 0.8f)
+                    {
+                        float nx = ox / (d > 0 ? d : 1), ny = oy / (d > 0 ? d : 1), push = ((pr + f.r) * 0.8f - d) * 0.5f;
+                        player.x -= nx * push; player.y -= ny * push; f.x += nx * push; f.y += ny * push;
+                        if (biteCool <= 0) BiteFinale(f);
+                    }
+                }
+                else if (ratio <= Data.EAT)
                 {
                     if (d < (pr + f.r * 0.5f) * 0.9f) EatFish(i);
                 }
@@ -994,7 +1113,7 @@ namespace DeepFeast
                 {
                     if (d < pr * 0.55f + f.r * 0.72f)
                     {
-                        if (pShield > 0 || pInvuln > 0)
+                        if (pShield > 0 || pInvuln > 0 || victoryT > 0)
                         {
                             float nx = ox / (d > 0 ? d : 1), ny = oy / (d > 0 ? d : 1);
                             player.vx -= nx * bas * 1.2f; player.vy -= ny * bas * 1.2f;
@@ -1014,7 +1133,7 @@ namespace DeepFeast
 
             foreach (var j in jellies)
             {
-                if (pStungCool > 0 || pShield > 0 || pInvuln > 0) break;
+                if (pStungCool > 0 || pShield > 0 || pInvuln > 0 || victoryT > 0) break;
                 float d1 = Dist(j.x - player.x, j.y - player.y);
                 float d2 = Dist(j.x - player.x, j.y + j.r * 1.4f - player.y);
                 if (d1 < pr * 0.7f + j.r * 0.85f || d2 < pr * 0.7f + j.r * 0.55f)
@@ -1084,7 +1203,19 @@ namespace DeepFeast
                 {
                     f.life -= dt;
                     bool prey = ratio <= Data.EAT;
-                    if (f.life > 0 && active && !prey)
+                    if (f == finale && f.life > 0 && active)
+                    {
+                        // A filter feeder: it cruises past without hunting, swims off ahead of you once you
+                        // close in and bolts for a moment after every bite. It keeps to open water rather
+                        // than pinning itself to the seabed.
+                        bool shy = d < pr * 4 + f.r || f.cool > 0;
+                        if (shy) f.dir = dx > 0 ? -1 : 1;
+                        float mid = Mathf.Clamp(f.homeY, 120 + f.r * 1.5f, world.FloorY(f.x) - f.r * 2);
+                        tx = f.dir; ty = Mathf.Clamp((mid - f.y) / (f.r * 6), -0.5f, 0.5f);
+                        spd = bas * (f.cool > 0 ? 0.85f : shy ? 0.62f : 0.45f); agility = shy ? 1.8f : 1.2f;
+                        f.state = shy ? FState.Flee : FState.Wander;
+                    }
+                    else if (f.life > 0 && active && !prey)
                     {
                         float lead = Mathf.Min(d / bas, 0.5f);
                         float ax = player.x + player.vx * lead - f.x, ay = player.y + player.vy * lead - f.y, ad = Dist(ax, ay);
@@ -1251,6 +1382,18 @@ namespace DeepFeast
                 if (dieT <= 0) { if (lives > 0) Respawn(); else GameOver(); }
                 return;
             }
+            if (finale != null && !fish.Contains(finale))
+            {
+                finale = null; finaleT = U.Rand(20, 30);
+                Debug.Log("[DeepFeast] finale: the whale shark got away");
+                Banner("IT GOT AWAY", "The whale shark will be back", new Color(1, 212 / 255f, 71 / 255f));
+            }
+            if (finaleT > 0 && (finaleT -= dt) <= 0)
+            {
+                // Wait for any shark encounter to clear before the finale.
+                if (fish.Exists(f => f.shark)) finaleT = 3; else SpawnWhaleShark();
+            }
+            if (victoryT > 0 && (victoryT -= dt) <= 0) { Victory(); return; }
             sharkT -= dt;
             if (sharkT <= 0)
             {
@@ -1291,6 +1434,7 @@ namespace DeepFeast
             foreach (var f in fish)
             {
                 float dx = f.x - player.x, dy = f.y - player.y, d = Mathf.Max(1, Dist(dx, dy));
+                if (f == finale) continue;
                 if (f.r >= pr * Data.DANGER)
                 {
                     bool hunting = f.state == FState.Chase;
@@ -1319,6 +1463,13 @@ namespace DeepFeast
                 float dx = p.x - player.x, dy = p.y - player.y, d = Mathf.Max(1, Dist(dx, dy));
                 seek = new Vector2(dx, dy) / d * 1.5f;
             }
+            // The finale is worth more than any snack: follow the gold arrow and dash in close.
+            if (finale != null)
+            {
+                float dx = finale.x - player.x, dy = finale.y - player.y, d = Mathf.Max(1, Dist(dx, dy));
+                seek = new Vector2(dx, dy) / d * 4; bestV = 1;
+                if (d < pr * 6 && pStamina > 0.4f) dash = true;
+            }
             if (bestV <= 0 && pearls.Count == 0)
             {
                 if (player.x < 600) botWanderDir = 1; else if (player.x > World.W - 600) botWanderDir = -1;
@@ -1326,7 +1477,7 @@ namespace DeepFeast
             }
             var v2 = seek + avoid;
             float fy = world.FloorY(player.x);
-            if (fy - player.y < pr * 4) v2.y -= 1.5f;
+            if (fy - player.y < pr * (finale != null ? 1.5f : 4)) v2.y -= 1.5f;
             if (player.y < pr * 3 + 60) v2.y += 1;
             if (v2.sqrMagnitude < 1e-4f) v2 = new Vector2(botWanderDir, 0);
             return v2.normalized;
@@ -1383,16 +1534,16 @@ namespace DeepFeast
                 f.view.SetSpecies(f.sp);
                 f.view.Pose(f, f.shark ? Layer.Shark + i : Layer.FishBase + i, f.state == FState.Chase ? FishView.EyeMode.Angry : FishView.EyeMode.Normal, dt);
                 var halo = f.view.halo;
-                bool threat = pActive && f.r >= pr * Data.DANGER, glows = !threat && f.sp.glow > 0;
-                halo.enabled = threat || glows;
-                if (threat)
+                bool quarry = f == finale, threat = pActive && !quarry && f.r >= pr * Data.DANGER, glows = !threat && !quarry && f.sp.glow > 0;
+                halo.enabled = threat || glows || quarry;
+                if (threat || quarry)
                 {
                     float hot = f.state == FState.Chase ? 1 : 0;
-                    float a = 0.045f + hot * (0.075f + 0.025f * Mathf.Sin(time * 7));
+                    float a = quarry ? 0.1f + 0.04f * Mathf.Sin(time * 4) : 0.045f + hot * (0.075f + 0.025f * Mathf.Sin(time * 7));
                     halo.transform.localPosition = U.V3(f.x, f.y);
                     float d = f.r * 1.9f * 2;
                     halo.transform.localScale = new Vector3(d, d, 1);
-                    halo.color = new Color(1, 70 / 255f, 85 / 255f, a);
+                    halo.color = quarry ? new Color(1, 212 / 255f, 71 / 255f, a) : new Color(1, 70 / 255f, 85 / 255f, a);
                 }
                 else if (glows)
                 {
@@ -1535,8 +1686,8 @@ namespace DeepFeast
             {
                 foreach (var f in fish)
                 {
-                    bool threat = f.r >= player.r * Data.DANGER && f.state == FState.Chase;
-                    if (!threat && f.alertT <= 0) continue;
+                    bool threat = f.r >= player.r * Data.DANGER && f.state == FState.Chase, quarry = f == finale;
+                    if (!threat && !quarry && f.alertT <= 0) continue;
                     var s = ToScreen(f.x, f.y);
                     bool on = s.x > 0 && s.x < refW && s.y > 0 && s.y < refH;
                     if (on && f.alertT > 0)
@@ -1544,11 +1695,11 @@ namespace DeepFeast
                         float b = Mathf.Abs(Mathf.Sin((1.1f - f.alertT) * 8)) * 8;
                         alerts.Add(new Alert { onScreen = true, screen = new Vector2(s.x, s.y - f.r * 1.2f * zoom - 22), bounce = b });
                     }
-                    else if (!on && threat)
+                    else if (!on && (threat || quarry))
                     {
                         float dx = s.x - refW / 2, dy = s.y - refH / 2;
                         float m = Mathf.Min((refW / 2 - 34) / Mathf.Max(1e-3f, Mathf.Abs(dx)), (refH / 2 - 34) / Mathf.Max(1e-3f, Mathf.Abs(dy)));
-                        alerts.Add(new Alert { onScreen = false, screen = new Vector2(refW / 2 + dx * m, refH / 2 + dy * m), angle = Mathf.Atan2(dy, dx), pulse = 0.6f + 0.4f * Mathf.Sin(time * 10) });
+                        alerts.Add(new Alert { onScreen = false, screen = new Vector2(refW / 2 + dx * m, refH / 2 + dy * m), angle = Mathf.Atan2(dy, dx), pulse = 0.6f + 0.4f * Mathf.Sin(time * 10), quarry = quarry });
                     }
                 }
             }
@@ -1557,7 +1708,7 @@ namespace DeepFeast
                 var cur = Data.Tiers[tier];
                 bool hasNext = tier + 1 < Data.Tiers.Length;
                 float prog = hasNext ? Mathf.Clamp01((player.r - cur.r) / (Data.Tiers[tier + 1].r - cur.r)) : 1;
-                hud.UpdateHud(score, combo, comboT > 0, cur.name, prog, hasNext ? "next: " + Data.Tiers[tier + 1].name.ToUpperInvariant() : "MAXIMUM SIZE",
+                hud.UpdateHud(score, combo, comboT > 0, cur.name, prog, hasNext ? "next: " + Data.Tiers[tier + 1].name.ToUpperInvariant() : endless ? "ENDLESS DEEP" : "finale: WHALE SHARK",
                     lives, pStamina, pTired, Mathf.Max(0, Mathf.RoundToInt(player.y / 8)));
             }
             hud.Tick(dt, rdt, (x, y) => ToScreen(x, y), alerts, interfaceReview != null ? time : Time.unscaledTime);

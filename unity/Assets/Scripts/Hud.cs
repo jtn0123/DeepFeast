@@ -51,12 +51,12 @@ namespace DeepFeast
         public void OnPointerExit(PointerEventData e) => held = false;
     }
 
-    public struct Alert { public Vector2 screen; public bool onScreen; public float bounce, angle, pulse; }
+    public struct Alert { public Vector2 screen; public bool onScreen, quarry; public float bounce, angle, pulse; }
 
     /// <summary>All UI: HUD, banners, menus and screen-space world labels — built from code.</summary>
     public sealed class Hud
     {
-        public Action OnPlay, OnResume, OnMute;
+        public Action OnPlay, OnResume, OnMute, OnContinue;
         public bool DashHeld => dashHold != null && dashHold.held;
 
         readonly Canvas canvas;
@@ -69,10 +69,10 @@ namespace DeepFeast
         readonly RectTransform growthRT, dashRT, bannerRT, livesRT, comboRT;
         readonly VertexGradient bannerGrad, growthGrad;
         readonly List<Image> lifeIcons = new List<Image>();
-        readonly GameObject menu, pause, over, dashBtn;
-        readonly Text bestMenu, bestOver, overTitle, newBest, sScore, sTier, sEaten, sTime;
+        readonly GameObject menu, pause, over, victory, dashBtn;
+        readonly Text bestMenu, bestOver, overTitle, newBest, sScore, sTier, sEaten, sTime, vScore, vEaten, vTime, vBest;
         readonly RectTransform titleRT;
-        readonly RectTransform menuCard, pauseCard, overCard;
+        readonly RectTransform menuCard, pauseCard, overCard, victoryCard;
         readonly List<RectTransform> menuFish = new List<RectTransform>();
         readonly Vector2 titleOrigin = new Vector2(52, -67);
         readonly Image muteIcon;
@@ -252,6 +252,22 @@ namespace DeepFeast
             Label(op, "Every legend starts as a fry.", 15, U.Hex("#91b6bf"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -517));
             over.SetActive(false);
 
+            // ---------------------------------------------------------- victory
+            victory = Overlay("Victory", out var vp, new Vector2(740, 560));
+            victoryCard = vp;
+            Label(vp, "THE WHALE SHARK IS YOURS", 12, U.Hex("#f4d397"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -24));
+            var victoryTitle = Label(vp, "LEGEND OF THE DEEP", 50, U.Hex("#ffe6a3"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -56), display);
+            AddShadow(victoryTitle, new Color(0, 0.09f, 0.14f, 0.7f), new Vector2(0, -3));
+            Label(vp, "From fry to the ocean's largest fish.", 16, U.Hex("#b8ced2"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -127));
+            vScore = Stat(vp, "SCORE", new Vector2(-164, -174));
+            vEaten = Stat(vp, "FISH EATEN", new Vector2(164, -174));
+            vTime = Stat(vp, "SWIM TIME", new Vector2(-164, -268));
+            vBest = Stat(vp, "PERSONAL BEST", new Vector2(164, -268));
+            Button(vp, "KEEP SWIMMING", new Vector2(-174, -382), () => OnContinue?.Invoke(), 320);
+            Button(vp, "NEW SWIM", new Vector2(174, -382), () => OnPlay?.Invoke(), 320);
+            Label(vp, "The deep goes on without end. The giants still roam.", 15, U.Hex("#91b6bf"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -490));
+            victory.SetActive(false);
+
             // ---------------------------------------------------------- corner buttons
             noteSprite = Icon(false); mutedSprite = Icon(true);
             var mb = Panel(rootRT, new Color(0.02f, 0.13f, 0.22f, 0.65f), 22);
@@ -283,6 +299,7 @@ namespace DeepFeast
             menuCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 940);
             pauseCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 600);
             overCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 740);
+            victoryCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 740);
         }
         public void UseCaptureCamera(Camera camera)
         {
@@ -305,14 +322,14 @@ namespace DeepFeast
         public void ShowMenu(int best)
         {
             bestMenu.text = "PERSONAL BEST  " + best.ToString("N0");
-            menu.SetActive(true); over.SetActive(false); pause.SetActive(false);
+            menu.SetActive(true); over.SetActive(false); pause.SetActive(false); victory.SetActive(false);
             hudTarget = 0;
             FocusPrimary();
         }
 
         public void StartPlay()
         {
-            menu.SetActive(false); over.SetActive(false); pause.SetActive(false);
+            menu.SetActive(false); over.SetActive(false); pause.SetActive(false); victory.SetActive(false);
             hudTarget = 1;
             growthInitialized = false;
             growthPulse = scorePulse = 0;
@@ -333,6 +350,25 @@ namespace DeepFeast
             over.SetActive(true);
             hudTarget = 0;
             FocusPrimary();
+        }
+
+        public void ShowVictory(int scoreV, int eaten, float time, int best)
+        {
+            vScore.text = scoreV.ToString("N0");
+            vEaten.text = eaten.ToString();
+            int s = Mathf.FloorToInt(time);
+            vTime.text = $"{s / 60}:{s % 60:00}";
+            vBest.text = best.ToString("N0");
+            bestOver.text = bestMenu.text = "PERSONAL BEST  " + best.ToString("N0");
+            victory.SetActive(true);
+            hudTarget = 0;
+            FocusPrimary();
+        }
+
+        public void HideVictory()
+        {
+            victory.SetActive(false);
+            hudTarget = 1;
         }
 
         public void UpdateHud(int scoreV, int comboV, bool comboOn, string tier, float prog, string next, int lives, float stamina, bool tired, int depthM)
@@ -467,7 +503,7 @@ namespace DeepFeast
                     img.enabled = true;
                     img.rectTransform.anchoredPosition = new Vector2(al.screen.x, -al.screen.y);
                     img.rectTransform.localRotation = Quaternion.Euler(0, 0, -al.angle * Mathf.Rad2Deg);
-                    img.color = new Color(1, 45 / 255f, 74 / 255f, al.pulse);
+                    img.color = al.quarry ? new Color(1, 212 / 255f, 71 / 255f, al.pulse) : new Color(1, 45 / 255f, 74 / 255f, al.pulse);
                 }
             }
             for (; ai < alertPool.Count; ai++) alertPool[ai].enabled = false;
@@ -611,19 +647,19 @@ namespace DeepFeast
         // Native harness uses Unity's Submit event to verify the same button callbacks as the player.
         public void SubmitPrimary()
         {
-            var screen = menu.activeSelf ? menu : pause.activeSelf ? pause : over.activeSelf ? over : null;
-            var button = screen?.GetComponentInChildren<UnityEngine.UI.Button>();
+            var button = ActiveScreen?.GetComponentInChildren<UnityEngine.UI.Button>();
             if (button == null) throw new InvalidOperationException("No active primary menu button.");
             EventSystem.current.SetSelectedGameObject(button.gameObject);
             ExecuteEvents.Execute(button.gameObject, new BaseEventData(EventSystem.current), ExecuteEvents.submitHandler);
         }
 
-        public string ActiveOverlay => menu.activeSelf ? "menu" : pause.activeSelf ? "pause" : over.activeSelf ? "over" : "none";
+        public string ActiveOverlay => menu.activeSelf ? "menu" : pause.activeSelf ? "pause" : over.activeSelf ? "over" : victory.activeSelf ? "victory" : "none";
+
+        GameObject ActiveScreen => menu.activeSelf ? menu : pause.activeSelf ? pause : over.activeSelf ? over : victory.activeSelf ? victory : null;
 
         void FocusPrimary()
         {
-            var screen = menu.activeSelf ? menu : pause.activeSelf ? pause : over.activeSelf ? over : null;
-            var button = screen?.GetComponentInChildren<UnityEngine.UI.Button>();
+            var button = ActiveScreen?.GetComponentInChildren<UnityEngine.UI.Button>();
             if (button != null) EventSystem.current.SetSelectedGameObject(button.gameObject);
         }
 
