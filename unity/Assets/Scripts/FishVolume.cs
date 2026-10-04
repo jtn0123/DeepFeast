@@ -142,6 +142,8 @@ namespace DeepFeast
                 block.SetFloat("_PaintedFins", model.paintedFins ? 1 : 0);
                 block.SetFloat("_PaintedPectoral", model.paintedPectoral && (i == 2 || i == 3) ? 1 : 0);
                 block.SetVector("_PectoralMask", model.pectoralMask);
+                block.SetFloat("_Glow", species.glow);
+                block.SetColor("_GlowColor", species.glowColor);
                 parts[i].SetPropertyBlock(block);
             }
             parts[0].sortingOrder = 1; parts[1].sortingOrder = 0;
@@ -152,7 +154,7 @@ namespace DeepFeast
 
         public void SetVisible(bool visible) { foreach (var part in parts) part.enabled = visible; }
 
-        static int Pattern(string pattern) => pattern switch { "bands" => 1, "stripes" => 2, "tang" => 3, "spots" => 4, "scales" => 5, "bars" => 6, "player" => 7, "shark" => 8, "tiger" => 8, "mako" => 8, "line" => 9, "finlets" => 10, "amberjack" => 11, "mottled" => 12, "halibut" => 13, "mackerel" => 14, "mahi" => 15, "skipjack" => 16, "bass" => 17, "yellowfin" => 18, "red_drum" => 19, _ => 0 };
+        static int Pattern(string pattern) => pattern switch { "bands" => 1, "stripes" => 2, "tang" => 3, "spots" => 4, "scales" => 5, "bars" => 6, "player" => 7, "shark" => 8, "tiger" => 8, "mako" => 8, "line" => 9, "finlets" => 10, "amberjack" => 11, "mottled" => 12, "halibut" => 13, "mackerel" => 14, "mahi" => 15, "skipjack" => 16, "bass" => 17, "yellowfin" => 18, "red_drum" => 19, "sardine" => 21, "garibaldi" => 22, "sheephead" => 23, "lantern" => 24, "hatchet" => 25, "lingcod" => 26, _ => 0 };
 
         static Model Anatomy(Species sp, FishArt.Art art)
         {
@@ -175,7 +177,7 @@ namespace DeepFeast
                 "shark" => new Vector4(-0.42f, 0.22f, 0.72f, 0.21f),
                 "tiger_shark" => new Vector4(-0.43f, 0.22f, 0.78f, 0.20f),
                 "mako_shark" => new Vector4(-0.38f, 0.23f, 0.66f, 0.24f),
-                "goliath_grouper" => new Vector4(-0.20f, 0.35f, 0.86f, 0.28f),
+                "goliath_grouper" or "lingcod" => new Vector4(-0.20f, 0.35f, 0.86f, 0.28f),
                 _ => new Vector4(-0.20f, 0.28f, 0.76f, 0.38f),
             };
             float h = model.height, depth = model.depth, headCenter = model.head.x, headLength = model.head.y;
@@ -293,6 +295,9 @@ namespace DeepFeast
         {
             float height = sp.Sh.tH * FishArt.HL;
             if (sp.key == "atlantic_mackerel" || sp.key == "skipjack_tuna" || sp.key == "mahi_mahi") height *= 0.82f;
+            // Small deep-sea tails sit on thin stalks.
+            if (sp.key == "lanternfish") height *= 0.85f;
+            if (sp.key == "hatchetfish") height *= 0.62f;
             // The clown's rounded tail matches its painted reference; oval body shape alone does not
             // determine a species' tail. Other species retain their fork, crescent or asymmetric tail.
             var kind = sp.key == "clown" ? TailKind.Fan : sp.Sh.tail;

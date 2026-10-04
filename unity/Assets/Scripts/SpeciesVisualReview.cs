@@ -68,6 +68,8 @@ namespace DeepFeast
                 "atlantic-a" => new[] { "almaco_jack", "goliath_grouper", "atlantic_halibut", "atlantic_mackerel" },
                 "atlantic-b" => new[] { "mahi_mahi", "skipjack_tuna", "striped_bass", "yellowfin_tuna" },
                 "extras" => new[] { "bluefish", "red_drum" },
+                "kelp" => new[] { "pacific_sardine", "garibaldi", "california_sheephead", "lingcod" },
+                "deep" => new[] { "lanternfish", "hatchetfish" },
                 "legacy-a" => new[] { "minnow", "clown", "tang", "angel" },
                 "legacy-b" => new[] { "puffer", "parrot", "snapper", "barracuda" },
                 "legacy-c" => new[] { "grouper", "tuna", "player" },

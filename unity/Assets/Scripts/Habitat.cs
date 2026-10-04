@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace DeepFeast
 {
-    /// <summary>Continuous visual habitat transitions; no spawning, collision or difficulty rules depend on this.</summary>
+    /// <summary>Continuous habitat transitions by depth: the scenery's look and which species spawn there.</summary>
     public static class Habitat
     {
         public readonly struct Look

@@ -31,6 +31,16 @@ namespace DeepFeast
                 "yellowfin_tuna" => Form(0.87f, 0.26f, -0.12f, 1.68f, 1.70f, 0.74f, 0.085f),
                 "bluefish" => Form(0.80f, 0.25f, -0.09f, 1.52f, 1.32f, 0.64f, 0.13f),
                 "red_drum" => Form(0.68f, 0.26f, -0.02f, 1.56f, 1.20f, 0.59f, 0.17f, 0.035f),
+                "pacific_sardine" => Form(0.56f, 0.16f, -0.06f, 1.50f, 1.50f, 0.66f, 0.10f),
+                // Deep and short like the damselfish it is, with a blunt, rounded head.
+                "garibaldi" => Form(0.88f, 0.22f, 0.06f, 1.22f, 1.00f, 0.34f, 0.19f, 0.02f),
+                "california_sheephead" => Form(0.72f, 0.24f, 0.02f, 1.52f, 1.20f, 0.48f, 0.17f, 0.04f),
+                // A heavy head and long, even body taper; the big mouth is set in the mouth table.
+                "lingcod" => Form(1.22f, 0.27f, 0.20f, 1.32f, 1.35f, 0.45f, 0.12f, 0.02f),
+                "lanternfish" => Form(0.62f, 0.15f, 0.10f, 1.30f, 1.40f, 0.40f, 0.10f),
+                // The hatchet's blade is its deep belly: the centerline drops at the front while the
+                // narrow tail stays high, and the steep rear exponent keeps the stalk long and thin.
+                "hatchetfish" => Form(0.76f, 0.11f, 0.18f, 0.98f, 2.60f, 0.55f, 0.07f, -0.35f),
                 _ => null
             };
         }
@@ -125,10 +135,55 @@ namespace DeepFeast
                         t => Mathf.Pow(FinSine(t), 0.68f), 0.055f);
                     return true;
 
+                case "pacific_sardine":
+                    // One small dorsal at mid-body and a low anal fin just ahead of the tail.
+                    SweptSpine(b, sp, model, 1, 0.18f, -0.16f, 0.20f, 0.30f);
+                    SweptSpine(b, sp, model, -1, -0.42f, -0.68f, 0.09f, 0.35f);
+                    return true;
+
+                case "garibaldi":
+                    // A low spiny front rises into the rounded soft lobe; the anal fin mirrors the lobe.
+                    ExpandedSpine(b, sp, model, 1, 0.50f, -0.86f, 0.34f, t => Mathf.Max(
+                        t < 0.62f ? 0.55f * Mathf.Pow(FinSine(t / 0.62f), 0.4f) : 0,
+                        t > 0.40f ? Mathf.Pow(FinSine((t - 0.40f) / 0.60f), 0.6f) : 0), 0.06f, 48);
+                    ExpandedSpine(b, sp, model, -1, -0.25f, -0.86f, 0.30f,
+                        t => Mathf.Pow(FinSine(Mathf.Pow(t, 0.8f)), 0.55f), 0.07f);
+                    return true;
+
+                case "california_sheephead":
+                    ExpandedSpine(b, sp, model, 1, 0.42f, -0.86f, 0.18f,
+                        t => Plateau(t, 0.08f, 0.22f) * Mathf.Lerp(0.78f, 1, t), 0.05f, 48);
+                    ExpandedSpine(b, sp, model, -1, -0.28f, -0.84f, 0.17f, t => Plateau(t, 0.15f, 0.30f), 0.06f);
+                    return true;
+
+                case "lingcod":
+                    // A long, notched dorsal: spiny front half, then a taller soft rear half.
+                    ExpandedSpine(b, sp, model, 1, 0.56f, -0.02f, 0.20f,
+                        t => Plateau(t, 0.10f, 0.25f) * (0.85f + 0.15f * Mathf.Abs(Mathf.Sin(t * Mathf.PI * 9))), 0.05f, 40);
+                    ExpandedSpine(b, sp, model, 1, -0.05f, -0.90f, 0.22f, t => Plateau(t, 0.10f, 0.30f), 0.06f);
+                    ExpandedSpine(b, sp, model, -1, -0.18f, -0.88f, 0.18f, t => Plateau(t, 0.12f, 0.30f), 0.06f);
+                    return true;
+
+                case "lanternfish":
+                    SweptSpine(b, sp, model, 1, 0.16f, -0.22f, 0.24f, 0.32f);
+                    SweptSpine(b, sp, model, -1, -0.22f, -0.66f, 0.14f, 0.25f);
+                    // The small adipose fin behind the dorsal.
+                    ExpandedSpine(b, sp, model, 1, -0.70f, -0.80f, 0.05f, t => Mathf.Sqrt(FinSine(t)), 0.02f, 10, 4);
+                    return true;
+
+                case "hatchetfish":
+                    SweptSpine(b, sp, model, 1, -0.02f, -0.30f, 0.20f, 0.35f);
+                    SweptSpine(b, sp, model, -1, -0.50f, -0.80f, 0.10f, 0.30f);
+                    return true;
+
                 default:
                     return false;
             }
         }
+
+        // Rises over the first `rise` of the base, holds, then rounds off over the last `fall`.
+        static float Plateau(float t, float rise, float fall)
+            => Mathf.SmoothStep(0, 1, t / rise) * Mathf.Sqrt(Mathf.Clamp01((1 - t) / fall));
 
         static void AddExpandedFinDetails(Builder b, Species sp, Model model)
         {
@@ -148,16 +203,23 @@ namespace DeepFeast
 
         static bool BuildExpandedCaudal(Builder b, Species sp, Model model)
         {
-            bool halibut = sp.key == "atlantic_halibut";
-            if (!halibut && sp.key != "red_drum") return false;
-            float height = (halibut ? 0.36f : 0.35f) * FishArt.HL;
+            // Broad tails without the two long lobes of a jack or tuna. The halibut's trailing edge
+            // is shallowly concave, the drum's and sheephead's nearly square, the lingcod's rounded.
+            (float height, float notch)? spec = sp.key switch
+            {
+                "atlantic_halibut" => (0.36f, 0.15f),
+                "red_drum" => (0.35f, 0.075f),
+                "california_sheephead" => (0.33f, 0.06f),
+                "lingcod" => (0.31f, -0.07f),
+                _ => null
+            };
+            if (spec == null) return false;
+            float height = spec.Value.height * FishArt.HL, notch = spec.Value.notch;
             b.Membrane(sp.tailCol, 12, 40, 4, (weight, along) =>
             {
                 float s = along * 2 - 1, edge = Mathf.Abs(s);
-                // A shallow concave trailing edge is characteristic of both species. Halibut
-                // has the deeper notch; neither has the two long lobes of a jack or tuna tail.
                 var root = new Vector3(-1.04f, s * model.height * model.profile.z, 0);
-                var rim = new Vector3(-1.55f - (halibut ? 0.15f : 0.075f) * edge * edge,
+                var rim = new Vector3(-1.55f - notch * edge * edge,
                     s * height * (1 - 0.07f * Mathf.Pow(edge, 6)), 0);
                 var p = Vector3.Lerp(root, rim, weight);
                 p.y += s * height * 0.035f * Mathf.Sin(weight * Mathf.PI);
@@ -214,6 +276,13 @@ namespace DeepFeast
                 "yellowfin_tuna" => (new Vector2(0.86f, 0.09f), 0.140f),
                 "bluefish" => (new Vector2(0.82f, 0.09f), 0.140f),
                 "red_drum" => (new Vector2(0.86f, 0.12f), 0.140f),
+                "pacific_sardine" => (new Vector2(0.86f, 0.06f), 0.130f),
+                "garibaldi" => (new Vector2(0.80f, 0.14f), 0.140f),
+                "california_sheephead" => (new Vector2(0.84f, 0.17f), 0.120f),
+                "lingcod" => (new Vector2(0.90f, 0.17f), 0.110f),
+                // Deep-sea eyes are large for the little light there is.
+                "lanternfish" => (new Vector2(0.92f, 0.06f), 0.180f),
+                "hatchetfish" => (new Vector2(0.74f, 0.30f), 0.160f),
                 _ => (Vector2.zero, 0f)
             };
             return radius > 0;
@@ -237,6 +306,12 @@ namespace DeepFeast
                 "yellowfin_tuna" => (new Vector2(0.48f, -0.04f), 0.66f, 8f, 0.07f, 0.10f, FinForm.Sickle),
                 "bluefish" => (new Vector2(0.44f, -0.06f), 0.38f, 14f, 0.07f, 0.04f, FinForm.Blade),
                 "red_drum" => (new Vector2(0.50f, -0.10f), 0.36f, 22f, 0.10f, 0f, FinForm.Paddle),
+                "pacific_sardine" => (new Vector2(0.50f, -0.12f), 0.26f, 18f, 0.05f, 0.03f, FinForm.Blade),
+                "garibaldi" => (new Vector2(0.44f, -0.08f), 0.36f, 18f, 0.13f, 0f, FinForm.Paddle),
+                "california_sheephead" => (new Vector2(0.50f, -0.06f), 0.34f, 18f, 0.11f, 0f, FinForm.Paddle),
+                "lingcod" => (new Vector2(0.46f, -0.12f), 0.44f, 26f, 0.15f, 0f, FinForm.Paddle),
+                "lanternfish" => (new Vector2(0.60f, -0.10f), 0.24f, 14f, 0.045f, 0.03f, FinForm.Blade),
+                "hatchetfish" => (new Vector2(0.50f, -0.10f), 0.24f, 30f, 0.05f, 0.02f, FinForm.Blade),
                 _ => null
             };
             basePoint = default; root = 0; rim = null;

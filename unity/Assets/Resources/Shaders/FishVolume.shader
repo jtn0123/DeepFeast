@@ -12,8 +12,9 @@ Shader "DeepFeast/FishVolume"
         float4 _Frame, _SpriteBounds, _Eye, _Head, _Profile, _FinRoot, _MouthShape;
         fixed4 _Base, _Dark, _Belly, _FogColor, _Accent, _WaterReflection, _GroundReflection;
         float _Phase, _Energy, _TailFlex, _TurnBend, _Flutter, _Mouth, _Height, _Fog, _Visibility, _Style, _Pattern, _Part, _Expression, _FrontView, _Facing, _ReflectionStrength, _SharkKind;
-        float _PaintedFins, _PaintedPectoral, _Painterly;
+        float _PaintedFins, _PaintedPectoral, _Painterly, _Glow;
         float4 _PectoralMask;
+        fixed4 _GlowColor;
 
         float bodyProfile(float x)
         {
@@ -291,6 +292,52 @@ Shader "DeepFeast/FishVolume"
                     float spot=1-smoothstep(.075,.105,length(float2(p.x+.84,y-.13)));
                     skin=lerp(skin,fixed3(.025,.035,.04),spot*.98);
                 }
+                if (_Pattern==21)
+                {
+                    // Sardine: a blue-green back over silver, with a row of dark spots along the boundary.
+                    float boundary=.14+.03*sin(p.x*5);
+                    skin=lerp(skin,_Dark.rgb*.9,smoothstep(boundary-.06,boundary+.08,y)*.9);
+                    float spots=(1-smoothstep(.16,.24,length(float2(frac(p.x*7.5)-.5,(y-.06)*2))))*smoothstep(-.55,-.35,p.x)*(1-smoothstep(.55,.70,p.x));
+                    skin=lerp(skin,_Dark.rgb*.45,spots*.85);
+                }
+                // Garibaldi: one vivid orange from back to belly, without the usual dark back.
+                if (_Pattern==22) skin=lerp(_Base.rgb,_Belly.rgb,smoothstep(.2,-.8,y)*.35)+_Base.rgb*exp(-pow((y-.18)*3,2))*.07;
+                if (_Pattern==23)
+                {
+                    // Male sheephead: black head and tail around a red middle, and a white chin.
+                    float head=smoothstep(.50,.60,p.x+y*.10-y*y*.12), tail=1-smoothstep(-.60,-.50,p.x-y*.05+y*y*.06);
+                    skin=lerp(_Base.rgb,_Belly.rgb,smoothstep(-.3,-.9,y)*.25);
+                    skin=lerp(skin,_Dark.rgb,max(head,tail)*.92);
+                    skin=lerp(skin,_Belly.rgb,(1-smoothstep(.8,1.05,length(float2((p.x-1.35)/.40,(y+.50)/.45))))*.95);
+                }
+                if (_Pattern==26)
+                {
+                    // Lingcod: dark olive blotches and copper flecks above a pale belly.
+                    // Warped cells of varied size break the blotches out of a regular grid.
+                    float2 uv=p.xy*float2(6,9)+sin(p.yx*float2(23,17)+float2(1.7,.4))*.38, cell=floor(uv);
+                    float seed=frac(sin(dot(cell,float2(127.1,311.7)))*43758.5453), seed2=frac(sin(dot(cell,float2(269.5,183.3)))*43758.5453);
+                    float size=lerp(.26,.46,seed2);
+                    float blotch=(1-smoothstep(size*.55,size,length((frac(uv)-float2(.25+seed*.5,.25+seed2*.5))*float2(1,lerp(.7,1.4,seed)))))*step(.22,seed);
+                    skin=lerp(skin,_Dark.rgb,blotch*.62*smoothstep(-.7,-.2,y));
+                    float2 fine=p.xy*float2(16,22), fineCell=floor(fine);
+                    float seed3=frac(sin(dot(fineCell,float2(127.1,311.7)))*43758.5453), seed4=frac(sin(dot(fineCell,float2(269.5,183.3)))*43758.5453);
+                    float fleck=(1-smoothstep(.12,.22,length(frac(fine)-float2(.3+seed3*.4,.3+seed4*.4))))*step(.55,seed3);
+                    skin=lerp(skin,fixed3(.80,.55,.30),fleck*.55*smoothstep(-.5,0,y));
+                }
+                if (_Pattern==24)
+                {
+                    // Lanternfish: a dark back over bronze-silver flanks.
+                    skin=lerp(skin,_Dark.rgb,smoothstep(0,.45,y)*.85);
+                    skin=lerp(skin,skin*fixed3(1.06,1,.9)+.04,exp(-pow((y+.15)*4,2))*.5);
+                }
+                if (_Pattern==25)
+                {
+                    // Hatchetfish: mirror-silver flanks under a narrow dark back.
+                    float center=_Profile.w*saturate((p.x+1.04)/(_Head.x+1.04)), relative=(p.y-center)/max(_Height*bodyProfile(p.x),.001);
+                    skin=lerp(_Belly.rgb,_Base.rgb,smoothstep(-.6,.3,relative)*.6);
+                    skin=lerp(skin,_Dark.rgb,smoothstep(.55,.80,relative)*.9);
+                    skin+=.05*smoothstep(.5,1,sin(p.x*26+relative*2));
+                }
                 // Small recessed gill crease follows the curved skin on both sides.
                 float gill = exp(-pow((p.x-.48+y*.13)*38,2)) * (1-smoothstep(.30,.65,abs(y)));
                 if (_Pattern == 8)
@@ -303,6 +350,21 @@ Shader "DeepFeast/FishVolume"
                 }
                 else if (_Painterly<.5) skin*=1-gill*.20;
                 return skin;
+            }
+            // Photophores: rows of light organs along the belly, emissive in the dark.
+            float photophores(float3 p)
+            {
+                float center=_Profile.w*saturate((p.x+1.04)/(_Head.x+1.04)), relative=(p.y-center)/max(_Height*bodyProfile(p.x),.001);
+                float glow=0;
+                if (_Pattern==24)
+                {
+                    glow=max(1-smoothstep(.10,.20,length(float2(frac(p.x*9)-.5,(relative+.50)*2.6))),
+                             1-smoothstep(.10,.20,length(float2(frac(p.x*9+.5)-.5,(relative+.80)*2.6))));
+                    glow*=smoothstep(-.95,-.75,p.x)*(1-smoothstep(.75,.95,p.x));
+                }
+                if (_Pattern==25)
+                    glow=(1-smoothstep(.10,.22,length(float2(frac(p.x*11)-.5,(relative+.86)*3))))*smoothstep(-.9,-.6,p.x)*(1-smoothstep(.75,.9,p.x));
+                return glow;
             }
             // Species without an illustration borrow its cues on the procedural skin: a lit band
             // along the flank, an inked gill cover with a raised rim, and soft rows of scales.
@@ -320,7 +382,7 @@ Shader "DeepFeast/FishVolume"
                 skin*=1-exp(-pow(rim/.016,2))*.42*cover;
                 skin=lerp(skin,skin*1.12+.05,exp(-pow((rim+.045)/.03,2))*.5*cover);
                 skin*=1-exp(-pow((rim-.05)/.04,2))*.10*cover;
-                if (_Pattern!=12 && _Pattern!=13)
+                if (_Pattern!=12 && _Pattern!=13 && _Pattern!=26)
                 {
                     // Free edges face the tail, as overlapping scales do.
                     float rows=relative*7, row=floor(rows), column=frac(p.x*9+row*.5)-.5;
@@ -459,6 +521,11 @@ Shader "DeepFeast/FishVolume"
                 // Water light catches the upper contour and separates the back from dark scenery.
                 if (_Part<.5) rgb+=_WaterReflection.rgb*pow(1-ndv,3)*saturate(normal.y*.8+.35)*.24;
                 rgb=lerp(rgb,OutlineColor(),ink*.9);
+                if (_Glow>0 && _Part<.5)
+                {
+                    float glow=photophores(i.skin)*_Glow;
+                    rgb=lerp(rgb,_GlowColor.rgb*1.3,glow)+_GlowColor.rgb*glow*.35;
+                }
                 float visibility=_Visibility;
                 if (_Part>.5 && _Part<1.5) visibility*=lerp(i.color.a,1,max(ink*.9,_Painterly*.55));
                 if (_Part > 2.5 && dot(i.color.rgb,1)>2.8) visibility *= smoothstep(.25,.6,_Mouth);

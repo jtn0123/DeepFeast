@@ -22,7 +22,15 @@ namespace DeepFeast
         public float min, max, eye;
         public bool canSchool = true, aggressive;
         public float chaseSpeedMultiplier = 1;
+        // Relative abundance on the reef, in the kelp forest and in the abyss; spawns weigh them by depth.
+        public float reef = 1, kelp = 1, abyss = 1;
+        // Small schooling prey: it fills the youngest schools and swims alone only while tiny.
+        public bool forage;
+        // Photophores light the skin and open a hole in the deep's darkness.
+        public float glow;
+        public Color glowColor;
         public bool IsShark => shape == "shark";
+        public float ZoneWeight(Habitat.Look zone) => reef * Mathf.Max(0, 1 - zone.kelp - zone.abyss) + kelp * zone.kelp + abyss * zone.abyss;
         public Shape Sh => FishArt.Shapes[shape];
     }
 
@@ -138,6 +146,40 @@ namespace DeepFeast
             redDrum.spot = U.Hex("#171f22");
             Add(Identify(redDrum, "Red drum", "Sciaenops ocellatus", "https://myfwc.com/wildlifehabitats/profiles/saltwater/drums/red-drum/"));
 
+            // Kelp forest and deep-sea residents give each habitat its own cast.
+            var sardine = S("pacific_sardine", "slim", "#a9c6cc", "#1d5577", "#f2f7f6", "#8fb0b8", 1, "sardine", 3, 16);
+            sardine.spot = U.Hex("#152a3a"); sardine.forage = true;
+            AddKnown(sardine, "Pacific sardine", "Sardinops sagax", "pacific-sardine");
+            var garibaldi = S("garibaldi", "oval", "#ff7a1c", "#e0520a", "#ffb062", "#ff6a10", 1, "garibaldi", 8, 30);
+            garibaldi.canSchool = false;
+            Add(Identify(garibaldi, "Garibaldi", "Hypsypops rubicundus", "https://en.wikipedia.org/wiki/Garibaldi_(fish)"));
+            var sheephead = S("california_sheephead", "oval", "#d4524c", "#1e1b20", "#f1ebe2", "#8e3a3a", 1, "sheephead", 22, 100);
+            sheephead.canSchool = false;
+            Add(Identify(sheephead, "California sheephead", "Semicossyphus pulcher",
+                "https://www.aquariumofpacific.org/onlinelearningcenter/species/california_sheephead"));
+            var lingcod = S("lingcod", "long", "#8f8b5f", "#3f4a37", "#dcd5b2", "#6f7652", 1, "lingcod", 30, 160);
+            lingcod.spot = U.Hex("#33361f"); lingcod.canSchool = false;
+            AddKnown(lingcod, "Lingcod", "Ophiodon elongatus", "lingcod");
+            var lantern = S("lanternfish", "slim", "#6f879c", "#16233a", "#c3d0dc", "#4d6178", 1, "lantern", 3, 14);
+            lantern.forage = true; lantern.glow = 1; lantern.glowColor = U.Hex("#8ff4ff");
+            Add(Identify(lantern, "Glacier lanternfish", "Benthosema glaciale", "https://en.wikipedia.org/wiki/Benthosema_glaciale"));
+            var hatchet = S("hatchetfish", "disc", "#c4d3e2", "#2a3a56", "#eef4fa", "#9fb2c6", 1, "hatchet", 4, 18);
+            hatchet.glow = 0.8f; hatchet.glowColor = U.Hex("#7fc8ff");
+            Add(Identify(hatchet, "Lovely hatchetfish", "Argyropelecus aculeatus", "https://en.wikipedia.org/wiki/Argyropelecus_aculeatus"));
+            d["minnow"].forage = true;
+
+            // Habitat weights (reef, kelp forest, abyss). Open-water hunters roam all three.
+            void Zone(string key, float reef, float kelp, float abyss) { var z = d[key]; z.reef = reef; z.kelp = kelp; z.abyss = abyss; }
+            Zone("minnow", 1, 1, 0.15f); Zone("clown", 1, 0, 0); Zone("tang", 1, 0.2f, 0); Zone("angel", 1, 0.2f, 0);
+            Zone("puffer", 1, 0.4f, 0); Zone("parrot", 1, 0, 0); Zone("snapper", 1, 0.6f, 0.2f); Zone("barracuda", 1, 0.6f, 0.2f);
+            Zone("grouper", 1, 0.8f, 0.3f); Zone("tuna", 0.6f, 0.6f, 0.4f);
+            Zone("almaco_jack", 0.8f, 0.6f, 0.3f); Zone("goliath_grouper", 1, 0.5f, 0.2f); Zone("atlantic_halibut", 0.2f, 0.6f, 1);
+            Zone("atlantic_mackerel", 0.6f, 1, 0.1f); Zone("mahi_mahi", 1, 0.4f, 0); Zone("skipjack_tuna", 0.7f, 0.7f, 0.2f);
+            Zone("striped_bass", 0.3f, 1, 0); Zone("yellowfin_tuna", 0.6f, 0.6f, 0.4f); Zone("bluefish", 0.5f, 1, 0.1f);
+            Zone("red_drum", 1, 0.5f, 0);
+            Zone("pacific_sardine", 0.6f, 1, 0); Zone("garibaldi", 0.3f, 1, 0); Zone("california_sheephead", 0.3f, 1, 0.1f);
+            Zone("lingcod", 0.1f, 1, 0.5f); Zone("lanternfish", 0, 0.2f, 1); Zone("hatchetfish", 0, 0, 1);
+
             Shark = Identify(S("shark", "shark", "#879da4", "#334957", "#f2f5ee", "#647e87", 1, "shark", 0, 0),
                 "White shark", "Carcharodon carcharias", noaa + "white-shark");
             TigerShark = Identify(S("tiger_shark", "shark", "#a0a982", "#4b5747", "#eeeed6", "#7d8866", 1, "tiger", 0, 0),
@@ -150,18 +192,30 @@ namespace DeepFeast
             return d;
         }
 
-        public static string SpeciesFor(float r, bool school)
+        // Size decides which species fit; the habitat at the spawn point weighs the choice, so each zone
+        // keeps its own cast. With nothing in range, the zone's species of the nearest size stands in.
+        public static string SpeciesFor(float r, bool school, Habitat.Look zone)
         {
-            var keys = new List<string>();
+            string pick = null, nearest = null;
+            float total = 0, gap = float.MaxValue;
             foreach (var k in SpeciesKeys)
             {
                 var s = SpeciesMap[k];
-                if (school && !s.canSchool) continue;
-                if (k == "minnow" && !school && r > 6) continue;
-                if (r >= s.min && r <= s.max) keys.Add(k);
+                if (school ? !s.canSchool || r <= 13 && !s.forage : s.forage && r > 6) continue;
+                float weight = s.ZoneWeight(zone);
+                if (weight < 0.05f) continue;
+                if (r >= s.min && r <= s.max)
+                {
+                    total += weight;
+                    if (U.Rand() * total < weight) pick = k;
+                }
+                else
+                {
+                    float distance = r < s.min ? s.min - r : r - s.max;
+                    if (distance < gap) { gap = distance; nearest = k; }
+                }
             }
-            if (keys.Count == 0) return r < 5 ? "minnow" : "tuna";
-            return U.Pick(keys);
+            return pick ?? nearest ?? "minnow";
         }
     }
 
@@ -468,6 +522,7 @@ namespace DeepFeast
                     break;
                 case "spots":
                 case "mottled":
+                case "lingcod":
                 case "halibut":
                     {
                         var rng = new Mulberry(StableSeed(sp.key));
@@ -533,6 +588,28 @@ namespace DeepFeast
                     break;
                 case "red_drum":
                     Clipped(r.Ellipse(-hl * 0.74f, 0, hl * 0.07f, hh * 0.13f, 0), sp.spot);
+                    break;
+                case "sardine":
+                    {
+                        var m = r.Mask();
+                        for (int i = 0; i < 7; i++) r.Circle(hl * (0.45f - i * 0.17f), -hh * 0.18f, hl * 0.03f, m);
+                        Clipped(m, U.WithA(sp.spot, 0.8f));
+                    }
+                    break;
+                case "sheephead":
+                    Clipped(r.Fill(RectPath(hl * 0.42f, -hh * 1.2f, hl, hh * 2.4f)), U.WithA(sp.c1, 0.92f));
+                    Clipped(r.Fill(RectPath(-hl, -hh * 1.2f, hl * 0.42f, hh * 2.4f)), U.WithA(sp.c1, 0.92f));
+                    Clipped(r.Ellipse(hl * 0.92f, hh * 0.35f, hl * 0.16f, hh * 0.22f, 0), U.WithA(sp.c2, 0.95f));
+                    break;
+                case "lantern":
+                case "hatchet":
+                    {
+                        // Photophore rows along the belly (the raster's y points down).
+                        var m = r.Mask();
+                        int n = sp.pat == "lantern" ? 9 : 11;
+                        for (int i = 0; i < n; i++) r.Circle(hl * (0.6f - i * 1.3f / n), hh * (sp.pat == "lantern" ? 0.5f : 0.82f), hl * 0.025f, m);
+                        Clipped(m, U.WithA(sp.glowColor, 0.95f));
+                    }
                     break;
                 case "scales":
                     {

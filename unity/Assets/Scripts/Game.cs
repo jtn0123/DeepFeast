@@ -324,6 +324,10 @@ namespace DeepFeast
                 {
                     statT = 10;
                     Debug.Log($"[DeepFeast] stat t={(int)playTime} r={player.r:0.0} tier={Data.Tiers[tier].name} lives={lives} score={score} eaten={eaten} fish={fish.Count} fps={1f / Mathf.Max(1e-4f, Time.smoothDeltaTime):0} worst={worstFrame * 1000:0}ms");
+                    // The cast around the player shows that spawns follow the habitat.
+                    var cast = new SortedDictionary<string, int>();
+                    foreach (var f in fish) { cast.TryGetValue(f.sp.key, out int n); cast[f.sp.key] = n + 1; }
+                    Debug.Log($"[DeepFeast] cast y={player.y:0} zone={Habitat.At(player.y).name}: " + string.Join(", ", System.Linq.Enumerable.Select(cast, c => c.Key + "=" + c.Value)));
                     worstFrame = 0;
                 }
             }
@@ -553,7 +557,9 @@ namespace DeepFeast
             ReleaseView(f);
             float pr = player.r;
             player.chomp = 0.22f;
-            player.r = Mathf.Sqrt(pr * pr + f.r * f.r * Data.GROW);
+            // Young fish grow fast so the first tiers come quickly; the boost fades out by Hunter.
+            float growth = Data.GROW * Mathf.Lerp(1.8f, 1, Mathf.InverseLerp(Data.Tiers[0].r, Data.Tiers[2].r, pr));
+            player.r = Mathf.Sqrt(pr * pr + f.r * f.r * growth);
             combo = comboT > 0 ? Mathf.Min(combo + 1, 12) : 1;
             comboT = 1.8f;
             int pts = Mathf.RoundToInt((f.r * 1.5f + 5) * (f.shark ? 5 : 1)) * combo;
@@ -613,9 +619,13 @@ namespace DeepFeast
             return f;
         }
 
+        // The view spans a wide band of depth; halfway to the camera keeps the cast true to the
+        // zone the player is in while still shading toward the depth where each fish appears.
+        Habitat.Look SpawnZone(float y) => Habitat.At((y + cam.y) * 0.5f);
+
         void SpawnSchool(float x, float y, int dir, float r, int n)
         {
-            var key = r <= 13 ? "minnow" : Data.SpeciesFor(r, true);
+            var key = Data.SpeciesFor(r, true, SpawnZone(y));
             var s = new School { dir = dir, turnT = U.Rand(6, 14), cx = x, cy = y };
             schools.Add(s);
             for (int i = 0; i < n; i++)
@@ -666,7 +676,7 @@ namespace DeepFeast
             y = Mathf.Min(y, world.FloorY(x) - r * 2 - 40);
             if (!world.InWater(x, y, r)) return;
             if (school) SpawnSchool(x, y, dir, r, 5 + U.RandInt(0, 5));
-            else fish.Add(MakeFish(Data.SpeciesMap[Data.SpeciesFor(r, false)], r, x, y, dir));
+            else fish.Add(MakeFish(Data.SpeciesMap[Data.SpeciesFor(r, false, SpawnZone(y))], r, x, y, dir));
         }
 
         void SpawnJelly()
@@ -1370,8 +1380,8 @@ namespace DeepFeast
                 f.view.SetSpecies(f.sp);
                 f.view.Pose(f, f.shark ? Layer.Shark + i : Layer.FishBase + i, f.state == FState.Chase ? FishView.EyeMode.Angry : FishView.EyeMode.Normal, dt);
                 var halo = f.view.halo;
-                bool threat = pActive && f.r >= pr * Data.DANGER;
-                halo.enabled = threat;
+                bool threat = pActive && f.r >= pr * Data.DANGER, glows = !threat && f.sp.glow > 0;
+                halo.enabled = threat || glows;
                 if (threat)
                 {
                     float hot = f.state == FState.Chase ? 1 : 0;
@@ -1380,6 +1390,15 @@ namespace DeepFeast
                     float d = f.r * 1.9f * 2;
                     halo.transform.localScale = new Vector3(d, d, 1);
                     halo.color = new Color(1, 70 / 255f, 85 / 255f, a);
+                }
+                else if (glows)
+                {
+                    // Photophores are too small to read at play size; a soft light in their color carries them.
+                    float a = f.sp.glow * (0.16f + 0.05f * Mathf.Sin(time * 3 + f.phase)) * Mathf.Clamp01(World.DarkAt(f.y) / 0.3f + 0.25f);
+                    halo.transform.localPosition = U.V3(f.x, f.y);
+                    float d = f.r * 2.6f * 2;
+                    halo.transform.localScale = new Vector3(d, d, 1);
+                    halo.color = U.WithA(f.sp.glowColor, a);
                 }
             }
 
@@ -1492,6 +1511,8 @@ namespace DeepFeast
             if (pv) holes.Add(new Hole(player.x, player.y, player.r * 8, 0.9f));
             foreach (var j in jellies) holes.Add(new Hole(j.x, j.y + j.r * 0.5f, j.r * 4, 0.75f));
             foreach (var p in pearls) holes.Add(new Hole(p.x, p.y, p.r * 8, 0.8f));
+            foreach (var f in fish)
+                if (f.sp.glow > 0 && f.x > x0 - 200 && f.x < x1 + 200) holes.Add(new Hole(f.x, f.y, f.r * 3.5f, 0.45f * f.sp.glow));
             foreach (var a in world.glowAnemones)
                 if (a.x > x0 - 300 && a.x < x1 + 300) holes.Add(new Hole(a.x, a.y - a.s * 0.4f, a.s * 2.4f, 0.7f));
             foreach (var light in world.reefLights)
