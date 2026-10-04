@@ -90,6 +90,8 @@ namespace DeepFeast
             var rect = sprite.rect;
             var bounds = sprite.bounds;
             float sin = Mathf.Sin(Yaw * Mathf.Deg2Rad);
+            // Banked toward the viewer on either heading, level when head-on in a turn.
+            float roll = species.key == Manta ? -MantaBank * Mathf.Deg2Rad * Mathf.Clamp(f.faceS, -1, 1) : 0;
             var habitat = Habitat.At(f.y);
             var waterReflection = Color.Lerp(World.WaterAt(Mathf.Max(0, f.y - 700)), habitat.light, 0.45f);
             var groundReflection = Color.Lerp(Color.Lerp(reefReflection, kelpReflection, habitat.kelp), abyssReflection, habitat.abyss);
@@ -136,7 +138,7 @@ namespace DeepFeast
                 float visibility = 1;
                 if (i == 4 || i == 5)
                 {
-                    var normal = rotation * (i == 4 ? model.nearNormal : model.farNormal);
+                    var normal = rotation * (Quaternion.AngleAxis(roll * Mathf.Rad2Deg, Vector3.right) * (i == 4 ? model.nearNormal : model.farNormal));
                     visibility = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(-0.12f, 0.18f, Vector3.Dot(normal, Vector3.back)));
                 }
                 block.SetFloat("_Visibility", visibility);
@@ -144,6 +146,7 @@ namespace DeepFeast
                 block.SetFloat("_PaintedPectoral", model.paintedPectoral && (i == 2 || i == 3) ? 1 : 0);
                 block.SetVector("_PectoralMask", model.pectoralMask);
                 block.SetFloat("_Glow", species.glow);
+                block.SetFloat("_Roll", roll);
                 block.SetColor("_GlowColor", species.glowColor);
                 parts[i].SetPropertyBlock(block);
             }
@@ -155,11 +158,12 @@ namespace DeepFeast
 
         public void SetVisible(bool visible) { foreach (var part in parts) part.enabled = visible; }
 
-        static int Pattern(string pattern) => pattern switch { "bands" => 1, "stripes" => 2, "tang" => 3, "spots" => 4, "scales" => 5, "bars" => 6, "player" => 7, "shark" => 8, "tiger" => 8, "mako" => 8, "line" => 9, "finlets" => 10, "amberjack" => 11, "mottled" => 12, "halibut" => 13, "mackerel" => 14, "mahi" => 15, "skipjack" => 16, "bass" => 17, "yellowfin" => 18, "red_drum" => 19, "sardine" => 21, "garibaldi" => 22, "sheephead" => 23, "lantern" => 24, "hatchet" => 25, "lingcod" => 26, "angler" => 27, "viper" => 28, "swordfish" => 29, "whale" => 8, "hammer" => 8, _ => 0 };
+        static int Pattern(string pattern) => pattern switch { "bands" => 1, "stripes" => 2, "tang" => 3, "spots" => 4, "scales" => 5, "bars" => 6, "player" => 7, "shark" => 8, "tiger" => 8, "mako" => 8, "line" => 9, "finlets" => 10, "amberjack" => 11, "mottled" => 12, "halibut" => 13, "mackerel" => 14, "mahi" => 15, "skipjack" => 16, "bass" => 17, "yellowfin" => 18, "red_drum" => 19, "sardine" => 21, "garibaldi" => 22, "sheephead" => 23, "lantern" => 24, "hatchet" => 25, "lingcod" => 26, "angler" => 27, "viper" => 28, "swordfish" => 29, "mola" => 30, "manta" => 31, "whale" => 8, "hammer" => 8, _ => 0 };
 
         static Model Anatomy(Species sp, FishArt.Art art)
         {
             if (sp.IsShark) return SharkBody(sp, art);
+            if (sp.key == Manta) return MantaBody();
             var expanded = ExpandedBody(sp, art);
             if (expanded != null) return expanded;
             // Species have authored proportions rather than inheriting the same oval body.
@@ -184,18 +188,24 @@ namespace DeepFeast
                 "great_hammerhead" => new Vector4(-0.42f, 0.20f, 0.62f, 0.20f),
                 "humpback_anglerfish" => new Vector4(-0.10f, 0.48f, 0.95f, 0.40f),
                 "viperfish" => new Vector4(-0.10f, 0.42f, 0.85f, 0.45f),
+                // The sunfish's small beak; the manta's wide, straight mouth spans the front of its head.
+                "ocean_sunfish" => new Vector4(-0.02f, 0.20f, 0.34f, 0.22f),
+                Manta => new Vector4(-0.05f, 0.30f, 0.80f, 0.08f),
                 _ => new Vector4(-0.20f, 0.28f, 0.76f, 0.38f),
             };
             float h = model.height, depth = model.depth, headCenter = model.head.x, headLength = model.head.y;
             var b = new Builder();
-            const int rings = 44, sides = 32;
+            bool manta = sp.key == Manta;
+            int rings = manta ? 72 : 44, sides = manta ? 40 : 32;
             for (int ring = 0; ring <= rings; ring++)
             {
                 float u = ring / (float)rings, x = Mathf.Lerp(-1.04f, headCenter + headLength, u), profile = Profile(x, model);
+                float width = manta ? MantaWidth(x, model) : depth * profile;
                 for (int side = 0; side <= sides; side++)
                 {
-                    float angle = side / (float)sides * U.TAU;
-                    b.Vertex(new Vector3(x, CenterY(x, model) + Mathf.Cos(angle) * h * profile, Mathf.Sin(angle) * depth * profile), Color.white, Vector2.zero, new Vector2(x, side / (float)sides));
+                    float angle = side / (float)sides * U.TAU, z = Mathf.Sin(angle) * width;
+                    float y = Mathf.Cos(angle) * h * profile * (manta ? MantaTaper(z) : 1);
+                    b.Vertex(new Vector3(x, CenterY(x, model) + y, z), Color.white, Vector2.zero, new Vector2(x, side / (float)sides));
                     if (ring < rings && side < sides)
                     {
                         int a = ring * (sides + 1) + side, c = a + sides + 1;
@@ -227,7 +237,12 @@ namespace DeepFeast
                 for (int i = 0; i < 4; i++)
                     foreach (int side in new[] { -1, 1 }) SweptSpine(b, sp, model, side, -0.58f - i * 0.10f, -0.69f - i * 0.10f, 0.065f - i * 0.006f, 0.32f);
             model.fins = b.Mesh(sp.key + " rooted caudal dorsal ventral membranes");
-            if (PectoralOutline(sp, art, out var finBase, out float finRoot, out var finRim, out bool paintedFin))
+            if (manta)
+            {
+                model.nearFin = MantaLobe(sp, model, -1, out model.nearFinRoot);
+                model.farFin = MantaLobe(sp, model, 1, out model.farFinRoot);
+            }
+            else if (PectoralOutline(sp, art, out var finBase, out float finRoot, out var finRim, out bool paintedFin))
             {
                 model.nearFin = TracedPectoral(sp, model, -1, finBase, finRoot, finRim);
                 model.farFin = TracedPectoral(sp, model, 1, finBase, finRoot, finRim);
@@ -237,12 +252,12 @@ namespace DeepFeast
                 model.paintedPectoral = paintedFin;
                 if (paintedFin) model.pectoralMask = PectoralMask(finBase, finRoot, finRim);
             }
-            else if (ExpandedPectoral(sp, model, out finBase, out finRoot, out finRim))
+            else if (ExpandedPectoral(sp, model, out var expandedBase, out float expandedRoot, out var expandedRim))
             {
-                model.nearFin = TracedPectoral(sp, model, -1, finBase, finRoot, finRim);
-                model.farFin = TracedPectoral(sp, model, 1, finBase, finRoot, finRim);
-                float rootZ = FlankZ(finBase.x, finBase.y, model) + 0.012f;
-                model.nearFinRoot = new Vector3(finBase.x, finBase.y, -rootZ); model.farFinRoot = new Vector3(finBase.x, finBase.y, rootZ);
+                model.nearFin = TracedPectoral(sp, model, -1, expandedBase, expandedRoot, expandedRim);
+                model.farFin = TracedPectoral(sp, model, 1, expandedBase, expandedRoot, expandedRim);
+                float rootZ = FlankZ(expandedBase.x, expandedBase.y, model) + 0.012f;
+                model.nearFinRoot = new Vector3(expandedBase.x, expandedBase.y, -rootZ); model.farFinRoot = new Vector3(expandedBase.x, expandedBase.y, rootZ);
             }
             else
             {
@@ -271,6 +286,16 @@ namespace DeepFeast
                 model.nearEyeCenter = lower; model.farEyeCenter = Opposite(lower);
                 model.nearEye = Eye(sp, art, model.nearNormal, lower, upper);
                 model.farEye = Eye(sp, art, model.farNormal, Opposite(lower), Opposite(upper));
+            }
+            else if (manta)
+            {
+                // The manta's eyes sit on the sides of its head, looking out and a little up.
+                model.nearNormal = new Vector3(0.25f, 0.50f, -0.83f).normalized;
+                model.farNormal = new Vector3(model.nearNormal.x, model.nearNormal.y, -model.nearNormal.z);
+                var side = new Vector3(0.36f, CenterY(0.36f, model) + 0.03f, -MantaWidth(0.36f, model) - 0.005f);
+                model.nearEyeCenter = side; model.farEyeCenter = Opposite(side);
+                model.nearEye = Eye(sp, art, model.nearNormal, side);
+                model.farEye = Eye(sp, art, model.farNormal, Opposite(side));
             }
             else if (sp.key == "great_hammerhead")
             {
@@ -584,7 +609,8 @@ namespace DeepFeast
 
             // A tube along a centerline with a radius by fraction of its length. For a centerline
             // along x, squash scales the cross section's y and z extents.
-            public void Tube(IReadOnlyList<Vector3> spine, System.Func<float, float> radius, Vector2 squash, Color color, Vector2 flex, int sides = 10)
+            public void Tube(IReadOnlyList<Vector3> spine, System.Func<float, float> radius, Vector2 squash, Color color, Vector2 flex, int sides = 10,
+                System.Func<float, Vector2> flexAlong = null)
             {
                 int start = vertices.Count, n = spine.Count;
                 for (int i = 0; i < n; i++)
@@ -594,11 +620,12 @@ namespace DeepFeast
                     if (across.sqrMagnitude < 1e-6f) across = Vector3.Cross(forward, Vector3.up);
                     across.Normalize();
                     var normal = Vector3.Cross(across, forward);
-                    float r = radius(i / (float)(n - 1));
+                    float t = i / (float)(n - 1), r = radius(t);
+                    var weight = flexAlong == null ? flex : flexAlong(t);
                     for (int s = 0; s <= sides; s++)
                     {
                         float angle = s * U.TAU / sides;
-                        Vertex(spine[i] + (across * Mathf.Cos(angle) * squash.x + normal * Mathf.Sin(angle) * squash.y) * r, color, flex);
+                        Vertex(spine[i] + (across * Mathf.Cos(angle) * squash.x + normal * Mathf.Sin(angle) * squash.y) * r, color, weight);
                     }
                 }
                 for (int i = 0; i < n - 1; i++)

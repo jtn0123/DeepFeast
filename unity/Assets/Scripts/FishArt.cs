@@ -178,6 +178,12 @@ namespace DeepFeast
             var swordfish = S("swordfish", "torpedo", "#6a5f7e", "#2e2a40", "#ddd6cc", "#4b4560", 1, "swordfish", 60, 700);
             swordfish.canSchool = false;
             AddKnown(swordfish, "Swordfish", "Xiphias gladius", "north-atlantic-swordfish");
+            var sunfish = S("ocean_sunfish", "disc", "#8e9aa1", "#4f5d68", "#d9dedd", "#6f7c86", 1, "mola", 70, 500);
+            sunfish.canSchool = false;
+            Add(Identify(sunfish, "Ocean sunfish", "Mola mola", "https://en.wikipedia.org/wiki/Ocean_sunfish"));
+            var manta = S(FishVolume.Manta, "flat", "#3a4048", "#16191e", "#eef0ee", "#2a2f36", 1, "manta", 60, 450);
+            manta.canSchool = false;
+            AddKnown(manta, "Giant manta ray", "Mobula birostris", "giant-manta-ray");
             d["minnow"].forage = true;
 
             // Habitat weights (reef, kelp forest, abyss). Open-water hunters roam all three.
@@ -192,6 +198,7 @@ namespace DeepFeast
             Zone("pacific_sardine", 0.6f, 1, 0); Zone("garibaldi", 0.3f, 1, 0); Zone("california_sheephead", 0.3f, 1, 0.1f);
             Zone("lingcod", 0.1f, 1, 0.5f); Zone("lanternfish", 0, 0.2f, 1); Zone("hatchetfish", 0, 0, 1);
             Zone("humpback_anglerfish", 0, 0, 1); Zone("viperfish", 0, 0.05f, 1); Zone("swordfish", 0.6f, 0.6f, 0.6f);
+            Zone("ocean_sunfish", 0.5f, 0.6f, 0.4f); Zone(FishVolume.Manta, 0.8f, 0.3f, 0.2f);
 
             Shark = Identify(S("shark", "shark", "#879da4", "#334957", "#f2f5ee", "#647e87", 1, "shark", 0, 0),
                 "White shark", "Carcharodon carcharias", noaa + "white-shark");
@@ -805,6 +812,14 @@ namespace DeepFeast
         FishVolume volume;
 
         // Rate, tail flex, pectoral flutter and body drift distinguish propulsive fish from hovering ones.
+        static Vector4 Motion(Species s) => s.key switch
+        {
+            // The sunfish sculls with its tall fins and the manta flies on its wings: neither bends its body.
+            "ocean_sunfish" => new Vector4(0.6f, 0.012f, 0.02f, 0.008f),
+            FishVolume.Manta => new Vector4(0.35f, 0.008f, 0.02f, 0.012f),
+            _ => Motion(s.shape),
+        };
+
         static Vector4 Motion(string shape) => shape switch
         {
             "round" => new Vector4(0.7f, 0.035f, 0.045f, 0.018f),
@@ -842,7 +857,7 @@ namespace DeepFeast
             if (sp == s) return;
             sp = s;
             art = FishArt.Get(s);
-            motion = Motion(s.shape);
+            motion = Motion(s);
             // Every catalog identity receives its own 3D model, including procedural skin fallbacks.
             volume ??= new FishVolume(pivot);
             volume.SetSpecies(s, art);

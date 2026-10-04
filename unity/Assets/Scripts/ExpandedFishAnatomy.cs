@@ -45,6 +45,8 @@ namespace DeepFeast
                 "humpback_anglerfish" => Form(0.62f, 0.40f, 0.22f, 1.08f, 1.10f, 0.32f, 0.22f, 0.04f),
                 "viperfish" => Form(0.80f, 0.17f, 0.30f, 1.02f, 1.10f, 0.60f, 0.10f, 0.03f),
                 "swordfish" => Form(0.66f, 0.27f, -0.05f, 1.55f, 1.55f, 0.80f, 0.09f, 0.02f),
+                // A tall, compressed disc whose rear stays deep: the body ends abruptly at the clavus.
+                "ocean_sunfish" => Form(1.08f, 0.20f, 0.10f, 0.95f, 0.80f, 0.40f, 0.60f),
                 _ => null
             };
         }
@@ -194,6 +196,18 @@ namespace DeepFeast
                     SweptSpine(b, sp, model, -1, -0.60f, -0.88f, 0.12f, 0.30f);
                     return true;
 
+                case "ocean_sunfish":
+                    // Tall, pointed dorsal and anal fins set far back, mirror images of each other.
+                    foreach (int side in new[] { -1, 1 })
+                        ExpandedSpine(b, sp, model, side, -0.46f, -0.88f, 0.95f,
+                            t => t < 0.45f ? Mathf.Pow(t / 0.45f, 0.8f) : Mathf.Pow((1 - t) / 0.55f, 1.2f), 0.30f, 36, 12);
+                    return true;
+
+                case Manta:
+                    // A small dorsal fin sits at the root of the tail.
+                    SweptSpine(b, sp, model, 1, -0.80f, -0.98f, 0.09f, 0.30f);
+                    return true;
+
                 case "swordfish":
                     // A tall, rigid crescent dorsal close behind the head; the second dorsal and anal are tiny.
                     ExpandedSickle(b, sp, model, 1, 0.48f, 0.10f, 0.70f);
@@ -229,6 +243,9 @@ namespace DeepFeast
 
         static bool BuildExpandedCaudal(Builder b, Species sp, Model model)
         {
+            if (sp.key == "ocean_sunfish") { Clavus(b, sp, model); return true; }
+            // The manta has no caudal fin; its whip tail grows from the body.
+            if (sp.key == Manta) return true;
             // Broad tails without the two long lobes of a jack or tuna. The halibut's trailing edge
             // is shallowly concave, the drum's and sheephead's nearly square, the lingcod's rounded.
             (float height, float notch)? spec = sp.key switch
@@ -312,6 +329,8 @@ namespace DeepFeast
                 "humpback_anglerfish" => (new Vector2(0.86f, 0.40f), 0.075f),
                 "viperfish" => (new Vector2(1.02f, 0.06f), 0.085f),
                 "swordfish" => (new Vector2(0.98f, 0.06f), 0.120f),
+                "ocean_sunfish" => (new Vector2(0.62f, 0.16f), 0.085f),
+                Manta => (new Vector2(0.36f, 0.03f), 0.070f),
                 _ => (Vector2.zero, 0f)
             };
             return radius > 0;
@@ -344,6 +363,7 @@ namespace DeepFeast
                 "humpback_anglerfish" => (new Vector2(0.12f, -0.18f), 0.24f, 8f, 0.10f, 0f, FinForm.Paddle),
                 "viperfish" => (new Vector2(0.72f, -0.10f), 0.20f, 25f, 0.035f, 0.02f, FinForm.Blade),
                 "swordfish" => (new Vector2(0.45f, -0.16f), 0.55f, 22f, 0.07f, 0.10f, FinForm.Sickle),
+                "ocean_sunfish" => (new Vector2(0.30f, 0.0f), 0.20f, 10f, 0.09f, 0f, FinForm.Paddle),
                 _ => null
             };
             basePoint = default; root = 0; rim = null;

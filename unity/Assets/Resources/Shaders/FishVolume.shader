@@ -12,7 +12,7 @@ Shader "DeepFeast/FishVolume"
         float4 _Frame, _SpriteBounds, _Eye, _Head, _Profile, _FinRoot, _MouthShape;
         fixed4 _Base, _Dark, _Belly, _FogColor, _Accent, _WaterReflection, _GroundReflection;
         float _Phase, _Energy, _TailFlex, _TurnBend, _Flutter, _Mouth, _Height, _Fog, _Visibility, _Style, _Pattern, _Part, _Expression, _FrontView, _Facing, _ReflectionStrength, _SharkKind;
-        float _PaintedFins, _PaintedPectoral, _Painterly, _Glow;
+        float _PaintedFins, _PaintedPectoral, _Painterly, _Glow, _Roll;
         float4 _PectoralMask;
         fixed4 _GlowColor;
 
@@ -44,6 +44,13 @@ Shader "DeepFeast/FishVolume"
         void Animate(inout appdata v)
         {
             if (_Part > 1.5 && _Part < 2.5 && _Expression == 1) v.vertex.y = v.surface.y + (v.vertex.y-v.surface.y)*.08;
+            if (_Pattern==31 && _Part<.5)
+            {
+                // The manta's wings beat: outboard of the body they rise and fall, the tips lagging.
+                float reach=max(0,abs(v.vertex.z)-.35), beat=_Phase-reach*1.6;
+                v.vertex.y+=sin(beat)*reach*reach*.32;
+                v.normal.z-=v.normal.y*(2*reach*sin(beat)+1.6*reach*reach*cos(beat))*.32*sign(v.vertex.z);
+            }
             if (_Part > 2.5)
             {
                 float z=v.surface.x*_Head.w*_MouthShape.z;
@@ -80,6 +87,13 @@ Shader "DeepFeast/FishVolume"
                 float bend=(2*weight*sin(lag)-.9*weight*weight*cos(lag))*_Flutter*stiffness;
                 if (v.flex.y>3.5) v.normal.x+=v.normal.z*bend/.65;
                 else v.normal.y-=v.normal.z*bend*sign(2.5-v.flex.y)/max(.1,_Height*.5);
+            }
+            if (_Roll!=0)
+            {
+                // Bank about the body axis (the manta shows its back to the side camera).
+                float s=sin(_Roll),c=cos(_Roll);
+                v.vertex.yz=float2(c*v.vertex.y-s*v.vertex.z,s*v.vertex.y+c*v.vertex.z);
+                v.normal.yz=float2(c*v.normal.y-s*v.normal.z,s*v.normal.y+c*v.normal.z);
             }
         }
         fixed3 OutlineColor() { return lerp(fixed3(.025,.04,.055),_Dark.rgb*.30,.35); }
@@ -373,6 +387,28 @@ Shader "DeepFeast/FishVolume"
                     skin=lerp(skin,_Dark.rgb,smoothstep(0,.6,y)*.75);
                     skin=lerp(skin,fixed3(.62,.50,.40),exp(-pow((y-.02)*5,2))*.35);
                 }
+                if (_Pattern==30)
+                {
+                    // Ocean sunfish: silver-grey with soft pale mottling under a darker back.
+                    float2 uv=p.xy*float2(5,6)+sin(p.yx*float2(9,7)+float2(.6,1.9))*.45, cell=floor(uv);
+                    float seed=frac(sin(dot(cell,float2(127.1,311.7)))*43758.5453);
+                    skin=lerp(skin,_Belly.rgb,(1-smoothstep(.18,.42,length(frac(uv)-.5)))*step(.35,seed)*.30);
+                }
+                if (_Pattern==31)
+                {
+                    // Giant manta: a black back with white shoulder patches, a white belly with dark
+                    // spots and dusky wing margins. Rest coordinates: z runs across the wings.
+                    float span=abs(p.z), behind=.22-.505*(span-.42)-p.x;
+                    // Triangles behind the leading edge: broad beside the head, pointed towards the tips.
+                    float reach=.44*(1-saturate((span-.36)/.62));
+                    float shoulder=smoothstep(.03,.08,behind)*(1-smoothstep(reach-.06,reach,behind))*smoothstep(.28,.38,span);
+                    fixed3 back=lerp(_Dark.rgb,_Belly.rgb*.9,shoulder*.92);
+                    float2 uv=p.xz*6, cell=floor(uv);
+                    float seed=frac(sin(dot(cell,float2(127.1,311.7)))*43758.5453);
+                    float spot=(1-smoothstep(.10,.20,length(frac(uv)-.5)))*step(.72,seed)*(1-smoothstep(.45,.70,span));
+                    fixed3 belly=lerp(_Belly.rgb,_Dark.rgb,max(spot*.85,smoothstep(.85,1.35,span)*.55));
+                    skin=lerp(belly,back,smoothstep(-.12,.12,y));
+                }
                 // Small recessed gill crease follows the curved skin on both sides.
                 float gill = exp(-pow((p.x-.48+y*.13)*38,2)) * (1-smoothstep(.30,.65,abs(y)));
                 if (_Pattern == 8)
@@ -415,7 +451,8 @@ Shader "DeepFeast/FishVolume"
                 float relative=(p.y-center)/max(_Height*bodyProfile(p.x),.001);
                 float sheen=exp(-pow((relative-.45)*5,2))*smoothstep(-1.0,-.6,p.x);
                 skin=lerp(skin,skin*1.15+.09,sheen*.6);
-                if (_Pattern==8) return skin;
+                // Sharks, the sunfish and the manta have no bony gill cover or rows of scales.
+                if (_Pattern==8 || _Pattern==30 || _Pattern==31) return skin;
                 float radius=_Height*.92;
                 float2 hinge=float2(_Eye.x+radius*.35,center-_Height*.10);
                 float rim=length(p.xy-hinge)-radius;

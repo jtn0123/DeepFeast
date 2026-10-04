@@ -72,6 +72,7 @@ namespace DeepFeast
                 "kelp" => new[] { "pacific_sardine", "garibaldi", "california_sheephead", "lingcod" },
                 "deep" => new[] { "lanternfish", "hatchetfish", "humpback_anglerfish", "viperfish" },
                 "giants" => new[] { "swordfish", "whale_shark", "great_hammerhead" },
+                "ocean" => new[] { "ocean_sunfish", "giant_manta_ray" },
                 "legacy-a" => new[] { "minnow", "clown", "tang", "angel" },
                 "legacy-b" => new[] { "puffer", "parrot", "snapper", "barracuda" },
                 "legacy-c" => new[] { "grouper", "tuna", "player" },

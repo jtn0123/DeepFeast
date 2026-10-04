@@ -3,8 +3,8 @@ using UnityEngine;
 
 namespace DeepFeast
 {
-    // Rigid parts grown from the body: the anglerfish's lure, the viperfish's fangs and dorsal
-    // filament, and the swordfish's bill. They join the body mesh, so they share its swimming
+    // Parts grown from the body: the anglerfish's lure, the viperfish's fangs and dorsal
+    // filament, the swordfish's bill and the manta's whip tail. They join the body mesh, so they share its swimming
     // wave and contour; vertex alpha tells the shader to keep their own color, and the flex
     // channel pins each part to the lower jaw or to the skull instead of bending with the bite.
     public sealed partial class FishVolume
@@ -60,6 +60,11 @@ namespace DeepFeast
                         t => Mathf.Lerp(0.062f, 0.004f, Mathf.Pow(t, 0.8f)), new Vector2(0.36f, 1), bill, Skull);
                     break;
                 }
+                case Manta:
+                    // The whip tail is skin, so it takes the dark back and pale belly and sways with the body.
+                    b.Tube(Curve(new Vector3(-0.98f, 0, 0), new Vector3(-1.45f, 0.01f, 0), new Vector3(-2.05f, -0.03f, 0), 20),
+                        t => Mathf.Lerp(0.035f, 0.004f, Mathf.Sqrt(t)), Vector2.one, Color.white, Vector2.zero, 8);
+                    break;
             }
         }
 
