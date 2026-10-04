@@ -189,7 +189,7 @@ namespace DeepFeast
             var swordfish = S("swordfish", "torpedo", "#6a5f7e", "#2e2a40", "#ddd6cc", "#4b4560", 1, "swordfish", 60, 700);
             swordfish.canSchool = false;
             AddKnown(swordfish, "Swordfish", "Xiphias gladius", "north-atlantic-swordfish");
-            var sunfish = S("ocean_sunfish", "disc", "#8e9aa1", "#4f5d68", "#d9dedd", "#6f7c86", 1, "mola", 70, 500);
+            var sunfish = S("ocean_sunfish", "disc", "#87929a", "#46525c", "#dde2e0", "#4f5c66", 1, "mola", 70, 500);
             sunfish.canSchool = false;
             Add(Identify(sunfish, "Ocean sunfish", "Mola mola", "https://en.wikipedia.org/wiki/Ocean_sunfish"));
             var manta = S(FishVolume.Manta, "flat", "#3a4048", "#16191e", "#eef0ee", "#2a2f36", 1, "manta", 60, 450);
@@ -946,6 +946,7 @@ namespace DeepFeast
         bool HasFin => art != null && !art.shark && !art.painted;
 
         public Bounds Bounds => volume.Bounds();
+        public Bounds BodyBounds => volume.BodyBounds();
 
         public void Destroy()
         {

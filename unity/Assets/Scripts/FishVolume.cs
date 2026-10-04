@@ -77,6 +77,9 @@ namespace DeepFeast
 
         public void ResetMotion() { initialized = false; angularVelocity = 0; }
 
+        // World-space extent of the posed body alone, without fins, tail or bill.
+        public Bounds BodyBounds() => parts[0].bounds;
+
         // World-space extent of the posed model (before the shader's swimming wave), for framing portraits.
         public Bounds Bounds()
         {
@@ -528,6 +531,16 @@ namespace DeepFeast
             return b.Mesh(sp.key + (side < 0 ? " near" : " far") + " pectoral fin");
         }
 
+        // Iris colors by family: gold for the bass, groupers and drums, slate for the open-water
+        // hunters, red for the sheephead. Others take a tint of their own markings.
+        static Color? Iris(Species sp) => sp.key switch
+        {
+            "goliath_grouper" or "striped_bass" or "red_drum" or "lingcod" or "atlantic_halibut" or "almaco_jack" => U.Hex("#b8913a"),
+            "skipjack_tuna" or "yellowfin_tuna" or "atlantic_mackerel" or "bluefish" or "pacific_sardine" or "swordfish" or "mahi_mahi" => U.Hex("#3d4c57"),
+            "california_sheephead" => U.Hex("#b2433a"),
+            _ => null,
+        };
+
         // Each globe stores its own center in the surface coordinates, so paired eyes blink and frown in place.
         static Mesh Eye(Species sp, FishArt.Art art, Vector3 normal, params Vector3[] centers)
         {
@@ -535,16 +548,20 @@ namespace DeepFeast
             var q = Quaternion.FromToRotation(Vector3.forward, normal);
             // Eyes are drawn large, as in the painted art: they carry the expression at play size.
             float rx = Mathf.Clamp(art.eyeSize.x * 1.05f, 0.075f, 0.20f), ry = Mathf.Clamp(art.eyeSize.y * 1.05f, 0.08f, 0.205f);
+            bool natural = false;
             if (sp.IsShark) { rx = 0.038f; ry = 0.031f; }
-            else if (ExpandedEye(sp, out _, out float radius)) { rx = radius; ry = radius * 1.04f; }
-            Color iris = sp.IsShark ? U.Hex("#252f33") : Color.Lerp(sp.c1, U.Hex("#327c82"), 0.65f);
+            else if (ExpandedEye(sp, out _, out float radius)) { rx = radius; ry = radius * 1.04f; natural = true; }
+            Color iris = sp.IsShark ? U.Hex("#252f33") : Iris(sp) ?? Color.Lerp(sp.c1, U.Hex("#327c82"), 0.65f);
+            // The generated species' wide iris and pupil leave a thin ring of white, closer to a real
+            // fish's eye than the painted cast's round cartoon stare.
+            float irisScale = natural ? 0.76f : 0.62f, pupilScale = natural ? 0.50f : 0.40f;
             foreach (var center in centers)
             {
                 var globe = new Vector2(center.x, center.y);
                 b.Ellipsoid(center, new Vector3(rx * 1.10f, ry * 1.10f, 0.035f), q, Color.Lerp(sp.c1, sp.c0, 0.65f), 10, 14, globe);
-                b.Ellipsoid(center + normal * 0.018f, new Vector3(rx, ry, sp.IsShark ? 0.018f : 0.038f), q, U.Hex(sp.IsShark ? "#14202a" : "#f6f8e9"), 10, 14, globe);
-                b.Ellipsoid(center + normal * 0.053f, new Vector3(rx * 0.62f, ry * 0.66f, 0.014f), q, iris, 10, 14, globe);
-                b.Ellipsoid(center + normal * 0.065f, new Vector3(rx * 0.40f, ry * 0.50f, 0.016f), q, U.Hex("#071d2d"), 8, 12, globe);
+                b.Ellipsoid(center + normal * 0.018f, new Vector3(rx, ry, sp.IsShark ? 0.018f : 0.038f), q, U.Hex(sp.IsShark ? "#14202a" : natural ? "#e9ede2" : "#f6f8e9"), 10, 14, globe);
+                b.Ellipsoid(center + normal * 0.053f, new Vector3(rx * irisScale, ry * (irisScale + 0.04f), 0.014f), q, iris, 10, 14, globe);
+                b.Ellipsoid(center + normal * 0.065f, new Vector3(rx * pupilScale, ry * (pupilScale + 0.10f), 0.016f), q, U.Hex("#071d2d"), 8, 12, globe);
                 b.Ellipsoid(center + normal * 0.082f + q * new Vector3(-rx * 0.16f, ry * 0.20f, 0), new Vector3(rx * 0.19f, ry * 0.17f, 0.006f), q, Color.white, 6, 10, globe);
                 b.Ellipsoid(center + normal * 0.082f + q * new Vector3(rx * 0.17f, -ry * 0.19f, 0), new Vector3(rx * 0.07f, ry * 0.065f, 0.005f), q, Color.white, 6, 10, globe);
             }

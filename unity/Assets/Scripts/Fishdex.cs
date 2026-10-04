@@ -104,8 +104,17 @@ namespace DeepFeast
                     var pose = new Fish { sp = sp, x = -60000 - i * 2000, y = 300, r = 100, face = 1, faceS = 0.92f, wag = 1.4f };
                     for (int k = 0; k < 4; k++) view.Pose(pose, 0, FishView.EyeMode.Normal, 1f / 30);
                     var bounds = view.Bounds;
-                    camera.transform.position = new Vector3(bounds.center.x, bounds.center.y, -2000);
-                    camera.orthographicSize = Mathf.Max(bounds.extents.y, bounds.extents.x * PortraitHeight / PortraitWidth) * 1.1f;
+                    // Framed to the whole outline, except that a tall fish (the sunfish's long fins, the
+                    // angelfish's sails) would shrink to a speck in the wide tile: the full length still
+                    // fits, but the frame closes in on the body and the fin tips may run off top and bottom.
+                    var body = view.BodyBounds;
+                    float aspect = PortraitHeight / (float)PortraitWidth;
+                    float whole = Mathf.Max(bounds.extents.y, bounds.extents.x * aspect) * 1.1f;
+                    float length = bounds.extents.x * aspect * 1.1f;
+                    float size = Mathf.Min(whole, Mathf.Max(length, body.extents.y * 1.15f, whole * 0.6f));
+                    float centerY = size < whole ? body.center.y : bounds.center.y;
+                    camera.transform.position = new Vector3(bounds.center.x, centerY, -2000);
+                    camera.orthographicSize = size;
                     camera.backgroundColor = Window;
                     camera.targetTexture = (RenderTexture)Portrait(sp);
                     camera.Render();

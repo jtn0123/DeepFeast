@@ -312,24 +312,26 @@ namespace DeepFeast
         }
 
         // Cartoon eyes sized like the painted cast, placed on each authored head (relative to the centerline).
+        // Eye sizes follow the fish: big and round for the reef and the deep, smaller for open-water
+        // hunters and bottom dwellers, whose real eyes are a small part of a long head.
         static bool ExpandedEye(Species sp, out Vector2 position, out float radius)
         {
             (position, radius) = sp.key switch
             {
-                "almaco_jack" => (new Vector2(0.80f, 0.13f), 0.150f),
-                "goliath_grouper" => (new Vector2(0.93f, 0.17f), 0.110f),
-                "atlantic_halibut" => (new Vector2(0.92f, 0.09f), 0.100f),
-                "atlantic_mackerel" => (new Vector2(0.80f, 0.08f), 0.130f),
-                "mahi_mahi" => (new Vector2(0.80f, 0.10f), 0.120f),
-                "skipjack_tuna" => (new Vector2(0.82f, 0.10f), 0.140f),
-                "striped_bass" => (new Vector2(0.86f, 0.10f), 0.140f),
-                "yellowfin_tuna" => (new Vector2(0.86f, 0.09f), 0.140f),
-                "bluefish" => (new Vector2(0.82f, 0.09f), 0.140f),
-                "red_drum" => (new Vector2(0.86f, 0.12f), 0.140f),
-                "pacific_sardine" => (new Vector2(0.86f, 0.06f), 0.130f),
+                "almaco_jack" => (new Vector2(0.80f, 0.13f), 0.120f),
+                "goliath_grouper" => (new Vector2(0.93f, 0.17f), 0.082f),
+                "atlantic_halibut" => (new Vector2(0.92f, 0.09f), 0.085f),
+                "atlantic_mackerel" => (new Vector2(0.80f, 0.08f), 0.108f),
+                "mahi_mahi" => (new Vector2(0.80f, 0.10f), 0.100f),
+                "skipjack_tuna" => (new Vector2(0.82f, 0.10f), 0.105f),
+                "striped_bass" => (new Vector2(0.86f, 0.10f), 0.100f),
+                "yellowfin_tuna" => (new Vector2(0.86f, 0.09f), 0.105f),
+                "bluefish" => (new Vector2(0.82f, 0.09f), 0.110f),
+                "red_drum" => (new Vector2(0.86f, 0.12f), 0.100f),
+                "pacific_sardine" => (new Vector2(0.86f, 0.06f), 0.120f),
                 "garibaldi" => (new Vector2(0.80f, 0.14f), 0.140f),
-                "california_sheephead" => (new Vector2(0.84f, 0.17f), 0.120f),
-                "lingcod" => (new Vector2(0.90f, 0.17f), 0.110f),
+                "california_sheephead" => (new Vector2(0.84f, 0.17f), 0.100f),
+                "lingcod" => (new Vector2(0.90f, 0.17f), 0.090f),
                 // Deep-sea eyes are large for the little light there is.
                 "lanternfish" => (new Vector2(0.92f, 0.06f), 0.180f),
                 "hatchetfish" => (new Vector2(0.74f, 0.30f), 0.160f),

@@ -473,10 +473,18 @@ Shader "DeepFeast/FishVolume"
                 }
                 if (_Pattern==30)
                 {
-                    // Ocean sunfish: silver-grey with soft pale mottling under a darker back.
-                    float2 uv=p.xy*float2(5,6)+sin(p.yx*float2(9,7)+float2(.6,1.9))*.45, cell=floor(uv);
-                    float seed=frac(sin(dot(cell,float2(127.1,311.7)))*43758.5453);
-                    skin=lerp(skin,_Belly.rgb,(1-smoothstep(.18,.42,length(frac(uv)-.5)))*step(.35,seed)*.30);
+                    // Ocean sunfish: a dark, slightly brown back over silver flanks and a pale belly,
+                    // irregular pale blotches, and the rough, granular skin of a mola.
+                    float rise=(p.y-centerY(p.x))/max(_Height*bodyProfile(p.x),.001);
+                    skin=lerp(skin,_Dark.rgb*fixed3(1.08,1.02,.96),smoothstep(-.10,.80,rise)*.62);
+                    skin=lerp(skin,_Belly.rgb,smoothstep(-.20,-.85,rise)*.55);
+                    float blotch=smoothstep(.55,.70,valueNoise(p.xy*float2(6,7.5)+1.3));
+                    skin=lerp(skin,_Belly.rgb*.96,blotch*.42*(1-smoothstep(.35,.95,rise)*.5));
+                    skin*=1+(valueNoise(p.xy*40)-.5)*.11;
+                    // The small, rounded gill opening just ahead of the pectoral base.
+                    float gill=length((p.xy-(_FinRoot.xy+float2(.075,.015)))/float2(.026,.07));
+                    skin=lerp(skin,_Dark.rgb*.42,(1-smoothstep(.75,1,gill))*.85);
+                    skin=lerp(skin,_Belly.rgb,exp(-pow((gill-1.15)/.15,2))*smoothstep(-.3,.3,p.x-_FinRoot.x-.075)*.25);
                 }
                 if (_Pattern==31)
                 {
@@ -537,9 +545,11 @@ Shader "DeepFeast/FishVolume"
                 float center=centerY(p.x);
                 float relative=(p.y-center)/max(_Height*bodyProfile(p.x),.001);
                 float sheen=exp(-pow((relative-.45)*5,2))*smoothstep(-1.0,-.6,p.x)*(1-hammerBlade(p));
-                skin=lerp(skin,skin*1.15+.09,sheen*.6);
+                skin=lerp(skin,skin*1.15+.09,sheen*.42);
                 // Sharks, the sunfish and the manta have no bony gill cover or rows of scales.
                 if (_Pattern==8 || _Pattern==30 || _Pattern==31) return skin;
+                // A faint mottle keeps the flank from shading as smoothly as plastic.
+                skin*=1+(valueNoise(p.xy*float2(7,10)+3.7)-.5)*.09;
                 float radius=_Height*.92;
                 float2 hinge=float2(_Eye.x+radius*.35,center-_Height*.10);
                 float rim=length(p.xy-hinge)-radius;
@@ -684,7 +694,7 @@ Shader "DeepFeast/FishVolume"
                 float lighting=_Painterly>.5?.70+toon*.38:lerp(.82,.62,_Style)+toon*lerp(.24,.48,_Style);
                 lighting+=(1-diffuse)*saturate(-normal.y)*.08*_Style;
                 float gloss=saturate(dot(normal,normalize(view+normalize(float3(-.3,.65,-.7)))));
-                float specular=_Painterly>.5?pow(gloss,40)*.10:pow(gloss,48)*lerp(.035,.14,_Style)+pow(gloss,10)*.025*_Style;
+                float specular=_Painterly>.5?pow(gloss,40)*.065:pow(gloss,48)*lerp(.035,.14,_Style)+pow(gloss,10)*.025*_Style;
                 if (_Part<.5 && _Style>.5)
                 {
                     // Tiny staggered scale arcs wrap around the body rather than lying on a flat side.
@@ -694,7 +704,7 @@ Shader "DeepFeast/FishVolume"
                     rgb=lerp(rgb,rgb*fixed3(.86,1.035,1.06),pow(1-ndv,3)*.30);
                 }
                 rgb=PaintedLighting(rgb, i.local.y / max(_Height*2,.1)+.5)*lighting;
-                if (_Part<1.5) rgb=lerp(dot(rgb,fixed3(.2126,.7152,.0722)).xxx,rgb,_Painterly>.5?1.16:1.10);
+                if (_Part<1.5) rgb=lerp(dot(rgb,fixed3(.2126,.7152,.0722)).xxx,rgb,_Painterly>.5?1.12:1.10);
                 if (_Part>.5 && _Part<1.5 && (_PaintedFins<.5 || _Style>.5)) rgb+=i.color.rgb*(1-diffuse)*.10;
                 rgb+=specular*fixed3(.65,.85,.9);
                 if (_Style>.5 && _Part<1.5)

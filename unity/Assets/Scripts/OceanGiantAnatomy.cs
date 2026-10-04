@@ -44,18 +44,29 @@ namespace DeepFeast
             return b.Mesh(sp.key + (side < 0 ? " near" : " far") + " cephalic lobe");
         }
 
-        // The clavus: a short, scalloped fringe across the whole truncated rear of the sunfish.
+        // The clavus: a scalloped fringe across the whole truncated rear of the sunfish. Eight rounded
+        // lobes, each stiffened by a pale ossicle near its edge, darken from the body to the rim.
+        const int ClavusLobes = 8;
+        static float ClavusLobe(float along) => Mathf.Pow(Mathf.Abs(Mathf.Sin(along * Mathf.PI * ClavusLobes)), 0.55f);
+
         static void Clavus(Builder b, Species sp, Model model)
         {
             float stalk = model.height * model.profile.z;
-            b.Membrane(sp.tailCol, 10, 48, 4, (weight, along) =>
+            b.Membrane(sp.tailCol, 12, 96, 4, (weight, along) =>
             {
-                float s = along * 2 - 1, lobe = 0.5f - 0.5f * Mathf.Cos(along * Mathf.PI * 2 * 6);
+                float s = along * 2 - 1, lobe = ClavusLobe(along);
                 var root = new Vector3(-1.04f, s * stalk, 0);
-                var rim = new Vector3(-1.04f - (0.13f + 0.05f * lobe) * Mathf.Sqrt(1 - 0.75f * s * s), s * stalk * 1.04f, 0);
+                var rim = new Vector3(-1.04f - (0.15f + 0.08f * lobe) * Mathf.Sqrt(1 - 0.75f * s * s), s * stalk * 1.05f, 0);
                 var p = Vector3.Lerp(root, rim, weight);
                 p.z = Mathf.Sin(weight * Mathf.PI) * 0.02f;
                 return p;
+            }, false, (weight, along) =>
+            {
+                float ossicle = Mathf.Exp(-Mathf.Pow((weight - 0.74f) / 0.08f, 2)) * Mathf.Pow(ClavusLobe(along), 10);
+                var color = Color.Lerp(Color.Lerp(sp.c0, sp.tailCol, 0.5f), sp.c1, Mathf.SmoothStep(0, 1, weight) * 0.55f);
+                color = Color.Lerp(color, sp.c2, ossicle * 0.65f);
+                color.a = Mathf.Lerp(1, 0.85f, weight * weight);
+                return color;
             });
         }
     }
