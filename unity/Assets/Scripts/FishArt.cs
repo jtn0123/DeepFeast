@@ -116,9 +116,19 @@ namespace DeepFeast
             grouper.spot = U.Hex("#3a2814");
             Add(grouper);
             Add(S("tuna", "torpedo", "#4d6d9c", "#1d2f52", "#e3e9f2", "#5a7bb0", 1, "finlets", 70, 600));
-            foreach (var legacy in d.Values)
-                legacy.displayName = legacy.key == "clown" ? "Clownfish" : legacy.key == "angel" ? "Angelfish" :
-                    legacy.key == "parrot" ? "Parrotfish" : char.ToUpperInvariant(legacy.key[0]) + legacy.key.Substring(1);
+            // The original reef cast for the Fishdex: the species where the art is unmistakable, the
+            // family where the fish stands for many.
+            void Legacy(string key, string name, string scientificName) { d[key].displayName = name; d[key].scientificName = scientificName; }
+            Legacy("minnow", "Minnow", "Atherinidae · silversides");
+            Legacy("clown", "Clownfish", "Amphiprion ocellaris");
+            Legacy("tang", "Blue tang", "Paracanthurus hepatus");
+            Legacy("angel", "Angelfish", "Pomacanthidae · marine angelfishes");
+            Legacy("puffer", "Pufferfish", "Tetraodontidae · pufferfishes");
+            Legacy("parrot", "Parrotfish", "Scaridae · parrotfishes");
+            Legacy("snapper", "Red snapper", "Lutjanus campechanus");
+            Legacy("barracuda", "Great barracuda", "Sphyraena barracuda");
+            Legacy("grouper", "Grouper", "Epinephelidae · groupers");
+            Legacy("tuna", "Bluefin tuna", "Thunnus thynnus");
 
             const string noaa = "https://www.fisheries.noaa.gov/species/";
             void AddKnown(Species species, string name, string scientificName, string page)
@@ -878,6 +888,14 @@ namespace DeepFeast
         }
 
         bool HasFin => art != null && !art.shark && !art.painted;
+
+        public Bounds Bounds => volume.Bounds();
+
+        public void Destroy()
+        {
+            Object.Destroy(root);
+            Object.Destroy(halo.gameObject);
+        }
 
         public void SetActive(bool on)
         {

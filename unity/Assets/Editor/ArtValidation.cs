@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -53,6 +54,10 @@ namespace DeepFeast.EditorTools
             Require(Data.SharkVariants.Length == 4, "Expected white, tiger, shortfin mako and great hammerhead shark variants.");
             Require(Data.WhaleShark != null && Array.IndexOf(Data.SharkVariants, Data.WhaleShark) < 0 && !Data.SpeciesMap.ContainsKey(Data.WhaleShark.key),
                 "The whale shark is the finale giant, neither a spawning species nor a rotating shark.");
+            Require(Fishdex.Entries.Count == species.Count - 1 && !Fishdex.Entries.Contains(Data.Player),
+                "The Fishdex lists every species except the player.");
+            foreach (var entry in Fishdex.Entries)
+                Require(!string.IsNullOrWhiteSpace(entry.scientificName), "Fishdex entry without a scientific name: " + entry.key);
             var allKeys = new HashSet<string>();
             int preparedMeshes = 0, fallbackCount = 0;
             foreach (var sp in species)

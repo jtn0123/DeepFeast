@@ -51,6 +51,14 @@ namespace DeepFeast
         public void OnPointerExit(PointerEventData e) => held = false;
     }
 
+    // Reports keyboard/gamepad selection and mouse hover, so a detail panel can follow either.
+    public sealed class FocusRelay : MonoBehaviour, ISelectHandler, IPointerEnterHandler
+    {
+        public Action onFocus;
+        public void OnSelect(BaseEventData e) => onFocus?.Invoke();
+        public void OnPointerEnter(PointerEventData e) => onFocus?.Invoke();
+    }
+
     public struct Alert { public Vector2 screen; public bool onScreen, quarry; public float bounce, angle, pulse; }
 
     /// <summary>All UI: HUD, banners, menus and screen-space world labels — built from code.</summary>
@@ -69,10 +77,16 @@ namespace DeepFeast
         readonly RectTransform growthRT, dashRT, bannerRT, livesRT, comboRT;
         readonly VertexGradient bannerGrad, growthGrad;
         readonly List<Image> lifeIcons = new List<Image>();
-        readonly GameObject menu, pause, over, victory, dashBtn;
-        readonly Text bestMenu, bestOver, overTitle, newBest, sScore, sTier, sEaten, sTime, vScore, vEaten, vTime, vBest;
+        readonly GameObject menu, pause, over, victory, dex, dashBtn;
+        readonly Text bestMenu, bestOver, overTitle, newBest, overNote, sScore, sTier, sEaten, sTime, vScore, vEaten, vTime, vBest;
+        readonly Text menuDex, dexCount, dexName, dexLatin, dexWhere;
         readonly RectTransform titleRT;
-        readonly RectTransform menuCard, pauseCard, overCard, victoryCard;
+        readonly RectTransform menuCard, pauseCard, overCard, victoryCard, dexCard;
+        sealed class DexTile { public Species sp; public RawImage art; public Text name; }
+        readonly List<DexTile> dexTiles = new List<DexTile>();
+        static readonly Color Silhouette = new Color(0.01f, 0.05f, 0.08f, 0.92f);
+        GameObject dexReturn;
+        RectTransform dexCursor;
         readonly List<RectTransform> menuFish = new List<RectTransform>();
         readonly Vector2 titleOrigin = new Vector2(52, -67);
         readonly Image muteIcon;
@@ -221,7 +235,8 @@ namespace DeepFeast
             MenuFish(mp, Data.Player, new Vector2(-230, -257), new Vector2(342, 208), 0);
             MenuFish(mp, Data.SpeciesMap["clown"], new Vector2(-355, -150), new Vector2(102, 72), -9);
             MenuFish(mp, Data.SpeciesMap["tang"], new Vector2(-103, -363), new Vector2(96, 72), 7);
-            Label(mp, "FROM FRY TO LEGEND", 14, U.Hex("#9dd6c6"), TextAnchor.UpperCenter, new Vector2(1, 1), new Vector2(-238, -418), display);
+            Button(mp, "FISHDEX", new Vector2(232, -400), OpenDex, 250, true);
+            menuDex = Label(mp, "", 13, U.Hex("#9dd6c6"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(232, -473), display);
             Guide(mp, "STEER", "Mouse / touch / WASD", -290);
             Guide(mp, "DASH", "Hold click / Space", 0);
             Guide(mp, "TAKE A BREAK", "P pauses  ·  M mutes", 290);
@@ -247,9 +262,10 @@ namespace DeepFeast
             sTier = Stat(op, "TOP TIER", new Vector2(164, -174));
             sEaten = Stat(op, "FISH EATEN", new Vector2(-164, -268));
             sTime = Stat(op, "SURVIVED", new Vector2(164, -268));
-            Button(op, "ONE MORE SWIM", new Vector2(0, -382), () => OnPlay?.Invoke(), 360);
+            Button(op, "ONE MORE SWIM", new Vector2(-174, -382), () => OnPlay?.Invoke(), 320);
+            Button(op, "FISHDEX", new Vector2(174, -382), OpenDex, 320, true);
             bestOver = Label(op, "PERSONAL BEST  0", 15, U.Hex("#f4d397"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -473), display);
-            Label(op, "Every legend starts as a fry.", 15, U.Hex("#91b6bf"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -517));
+            overNote = Label(op, "", 15, U.Hex("#91b6bf"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -517));
             over.SetActive(false);
 
             // ---------------------------------------------------------- victory
@@ -267,6 +283,28 @@ namespace DeepFeast
             Button(vp, "NEW SWIM", new Vector2(174, -382), () => OnPlay?.Invoke(), 320);
             Label(vp, "The deep goes on without end. The giants still roam.", 15, U.Hex("#91b6bf"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -490));
             victory.SetActive(false);
+
+            // ---------------------------------------------------------- fishdex
+            dex = Overlay("Fishdex", out var dexPanel, new Vector2(1200, 760));
+            dexCard = dexPanel;
+            var dexTitle = Label(dexPanel, "FISHDEX", 46, U.Hex("#f2ecd9"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(44, -24), display);
+            AddShadow(dexTitle, new Color(0, 0.09f, 0.14f, 0.7f), new Vector2(0, -3));
+            Label(dexPanel, "EVERY SPECIES YOU HAVE EATEN", 12, U.Hex("#a6d2cb"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(46, -80));
+            dexCount = Label(dexPanel, "", 18, U.Hex("#f4d397"), TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-44, -50), display);
+            const int columns = 6;
+            int rows = (Fishdex.Entries.Count + columns - 1) / columns;
+            float tileW = 178, gapX = 10, gapY = 8, tileH = Mathf.Min(84, (548 - (rows - 1) * gapY) / rows);
+            float gridW = columns * tileW + (columns - 1) * gapX;
+            // A gold frame sits behind the focused tile, so it shows the same for mouse, keyboard and gamepad.
+            dexCursor = Panel(dexPanel, U.Hex("#ffd447"), 17).rectTransform;
+            for (int i = 0; i < Fishdex.Entries.Count; i++)
+                AddDexTile(dexPanel, Fishdex.Entries[i], new Vector2(-gridW / 2 + tileW / 2 + i % columns * (tileW + gapX), -104 - i / columns * (tileH + gapY)), new Vector2(tileW, tileH));
+            dexName = Label(dexPanel, "", 24, U.Hex("#f2ecd9"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(46, -666), display);
+            dexLatin = Label(dexPanel, "", 15, U.Hex("#a6d2cb"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(47, -700));
+            dexLatin.fontStyle = FontStyle.Italic;
+            dexWhere = Label(dexPanel, "", 13, U.Hex("#8baebc"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(47, -726));
+            Button(dexPanel, "BACK", new Vector2(440, -672), CloseDex, 240, true);
+            dex.SetActive(false);
 
             // ---------------------------------------------------------- corner buttons
             noteSprite = Icon(false); mutedSprite = Icon(true);
@@ -300,6 +338,7 @@ namespace DeepFeast
             pauseCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 600);
             overCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 740);
             victoryCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 740);
+            dexCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 1200);
         }
         public void UseCaptureCamera(Camera camera)
         {
@@ -322,14 +361,15 @@ namespace DeepFeast
         public void ShowMenu(int best)
         {
             bestMenu.text = "PERSONAL BEST  " + best.ToString("N0");
-            menu.SetActive(true); over.SetActive(false); pause.SetActive(false); victory.SetActive(false);
+            menuDex.text = $"{Fishdex.FoundCount} / {Fishdex.Entries.Count} SPECIES FOUND";
+            menu.SetActive(true); over.SetActive(false); pause.SetActive(false); victory.SetActive(false); dex.SetActive(false);
             hudTarget = 0;
             FocusPrimary();
         }
 
         public void StartPlay()
         {
-            menu.SetActive(false); over.SetActive(false); pause.SetActive(false); victory.SetActive(false);
+            menu.SetActive(false); over.SetActive(false); pause.SetActive(false); victory.SetActive(false); dex.SetActive(false);
             hudTarget = 1;
             growthInitialized = false;
             growthPulse = scorePulse = 0;
@@ -337,8 +377,9 @@ namespace DeepFeast
 
         public void ShowPause(bool on) { pause.SetActive(on); if (on) FocusPrimary(); }
 
-        public void ShowOver(int scoreV, string tier, int eaten, float time, bool isBest, int best)
+        public void ShowOver(int scoreV, string tier, int eaten, float time, bool isBest, int best, int newSpecies)
         {
+            overNote.text = newSpecies > 0 ? $"{newSpecies} new species in your Fishdex  ·  {Fishdex.FoundCount} / {Fishdex.Entries.Count}" : "Every legend starts as a fry.";
             overTitle.text = isBest && scoreV > 0 ? "A NEW LEGEND!" : "GOBBLED!";
             newBest.text = isBest && scoreV > 0 ? "NEW BEST!" : "";
             sScore.text = scoreV.ToString("N0");
@@ -369,6 +410,66 @@ namespace DeepFeast
         {
             victory.SetActive(false);
             hudTarget = 1;
+        }
+
+        public bool DexOpen => dex.activeSelf;
+
+        // The Fishdex covers the menu or game-over card and returns to it.
+        public void OpenDex()
+        {
+            Fishdex.EnsurePortraits();
+            dexReturn = menu.activeSelf ? menu : over.activeSelf ? over : null;
+            if (dexReturn != null) dexReturn.SetActive(false);
+            foreach (var tile in dexTiles)
+            {
+                bool known = Fishdex.Has(tile.sp);
+                tile.art.texture = known ? Fishdex.Portrait(tile.sp) : Fishdex.Silhouette(tile.sp);
+                tile.art.color = known ? Color.white : Silhouette;
+                tile.name.text = known ? tile.sp.displayName : "???";
+            }
+            dexCount.text = $"{Fishdex.FoundCount} / {Fishdex.Entries.Count} DISCOVERED";
+            dex.SetActive(true);
+            ShowDexEntry(dexTiles[0]);
+            FocusPrimary();
+        }
+
+        public void CloseDex()
+        {
+            if (!dex.activeSelf) return;
+            dex.SetActive(false);
+            if (dexReturn != null) dexReturn.SetActive(true);
+            dexReturn = null;
+            FocusPrimary();
+        }
+
+        void ShowDexEntry(DexTile tile)
+        {
+            var sp = tile.sp;
+            var rt = tile.art.rectTransform.parent as RectTransform;
+            Place(dexCursor, rt.anchorMin, rt.anchorMax, rt.anchoredPosition + new Vector2(0, 4), rt.sizeDelta + new Vector2(8, 8), rt.pivot);
+            bool known = Fishdex.Has(sp);
+            dexName.text = known ? sp.displayName : "???";
+            dexLatin.text = known ? sp.scientificName : "Not yet eaten";
+            dexWhere.text = (known ? "" : "Look in:  ") + Fishdex.Where(sp);
+        }
+
+        void AddDexTile(Transform parent, Species sp, Vector2 pos, Vector2 size)
+        {
+            var bg = Panel(parent, Fishdex.Window, 14);
+            bg.raycastTarget = true;
+            bg.gameObject.name = "Dex_" + sp.key;
+            Place(bg.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), pos, size, new Vector2(0.5f, 1));
+            bg.gameObject.AddComponent<UnityEngine.UI.Button>().transition = Selectable.Transition.None;
+            var frame = Node("Portrait", bg.rectTransform);
+            Stretch(frame);
+            frame.offsetMin = new Vector2(8, 3); frame.offsetMax = new Vector2(-8, -3);
+            var art = frame.gameObject.AddComponent<RawImage>();
+            art.raycastTarget = false;
+            var name = Label(bg.rectTransform, "", 11, new Color(0.88f, 0.96f, 0.94f, 0.9f), TextAnchor.LowerLeft, Vector2.zero, new Vector2(9, 5));
+            AddShadow(name, new Color(0, 0.06f, 0.1f, 0.9f), new Vector2(1, -1));
+            var tile = new DexTile { sp = sp, art = art, name = name };
+            bg.gameObject.AddComponent<FocusRelay>().onFocus = () => ShowDexEntry(tile);
+            dexTiles.Add(tile);
         }
 
         public void UpdateHud(int scoreV, int comboV, bool comboOn, string tier, float prog, string next, int lives, float stamina, bool tired, int depthM)
@@ -601,21 +702,22 @@ namespace DeepFeast
             return root.gameObject;
         }
 
-        void Button(Transform parent, string label, Vector2 pos, Action onClick, float width = 0)
+        void Button(Transform parent, string label, Vector2 pos, Action onClick, float width = 0, bool secondary = false)
         {
             var img = Panel(parent, Color.white, 30);
             img.raycastTarget = true;
             img.gameObject.name = "Button_" + label;
             float w = width > 0 ? width : Mathf.Max(220, label.Length * 22 + 100);
             Place(img.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), pos, new Vector2(w, 64), new Vector2(0.5f, 1));
-            Gradient(img, U.Hex("#d0f3df"), U.Hex("#91ddc5"), U.Hex("#68c6b2")).multiplyGraphicColor = true;
+            if (secondary) Gradient(img, U.Hex("#3d808a"), U.Hex("#2a6670"), U.Hex("#1d515b")).multiplyGraphicColor = true;
+            else Gradient(img, U.Hex("#d0f3df"), U.Hex("#91ddc5"), U.Hex("#68c6b2")).multiplyGraphicColor = true;
             AddShadow(img, U.Hex("#163d41"), new Vector2(0, -4));
             var b = img.gameObject.AddComponent<UnityEngine.UI.Button>();
             var cb = b.colors; cb.highlightedColor = Color.white; cb.normalColor = new Color(0.84f, 0.94f, 0.95f, 1); cb.pressedColor = new Color(0.65f, 0.82f, 0.85f, 1); cb.selectedColor = new Color(1, 0.94f, 0.75f, 1);
             b.colors = cb;
             b.onClick.AddListener(() => onClick());
             Shine(img.rectTransform, 30, 0.1f);
-            Label(img.rectTransform, label, 28, U.Hex("#053040"), TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0, 0), display);
+            Label(img.rectTransform, label, 28, secondary ? U.Hex("#e6fbf4") : U.Hex("#053040"), TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0, 0), display);
         }
 
         Text Stat(Transform parent, string label, Vector2 pos)
@@ -653,9 +755,21 @@ namespace DeepFeast
             ExecuteEvents.Execute(button.gameObject, new BaseEventData(EventSystem.current), ExecuteEvents.submitHandler);
         }
 
-        public string ActiveOverlay => menu.activeSelf ? "menu" : pause.activeSelf ? "pause" : over.activeSelf ? "over" : victory.activeSelf ? "victory" : "none";
+        // Native harness: press a named button on the active screen through the same Submit event.
+        public void SubmitButton(string label)
+        {
+            UnityEngine.UI.Button button = null;
+            if (ActiveScreen != null)
+                foreach (var b in ActiveScreen.GetComponentsInChildren<UnityEngine.UI.Button>())
+                    if (b.name == "Button_" + label) button = b;
+            if (button == null) throw new InvalidOperationException($"No {label} button on the active screen.");
+            EventSystem.current.SetSelectedGameObject(button.gameObject);
+            ExecuteEvents.Execute(button.gameObject, new BaseEventData(EventSystem.current), ExecuteEvents.submitHandler);
+        }
 
-        GameObject ActiveScreen => menu.activeSelf ? menu : pause.activeSelf ? pause : over.activeSelf ? over : victory.activeSelf ? victory : null;
+        public string ActiveOverlay => dex.activeSelf ? "fishdex" : menu.activeSelf ? "menu" : pause.activeSelf ? "pause" : over.activeSelf ? "over" : victory.activeSelf ? "victory" : "none";
+
+        GameObject ActiveScreen => dex.activeSelf ? dex : menu.activeSelf ? menu : pause.activeSelf ? pause : over.activeSelf ? over : victory.activeSelf ? victory : null;
 
         void FocusPrimary()
         {

@@ -41,7 +41,7 @@ namespace DeepFeast
 
         // ------------------------------------------------------------------ state
         GState state = GState.Menu;
-        int score, lives = 3, combo, eaten, tier, best;
+        int score, lives = 3, combo, eaten, tier, best, newSpecies;
         float comboT, playTime, sharkT = 30, pearlT = 18, slowT, shake, dieT, time;
         // The finale: once the hero is a Legend the whale shark arrives, too big to swallow; each
         // bite takes a chunk out of it until it is small enough to eat, which wins the game.
@@ -85,13 +85,15 @@ namespace DeepFeast
         string shotDir, scenery, interfaceReview;
         float worstFrame, shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, finaleDelay = 12, realTime, statT, botWanderDir = 1, restartT = -1;
         int shotN, uiFlowStage;
-        bool menuShotDone, turnReviewLogged;
+        bool menuShotDone, turnReviewLogged, portraitsTaken;
 
         float FocusR => pActive ? player.r : 22;
         float ViewW => refW / zoom;
         float ViewH => refH / zoom;
         bool Playing => state == GState.Play && pActive && pAlive;
         bool Legend => tier >= Data.Tiers.Length - 1;
+        // Test and review runs never write the player's best score or Fishdex.
+        bool Persist => !autoplay && scenery == null && !gallery;
 
         // ================================================================== setup
         void Awake()
@@ -143,6 +145,7 @@ namespace DeepFeast
             hud.SetMuted(sfx.Muted);
 
             best = PlayerPrefs.GetInt("deepfeast.best", 0);
+            Fishdex.Load(Persist);
             hud.ShowMenu(best);
 
             Resize();
@@ -466,7 +469,13 @@ namespace DeepFeast
             if (interfaceReview == "menu" || interfaceReview == "flow") { state = GState.Menu; pActive = false; hud.ShowMenu(4240); }
             else if (interfaceReview == "pause") { state = GState.Paused; hud.ShowPause(true); }
             else if (interfaceReview == "victory") { state = GState.Victory; hud.ShowVictory(48210, 512, 1312, 48210); }
-            else { state = GState.Over; pActive = false; hud.ShowOver(2340, "Predator", 42, 164, false, 4240); }
+            else if (interfaceReview == "dex")
+            {
+                // A sample collection: most of the reef and kelp, a little of the deep, no sharks yet.
+                for (int i = 0; i < Fishdex.Entries.Count; i++) if (i % 5 < 3 && !Fishdex.Entries[i].IsShark) Fishdex.Record(Fishdex.Entries[i]);
+                state = GState.Menu; pActive = false; hud.ShowMenu(4240); hud.OpenDex();
+            }
+            else { state = GState.Over; pActive = false; hud.ShowOver(2340, "Predator", 42, 164, false, 4240, 3); }
         }
 
         void InterfaceFlow()
@@ -491,7 +500,11 @@ namespace DeepFeast
                 case 9 when realTime > 8: Victory(); Check(GState.Victory, "victory", "victory"); uiFlowStage++; break;
                 case 10 when realTime > 8.6f: Shot("victory"); uiFlowStage++; break;
                 case 11 when realTime > 9: hud.SubmitPrimary(); Check(GState.Play, "none", "keep swimming submit"); uiFlowStage++; break;
-                case 12 when realTime > 9.6f: Debug.Log("[DeepFeast] complete native UI flow passed."); uiFlowStage++; break;
+                case 12 when realTime > 9.6f: GameOver(); Check(GState.Over, "over", "second game over"); uiFlowStage++; break;
+                case 13 when realTime > 10: hud.SubmitButton("FISHDEX"); Check(GState.Over, "fishdex", "fishdex submit"); uiFlowStage++; break;
+                case 14 when realTime > 10.6f: Shot("fishdex"); uiFlowStage++; break;
+                case 15 when realTime > 11: hud.SubmitButton("BACK"); Check(GState.Over, "over", "fishdex back"); uiFlowStage++; break;
+                case 16 when realTime > 11.4f: Debug.Log("[DeepFeast] complete native UI flow passed."); uiFlowStage++; break;
             }
         }
 
@@ -504,7 +517,7 @@ namespace DeepFeast
             foreach (var p in pearls) DestroyPearl(p);
             pearls.Clear();
             parts.Clear(); hud.ClearTexts();
-            state = GState.Play; score = 0; lives = 3; combo = 0; comboT = 0; eaten = 0; playTime = 0; tier = 0;
+            state = GState.Play; score = 0; lives = 3; combo = 0; comboT = 0; eaten = 0; newSpecies = 0; playTime = 0; tier = 0;
             sharkT = firstShark > 0 ? firstShark : U.Rand(32, 40); pearlT = U.Rand(14, 20); slowT = 0; shake = 0; dieT = 0;
             finaleT = -1; victoryT = -1; biteCool = 0; finaleBites = 0; endless = false; finale = null;
             hints.Clear();
@@ -543,8 +556,8 @@ namespace DeepFeast
             state = GState.Over;
             pActive = false;
             bool isBest = score > best;
-            if (isBest) { best = score; PlayerPrefs.SetInt("deepfeast.best", best); PlayerPrefs.Save(); }
-            hud.ShowOver(score, Data.Tiers[tier].name, eaten, playTime, isBest, best);
+            if (isBest) { best = score; SaveBest(); }
+            hud.ShowOver(score, Data.Tiers[tier].name, eaten, playTime, isBest, best, newSpecies);
             menuCamX = cam.x;
             Debug.Log($"[DeepFeast] game over t={(int)playTime} score={score} tier={Data.Tiers[tier].name} eaten={eaten}");
         }
@@ -553,7 +566,7 @@ namespace DeepFeast
         {
             state = GState.Victory;
             pDashing = false;
-            if (score > best) { best = score; PlayerPrefs.SetInt("deepfeast.best", best); PlayerPrefs.Save(); }
+            if (score > best) { best = score; SaveBest(); }
             hud.ShowVictory(score, eaten, playTime, best);
             Debug.Log($"[DeepFeast] victory t={(int)playTime} score={score} r={player.r:0.0} eaten={eaten}");
         }
@@ -568,6 +581,13 @@ namespace DeepFeast
             hud.HideVictory();
             Banner("ENDLESS DEEP", "The ocean is yours. Feast for as long as you last", new Color(80 / 255f, 240 / 255f, 220 / 255f));
             Debug.Log("[DeepFeast] endless swim continues");
+        }
+
+        void SaveBest()
+        {
+            if (!Persist) return;
+            PlayerPrefs.SetInt("deepfeast.best", best);
+            PlayerPrefs.Save();
         }
 
         void Banner(string title, string sub, Color glow) => hud.Banner(title, sub, glow);
@@ -619,6 +639,12 @@ namespace DeepFeast
             hud.AddText(f.x, Mathf.Min(f.y, player.y) - player.r * 1.5f - 10 / zoom, "+" + pts, combo > 1 ? U.Hex("#ffd447") : Color.white, combo > 2 ? 26 : 22);
             if (combo == 5 || combo == 10)
                 Banner(combo == 10 ? "MEGA FRENZY!" : "FEEDING FRENZY!", $"×{combo} combo", new Color(1, 170 / 255f, 40 / 255f));
+            if (Fishdex.Record(f.sp))
+            {
+                newSpecies++;
+                hud.AddText(f.x, Mathf.Min(f.y, player.y) - player.r * 1.5f - 38 / zoom, "NEW: " + f.sp.displayName, U.Hex("#7ff5dc"), 18);
+                Hint("dex", "NEW SPECIES!", "Every fish you eat joins your Fishdex", new Color(80 / 255f, 240 / 255f, 220 / 255f));
+            }
             sfx.Chomp(f.r / pr, combo);
             shake = Mathf.Max(shake, 2 + (f.r / pr) * 3);
             CheckTier();
@@ -879,6 +905,8 @@ namespace DeepFeast
         void Update()
         {
             PaintedArt.PrepareMeshes();
+            // The Fishdex portraits are photographed once, on the first frame after loading.
+            if (!portraitsTaken) { portraitsTaken = true; Fishdex.EnsurePortraits(); }
             float rdt = Mathf.Min(0.1f, Time.unscaledDeltaTime);
             float dt = Mathf.Min(0.05f, Time.deltaTime);
             Resize();
@@ -992,9 +1020,16 @@ namespace DeepFeast
             }
             hud.ShowTouch(touchMode && state == GState.Play);
 
-            if (Input.GetKeyDown(KeyCode.P) || Input.GetKeyDown(KeyCode.Escape)) TogglePause();
+            if (hud.DexOpen)
+            {
+                if (Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Backspace)) hud.CloseDex();
+            }
+            else
+            {
+                if (Input.GetKeyDown(KeyCode.P) || Input.GetKeyDown(KeyCode.Escape)) TogglePause();
+                if ((Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) && (state == GState.Menu || state == GState.Over)) StartGame();
+            }
             if (Input.GetKeyDown(KeyCode.M)) ToggleMute();
-            if ((Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) && (state == GState.Menu || state == GState.Over)) StartGame();
         }
 
         // ------------------------------------------------------------------ player

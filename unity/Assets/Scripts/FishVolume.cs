@@ -68,6 +68,15 @@ namespace DeepFeast
 
         public void ResetMotion() { initialized = false; angularVelocity = 0; }
 
+        // World-space extent of the posed model (before the shader's swimming wave), for framing portraits.
+        public Bounds Bounds()
+        {
+            var bounds = parts[0].bounds;
+            for (int i = 1; i < parts.Length; i++)
+                if (parts[i].enabled && filters[i].sharedMesh != null) bounds.Encapsulate(parts[i].bounds);
+            return bounds;
+        }
+
         public Quaternion Rotation(float facing, float tilt, float phase, float dt)
         {
             Yaw = Mathf.Acos(Mathf.Clamp(facing, -1, 1)) * Mathf.Rad2Deg;
