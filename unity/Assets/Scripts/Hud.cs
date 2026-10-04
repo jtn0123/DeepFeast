@@ -422,15 +422,15 @@ namespace DeepFeast
                 }
             }
 
-            // banner animation (2.6 s)
-            bannerT += rdt;
+            // banner animation (2.6 s); it waits behind the pause card and never covers an overlay
+            if (!pause.activeSelf) bannerT += rdt;
             float T = bannerT / 2.6f, alpha, sc, dy;
             if (T >= 1) { alpha = 0; sc = 1; dy = 0; }
             else if (T < 0.1f) { float k = U.Smooth(T / 0.1f); alpha = k; sc = Mathf.Lerp(0.7f, 1.06f, k); dy = Mathf.Lerp(-18, 0, k); }
             else if (T < 0.18f) { float k = U.Smooth((T - 0.1f) / 0.08f); alpha = 1; sc = Mathf.Lerp(1.06f, 1, k); dy = 0; }
             else if (T < 0.8f) { alpha = 1; sc = 1; dy = 0; }
             else { float k = U.Smooth((T - 0.8f) / 0.2f); alpha = 1 - k; sc = Mathf.Lerp(1, 0.98f, k); dy = 14 * k; }
-            bannerGroup.alpha = alpha;
+            bannerGroup.alpha = ActiveOverlay == "none" ? alpha : 0;
             bannerRT.localScale = new Vector3(sc, sc, 1);
             bannerRT.anchoredPosition = new Vector2(0, dy);
 

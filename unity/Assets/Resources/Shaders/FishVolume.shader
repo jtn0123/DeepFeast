@@ -9,7 +9,7 @@ Shader "DeepFeast/FishVolume"
         #include "PaintedLighting.cginc"
         struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; fixed4 color : COLOR; float2 surface : TEXCOORD0; float2 flex : TEXCOORD1; };
         sampler2D _MainTex;
-        float4 _Frame, _SpriteBounds, _Eye, _EyeCenter, _Head, _Profile, _FinRoot, _MouthShape;
+        float4 _Frame, _SpriteBounds, _Eye, _Head, _Profile, _FinRoot, _MouthShape;
         fixed4 _Base, _Dark, _Belly, _FogColor, _Accent, _WaterReflection, _GroundReflection;
         float _Phase, _Energy, _TailFlex, _TurnBend, _Flutter, _Mouth, _Height, _Fog, _Visibility, _Style, _Pattern, _Part, _Expression, _FrontView, _Facing, _ReflectionStrength, _SharkKind;
         float _PaintedFins, _PaintedPectoral, _Painterly;
@@ -39,7 +39,7 @@ Shader "DeepFeast/FishVolume"
         // Every pass deforms the mesh identically, so the ink line stays fixed to the swimming body.
         void Animate(inout appdata v)
         {
-            if (_Part > 1.5 && _Part < 2.5 && _Expression == 1) v.vertex.y = _EyeCenter.y + (v.vertex.y-_EyeCenter.y)*.08;
+            if (_Part > 1.5 && _Part < 2.5 && _Expression == 1) v.vertex.y = v.surface.y + (v.vertex.y-v.surface.y)*.08;
             if (_Part > 2.5)
             {
                 float z=v.surface.x*_Head.w*_MouthShape.z;
@@ -251,7 +251,6 @@ Shader "DeepFeast/FishVolume"
                     {
                         float lateral=.08+.20*exp(-pow((p.x-.35)*2.8,2));
                         skin=lerp(skin,_Dark.rgb,exp(-pow((y-lateral)*75,2))*.26);
-                        skin=lerp(skin,_Belly.rgb,smoothstep(-.015,.015,p.z)*.96);
                     }
                 }
                 if (_Pattern==14)
@@ -413,8 +412,9 @@ Shader "DeepFeast/FishVolume"
                 {
                     if (_Expression == 1 && dot(rgb,1) > 1.5) rgb = _Base.rgb;
                     // An inked lid slanting down to the snout reads as a frown, like the painted brows.
-                    if (_Expression == 2 && i.local.y > _EyeCenter.y + .012 - (i.local.x-_EyeCenter.x)*.60) rgb = lerp(_Dark.rgb,OutlineColor(),.65);
-                    if (_Expression == 3 && i.local.y < _EyeCenter.y - .015) rgb = _Base.rgb;
+                    // Eye surface coordinates hold the globe's own center.
+                    if (_Expression == 2 && i.local.y > i.surface.y + .012 - (i.local.x-i.surface.x)*.60) rgb = lerp(_Dark.rgb,OutlineColor(),.65);
+                    if (_Expression == 3 && i.local.y < i.surface.y - .015) rgb = _Base.rgb;
                 }
                 else
                 {

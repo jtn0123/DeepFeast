@@ -57,6 +57,15 @@ namespace DeepFeast
             for (int i = 0; i < parts.Length; i++) filters[i].sharedMesh = meshes[i];
         }
 
+        // Building a species takes tens of milliseconds; doing it when the species first swims on screen
+        // stalls that frame. Build every model during loading instead.
+        public static int Prewarm()
+        {
+            foreach (var sp in Data.AllSpecies)
+                if (!cache.ContainsKey(sp.key)) cache[sp.key] = Build(sp, FishArt.Get(sp));
+            return cache.Count;
+        }
+
         public void ResetMotion() { initialized = false; angularVelocity = 0; }
 
         public Quaternion Rotation(float facing, float tilt, float phase, float dt)
@@ -128,7 +137,6 @@ namespace DeepFeast
                 {
                     var normal = rotation * (i == 4 ? model.nearNormal : model.farNormal);
                     visibility = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(-0.12f, 0.18f, Vector3.Dot(normal, Vector3.back)));
-                    block.SetVector("_EyeCenter", i == 4 ? model.nearEyeCenter : model.farEyeCenter);
                 }
                 block.SetFloat("_Visibility", visibility);
                 block.SetFloat("_PaintedFins", model.paintedFins ? 1 : 0);
@@ -242,13 +250,22 @@ namespace DeepFeast
             model.nearEyeCenter = new Vector3(ex, ey + CenterY(ex, model), -ez); model.farEyeCenter = new Vector3(ex, ey + CenterY(ex, model), ez);
             if (sp.key == "atlantic_halibut")
             {
-                // Both eyes belong to the dark, right-eye side; the pale underside has no eye.
-                model.farNormal = model.nearNormal = new Vector3(0.36f, 0.08f, -0.93f).normalized;
-                model.nearEyeCenter = new Vector3(0.64f, h * 0.20f, -depth * Profile(0.64f, model) + -0.010f);
-                model.farEyeCenter = new Vector3(0.43f, h * 0.40f, -depth * Profile(0.43f, model) + -0.006f);
+                // A flatfish carries both eyes on its upper side. A turn shows the other flank, so each
+                // flank carries that face: the halibut never swims past as a blank, eyeless side.
+                model.nearNormal = new Vector3(0.36f, 0.08f, -0.93f).normalized;
+                model.farNormal = new Vector3(model.nearNormal.x, model.nearNormal.y, -model.nearNormal.z);
+                var lower = new Vector3(0.64f, h * 0.20f, -depth * Profile(0.64f, model) - 0.010f);
+                var upper = new Vector3(0.43f, h * 0.40f, -depth * Profile(0.43f, model) - 0.006f);
+                static Vector3 Opposite(Vector3 p) => new Vector3(p.x, p.y, -p.z);
+                model.nearEyeCenter = lower; model.farEyeCenter = Opposite(lower);
+                model.nearEye = Eye(sp, art, model.nearNormal, lower, upper);
+                model.farEye = Eye(sp, art, model.farNormal, Opposite(lower), Opposite(upper));
             }
-            model.nearEye = Eye(sp, art, model.nearEyeCenter, model.nearNormal);
-            model.farEye = Eye(sp, art, model.farEyeCenter, model.farNormal);
+            else
+            {
+                model.nearEye = Eye(sp, art, model.nearNormal, model.nearEyeCenter);
+                model.farEye = Eye(sp, art, model.farNormal, model.farEyeCenter);
+            }
             model.mouth = Mouth(sp, model);
             return model;
         }
@@ -387,7 +404,8 @@ namespace DeepFeast
             return b.Mesh(sp.key + (side < 0 ? " near" : " far") + " pectoral fin");
         }
 
-        static Mesh Eye(Species sp, FishArt.Art art, Vector3 center, Vector3 normal)
+        // Each globe stores its own center in the surface coordinates, so paired eyes blink and frown in place.
+        static Mesh Eye(Species sp, FishArt.Art art, Vector3 normal, params Vector3[] centers)
         {
             var b = new Builder();
             var q = Quaternion.FromToRotation(Vector3.forward, normal);
@@ -395,13 +413,17 @@ namespace DeepFeast
             float rx = Mathf.Clamp(art.eyeSize.x * 1.05f, 0.075f, 0.20f), ry = Mathf.Clamp(art.eyeSize.y * 1.05f, 0.08f, 0.205f);
             if (sp.IsShark) { rx = 0.038f; ry = 0.031f; }
             else if (ExpandedEye(sp, out _, out float radius)) { rx = radius; ry = radius * 1.04f; }
-            b.Ellipsoid(center, new Vector3(rx * 1.10f, ry * 1.10f, 0.035f), q, Color.Lerp(sp.c1, sp.c0, 0.65f), 10, 14);
-            b.Ellipsoid(center + normal * 0.018f, new Vector3(rx, ry, sp.IsShark ? 0.018f : 0.038f), q, U.Hex(sp.IsShark ? "#14202a" : "#f6f8e9"), 10, 14);
             Color iris = sp.IsShark ? U.Hex("#252f33") : Color.Lerp(sp.c1, U.Hex("#327c82"), 0.65f);
-            b.Ellipsoid(center + normal * 0.053f, new Vector3(rx * 0.62f, ry * 0.66f, 0.014f), q, iris, 10, 14);
-            b.Ellipsoid(center + normal * 0.065f, new Vector3(rx * 0.40f, ry * 0.50f, 0.016f), q, U.Hex("#071d2d"), 8, 12);
-            b.Ellipsoid(center + normal * 0.082f + q * new Vector3(-rx * 0.16f, ry * 0.20f, 0), new Vector3(rx * 0.19f, ry * 0.17f, 0.006f), q, Color.white, 6, 10);
-            b.Ellipsoid(center + normal * 0.082f + q * new Vector3(rx * 0.17f, -ry * 0.19f, 0), new Vector3(rx * 0.07f, ry * 0.065f, 0.005f), q, Color.white, 6, 10);
+            foreach (var center in centers)
+            {
+                var globe = new Vector2(center.x, center.y);
+                b.Ellipsoid(center, new Vector3(rx * 1.10f, ry * 1.10f, 0.035f), q, Color.Lerp(sp.c1, sp.c0, 0.65f), 10, 14, globe);
+                b.Ellipsoid(center + normal * 0.018f, new Vector3(rx, ry, sp.IsShark ? 0.018f : 0.038f), q, U.Hex(sp.IsShark ? "#14202a" : "#f6f8e9"), 10, 14, globe);
+                b.Ellipsoid(center + normal * 0.053f, new Vector3(rx * 0.62f, ry * 0.66f, 0.014f), q, iris, 10, 14, globe);
+                b.Ellipsoid(center + normal * 0.065f, new Vector3(rx * 0.40f, ry * 0.50f, 0.016f), q, U.Hex("#071d2d"), 8, 12, globe);
+                b.Ellipsoid(center + normal * 0.082f + q * new Vector3(-rx * 0.16f, ry * 0.20f, 0), new Vector3(rx * 0.19f, ry * 0.17f, 0.006f), q, Color.white, 6, 10, globe);
+                b.Ellipsoid(center + normal * 0.082f + q * new Vector3(rx * 0.17f, -ry * 0.19f, 0), new Vector3(rx * 0.07f, ry * 0.065f, 0.005f), q, Color.white, 6, 10, globe);
+            }
             return b.Mesh(sp.key + " globe eye");
         }
 
@@ -534,7 +556,7 @@ namespace DeepFeast
             }
             public void Edge(int a, int c, int offset) { Tri(a, c, a + offset); Tri(c, c + offset, a + offset); }
 
-            public void Ellipsoid(Vector3 center, Vector3 radius, Quaternion rotation, Color color, int rings = 12, int sides = 16)
+            public void Ellipsoid(Vector3 center, Vector3 radius, Quaternion rotation, Color color, int rings = 12, int sides = 16, Vector2 uv = default)
             {
                 int start = vertices.Count;
                 for (int ring = 0; ring <= rings; ring++)
@@ -544,7 +566,7 @@ namespace DeepFeast
                     {
                         float phi = side * U.TAU / sides;
                         var v = new Vector3(Mathf.Cos(theta) * radius.x, Mathf.Sin(theta) * Mathf.Cos(phi) * radius.y, Mathf.Sin(theta) * Mathf.Sin(phi) * radius.z);
-                        Vertex(center + rotation * v, color, Vector2.zero);
+                        Vertex(center + rotation * v, color, Vector2.zero, uv);
                         if (ring < rings && side < sides)
                         {
                             int a = start + ring * (sides + 1) + side, c = a + sides + 1;

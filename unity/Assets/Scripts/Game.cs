@@ -77,7 +77,7 @@ namespace DeepFeast
         // ------------------------------------------------------------------ test harness (command line)
         bool autoplay, noPause, gallery, animateGallery;
         string shotDir, scenery, interfaceReview;
-        float shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, realTime, statT, botWanderDir = 1, restartT = -1;
+        float worstFrame, shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, realTime, statT, botWanderDir = 1, restartT = -1;
         int shotN, uiFlowStage;
         bool menuShotDone, turnReviewLogged;
 
@@ -114,6 +114,9 @@ namespace DeepFeast
             jellyMesh = Gfx.MeshObject("JellyTentacles", fxRoot, Layer.Jelly - 1).mesh;
             parts = new Particles(fxRoot);
             FishArt.Prewarm();
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            int volumes = FishVolume.Prewarm();
+            Debug.Log($"[DeepFeast] prewarmed {volumes} fish volumes in {watch.ElapsedMilliseconds} ms");
             BuildPlayerView();
             BuildPearlArt();
 
@@ -316,10 +319,12 @@ namespace DeepFeast
             if (state == GState.Play && autoplay)
             {
                 statT -= rdt;
+                worstFrame = Mathf.Max(worstFrame, Time.unscaledDeltaTime);
                 if (statT <= 0)
                 {
                     statT = 10;
-                    Debug.Log($"[DeepFeast] stat t={(int)playTime} r={player.r:0.0} tier={Data.Tiers[tier].name} lives={lives} score={score} eaten={eaten} fish={fish.Count} fps={1f / Mathf.Max(1e-4f, Time.smoothDeltaTime):0}");
+                    Debug.Log($"[DeepFeast] stat t={(int)playTime} r={player.r:0.0} tier={Data.Tiers[tier].name} lives={lives} score={score} eaten={eaten} fish={fish.Count} fps={1f / Mathf.Max(1e-4f, Time.smoothDeltaTime):0} worst={worstFrame * 1000:0}ms");
+                    worstFrame = 0;
                 }
             }
             if (state == GState.Over && autoplay)
