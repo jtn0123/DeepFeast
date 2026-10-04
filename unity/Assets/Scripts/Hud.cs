@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 namespace DeepFeast
@@ -97,6 +98,16 @@ namespace DeepFeast
         float targetGrowth, shownGrowth, growthPulse, scorePulse;
         bool growthInitialized;
         const float BAR_W = 440, DASH_W = 178, LIFE_STEP = 38;
+        // Control hints for keyboard and mouse, an Xbox-style pad or a PlayStation pad.
+        public enum Controls { KeyboardMouse, Xbox, PlayStation }
+        Controls shownControls;
+        Text guideSteer, guideDash, guideBreak, pauseHint;
+        // A gold frame behind the selected button while steering by pad or keyboard.
+        RectTransform focusRing;
+        public bool ShowFocus;
+        float focusDelay;
+        readonly List<RaycastResult> uiHits = new List<RaycastResult>();
+        PointerEventData uiProbe;
         sealed class PowerChip { public GameObject go; public RectTransform rt, fill; public Image bar; }
         readonly List<PowerChip> powerChips = new List<PowerChip>();
 
@@ -128,7 +139,8 @@ namespace DeepFeast
             {
                 var es = new GameObject("EventSystem");
                 es.AddComponent<EventSystem>();
-                es.AddComponent<StandaloneInputModule>();
+                // The Input System module drives mouse, touch, keyboard and gamepad navigation alike.
+                es.AddComponent<InputSystemUIInputModule>();
             }
 
             worldLayer = Node("WorldLabels", rootRT);
@@ -254,9 +266,9 @@ namespace DeepFeast
             MenuFish(mp, Data.SpeciesMap["tang"], new Vector2(-103, -363), new Vector2(96, 72), 7);
             Button(mp, "FISHDEX", new Vector2(232, -400), OpenDex, 250, true);
             menuDex = Label(mp, "", 13, U.Hex("#9dd6c6"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(232, -473), display);
-            Guide(mp, "STEER", "Mouse / touch / WASD", -290);
-            Guide(mp, "DASH", "Hold click / Space", 0);
-            Guide(mp, "TAKE A BREAK", "P pauses  ·  M mutes", 290);
+            guideSteer = Guide(mp, "STEER", "", -290);
+            guideDash = Guide(mp, "DASH", "", 0);
+            guideBreak = Guide(mp, "TAKE A BREAK", "", 290);
 
             // ---------------------------------------------------------- pause
             pause = Overlay("Pause", out var pp, new Vector2(600, 340));
@@ -265,8 +277,9 @@ namespace DeepFeast
             Label(pp, "PAUSED", 62, U.Hex("#eff7e8"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -66), display);
             Label(pp, "Take a breath. The sharks will wait.", 18, U.Hex("#b8ced2"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -156));
             Button(pp, "KEEP SWIMMING", new Vector2(0, -221), () => OnResume?.Invoke(), 350);
-            Label(pp, "P / ESC to resume", 13, U.Hex("#8baebc"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -305));
+            pauseHint = Label(pp, "", 13, U.Hex("#8baebc"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -305));
             pause.SetActive(false);
+            ApplyControls();
 
             // ---------------------------------------------------------- game over
             over = Overlay("Over", out var op, new Vector2(740, 560));
@@ -323,6 +336,10 @@ namespace DeepFeast
             Button(dexPanel, "BACK", new Vector2(440, -672), CloseDex, 240, true);
             dex.SetActive(false);
 
+            focusRing = Panel(rootRT, U.Hex("#ffd447"), 35).rectTransform;
+            focusRing.gameObject.name = "FocusRing";
+            focusRing.gameObject.SetActive(false);
+
             // ---------------------------------------------------------- corner buttons
             noteSprite = Icon(false); mutedSprite = Icon(true);
             var mb = Panel(rootRT, new Color(0.02f, 0.13f, 0.22f, 0.65f), 22);
@@ -331,6 +348,8 @@ namespace DeepFeast
             mb.raycastTarget = true;
             var btn = mb.gameObject.AddComponent<UnityEngine.UI.Button>();
             btn.onClick.AddListener(() => OnMute?.Invoke());
+            // Pads mute with their select button; menu navigation stays on the cards.
+            btn.navigation = new Navigation { mode = Navigation.Mode.None };
             muteIcon = Img(mb.rectTransform, noteSprite, new Color(0.87f, 1, 1));
             Place(muteIcon.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(26, 26));
 
@@ -388,11 +407,19 @@ namespace DeepFeast
         {
             menu.SetActive(false); over.SetActive(false); pause.SetActive(false); victory.SetActive(false); dex.SetActive(false);
             hudTarget = 1;
+            // Nothing stays selected in play, so the dash button can't also press a hidden card.
+            focusDelay = 0;
+            EventSystem.current?.SetSelectedGameObject(null);
             growthInitialized = false;
             growthPulse = scorePulse = 0;
         }
 
-        public void ShowPause(bool on) { pause.SetActive(on); if (on) FocusPrimary(); }
+        public void ShowPause(bool on)
+        {
+            pause.SetActive(on);
+            if (on) FocusPrimary();
+            else EventSystem.current?.SetSelectedGameObject(null);
+        }
 
         public void ShowOver(int scoreV, string tier, int eaten, float time, bool isBest, int best, int newSpecies)
         {
@@ -407,7 +434,7 @@ namespace DeepFeast
             bestOver.text = bestMenu.text = "PERSONAL BEST  " + best.ToString("N0");
             over.SetActive(true);
             hudTarget = 0;
-            FocusPrimary();
+            FocusSoon();
         }
 
         public void ShowVictory(int scoreV, int eaten, float time, int best)
@@ -420,7 +447,7 @@ namespace DeepFeast
             bestOver.text = bestMenu.text = "PERSONAL BEST  " + best.ToString("N0");
             victory.SetActive(true);
             hudTarget = 0;
-            FocusPrimary();
+            FocusSoon();
         }
 
         public void HideVictory()
@@ -560,15 +587,72 @@ namespace DeepFeast
             texts.Clear();
         }
 
-        public bool PointerOverUI(int pointerId = -1)
+        /// Whether a screen position (pixels, origin bottom left) is over an interactive part of the UI.
+        public bool PointerOverUI(Vector2 screenPosition)
         {
             var es = EventSystem.current;
-            return es != null && es.IsPointerOverGameObject(pointerId);
+            if (es == null) return false;
+            uiProbe ??= new PointerEventData(es);
+            uiProbe.position = screenPosition;
+            es.RaycastAll(uiProbe, uiHits);
+            return uiHits.Count > 0;
+        }
+
+        public void ShowControls(Controls controls)
+        {
+            if (controls == shownControls) return;
+            shownControls = controls;
+            ApplyControls();
+        }
+
+        void ApplyControls()
+        {
+            bool pad = shownControls != Controls.KeyboardMouse, ps = shownControls == Controls.PlayStation;
+            guideSteer.text = pad ? "Left stick / d-pad" : "Mouse / touch / WASD";
+            guideDash.text = pad ? (ps ? "Hold Cross or R2" : "Hold A or RT") : "Hold click / Space";
+            guideBreak.text = pad ? (ps ? "Options pauses  ·  Share mutes" : "Start pauses  ·  View mutes") : "P pauses  ·  M mutes";
+            pauseHint.text = pad ? (ps ? "OPTIONS / CIRCLE to resume" : "START / B to resume") : "P / ESC to resume";
+        }
+
+        public string Selected => EventSystem.current?.currentSelectedGameObject?.name;
+        public bool HasFocus => EventSystem.current?.currentSelectedGameObject is GameObject g && g.activeInHierarchy;
+
+        /// Presses whichever button has focus, as a Start press on a card does.
+        public void SubmitFocused()
+        {
+            if (!HasFocus) return;
+            var es = EventSystem.current;
+            ExecuteEvents.Execute(es.currentSelectedGameObject, new BaseEventData(es), ExecuteEvents.submitHandler);
+        }
+
+        // The results cards take focus after a beat, so a dash held or mashed through the final
+        // moments of a swim can't skip straight past them.
+        void FocusSoon()
+        {
+            EventSystem.current?.SetSelectedGameObject(null);
+            focusDelay = 0.6f;
+        }
+
+        void UpdateFocusRing()
+        {
+            var selected = EventSystem.current?.currentSelectedGameObject;
+            bool show = ShowFocus && selected != null && selected.activeInHierarchy && selected.name.StartsWith("Button_", StringComparison.Ordinal);
+            SetActive(focusRing.gameObject, show);
+            if (!show) return;
+            var target = (RectTransform)selected.transform;
+            if (focusRing.parent != target.parent) focusRing.SetParent(target.parent, false);
+            int ti = target.GetSiblingIndex(), ri = focusRing.GetSiblingIndex();
+            if (ri != ti - 1) focusRing.SetSiblingIndex(ri < ti ? ti - 1 : ti);
+            float pulse = 1 + Mathf.Sin(Time.unscaledTime * 5) * 1.5f;
+            Place(focusRing, target.anchorMin, target.anchorMax, target.anchoredPosition + new Vector2(0, 5 + pulse),
+                target.sizeDelta + Vector2.one * (10 + pulse * 2), target.pivot);
         }
 
         /// toScreen maps world (y-down) to ref px (y-down from top-left).
         public void Tick(float dt, float rdt, Func<float, float, Vector2> toScreen, List<Alert> alerts, float time)
         {
+            if (focusDelay > 0 && (focusDelay -= rdt) <= 0) FocusPrimary();
+            UpdateFocusRing();
             hudAlpha = Mathf.MoveTowards(hudAlpha, hudTarget, rdt * 2);
             hudGroup.alpha = hudAlpha;
             shownGrowth = Mathf.Lerp(shownGrowth, targetGrowth, 1 - Mathf.Exp(-rdt * 10));
@@ -771,12 +855,12 @@ namespace DeepFeast
             menuFish.Add(fish.rectTransform);
         }
 
-        void Guide(Transform parent, string heading, string description, float x)
+        Text Guide(Transform parent, string heading, string description, float x)
         {
             var card = Panel(parent, new Color(0.03f, 0.1f, 0.15f, 0.6f), 12);
             Place(card.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(x, -495), new Vector2(268, 68), new Vector2(0.5f, 1));
             Label(card.rectTransform, heading, 11, U.Hex("#94c7bd"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(16, -11));
-            Label(card.rectTransform, description, 15, U.Hex("#d4e4df"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(16, -32));
+            return Label(card.rectTransform, description, 15, U.Hex("#d4e4df"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(16, -32));
         }
 
         // Native harness uses Unity's Submit event to verify the same button callbacks as the player.
@@ -806,6 +890,7 @@ namespace DeepFeast
 
         void FocusPrimary()
         {
+            focusDelay = 0;
             var button = ActiveScreen?.GetComponentInChildren<UnityEngine.UI.Button>();
             if (button != null) EventSystem.current.SetSelectedGameObject(button.gameObject);
         }

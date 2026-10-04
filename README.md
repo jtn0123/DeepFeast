@@ -20,6 +20,17 @@ Headless build:
   -batchmode -quit -projectPath unity -executeMethod DeepFeast.EditorTools.Build.Mac -logFile -
 ```
 
+### Controls
+
+| | Mouse / touch | Keyboard | Gamepad |
+| --- | --- | --- | --- |
+| Steer | Point / drag | WASD or arrows | Left stick or d-pad (analog speed) |
+| Dash | Hold click / dash button | Space or Shift | Hold A / Cross, RT / R2 or RB / R1 |
+| Pause | — | P or Esc | Start / Options (B / Circle resumes) |
+| Mute | Corner button | M | View / Share |
+
+Menus, the results cards and the Fishdex navigate with arrows or the d-pad and confirm with Enter or A / Cross. Input runs on the Input System package with the legacy Input Manager still enabled (Active Input Handling: Both).
+
 ### Test-harness flags (player builds)
 
 | Flag | Effect |
@@ -41,6 +52,7 @@ Headless build:
 | `-shark <s>` | First shark arrives after N seconds |
 | `-sharkvariant <n>` | Start the shark rotation at variant `n` |
 | `-finale <s>` | Seconds after reaching Legend before the whale shark finale (default 12) |
+| `-padtest` | A virtual gamepad plays through the menu, steering, dashing, pause, results card and Fishdex, checking each step |
 | `-pearlevery <s>` | Drop a pearl every N seconds, cycling shield, magnet, burst and lantern |
 | `-timescale <x>` / `-mute` / `-nopause` | Speed up, silence, don't pause on focus loss |
 
@@ -54,6 +66,7 @@ Headless build:
 - `World.cs` — seabed, kelp, rocks, coral, anemones and grounded habitat landmarks
 - `SceneFx.cs` — water gradient, parallax ridges, god rays, surface, depth darkness, snow
 - `Hud.cs` — uGUI HUD, banners, power-up timers, menus and the Fishdex screen built in code
+- `PadInput.cs` — gamepad steering, dash, pause and the `-padtest` virtual-pad check
 - `Fishdex.cs` — saved species discoveries and the portraits photographed from the 3D models
 - `Sfx.cs` — synthesised sound effects and ambience
 - `Raster.cs` / `Draw.cs` / `Util.cs` — software rasteriser (with blur / pseudo-3D lighting), mesh drawing helpers, noise, procedural textures

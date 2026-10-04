@@ -24,7 +24,7 @@ namespace DeepFeast
     }
 
     /// <summary>The whole game loop: state machine, player, AI, spawning, camera and rendering glue.</summary>
-    public sealed class Game : MonoBehaviour
+    public sealed partial class Game : MonoBehaviour
     {
         enum GState { Menu, Play, Paused, Over, Victory }
 
@@ -89,7 +89,7 @@ namespace DeepFeast
         Vector3 lastMouse;
 
         // ------------------------------------------------------------------ test harness (command line)
-        bool autoplay, noPause, gallery, animateGallery;
+        bool autoplay, noPause, gallery, animateGallery, padTest;
         string shotDir, scenery, interfaceReview;
         float worstFrame, shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, finaleDelay = 12, pearlEvery, realTime, statT, botWanderDir = 1, restartT = -1;
         int shotN, uiFlowStage;
@@ -101,7 +101,7 @@ namespace DeepFeast
         bool Playing => state == GState.Play && pActive && pAlive;
         bool Legend => tier >= Data.Tiers.Length - 1;
         // Test and review runs never write the player's best score or Fishdex.
-        bool Persist => !autoplay && scenery == null && !gallery;
+        bool Persist => !autoplay && scenery == null && !gallery && !padTest;
 
         // ================================================================== setup
         void Awake()
@@ -264,11 +264,12 @@ namespace DeepFeast
             args = Environment.GetCommandLineArgs();
             autoplay = Has("-autoplay");
             gallery = Has("-gallery");
+            padTest = Has("-padtest");
             animateGallery = Has("-animate-gallery") || Has("-animate-turns");
             scenery = Arg("-scenery");
             interfaceReview = Arg("-interface");
             if (interfaceReview != null && scenery == null) scenery = "reef";
-            noPause = autoplay || scenery != null || Has("-nopause");
+            noPause = autoplay || padTest || scenery != null || Has("-nopause");
             shotDir = Arg("-shots");
             shotEvery = ArgF("-shotevery", 15);
             quitAfter = ArgF("-quitafter", 0);
@@ -328,6 +329,7 @@ namespace DeepFeast
                 Debug.Log("[DeepFeast] quit after " + quitAfter);
                 Application.Quit();
             }
+            if (padTest) { PadFlow(); return; }
             if (!autoplay && shotDir == null) return;
             if (state == GState.Menu && realTime > 2.5f)
             {
@@ -1017,7 +1019,9 @@ namespace DeepFeast
             dashKey = Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
             if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.D) ||
                 Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.RightArrow))
-                kbMode = true;
+            {
+                kbMode = true; padMode = false;
+            }
 
             if (Input.touchCount > 0)
             {
@@ -1026,9 +1030,9 @@ namespace DeepFeast
                 for (int i = 0; i < Input.touchCount; i++)
                 {
                     var t = Input.GetTouch(i);
-                    if (hud.PointerOverUI(t.fingerId)) continue;
+                    if (hud.PointerOverUI(t.position)) continue;
                     pointer = new Vector2(t.position.x / pxPerRef, (Screen.height - t.position.y) / pxPerRef);
-                    pointerMode = true; kbMode = false;
+                    pointerMode = true; kbMode = false; padMode = false;
                     break;
                 }
                 mouseDown = false;
@@ -1042,9 +1046,9 @@ namespace DeepFeast
                 if (!touchMode)
                 {
                     pointer = new Vector2(mp.x / pxPerRef, (Screen.height - mp.y) / pxPerRef);
-                    if (moved || Input.GetMouseButtonDown(0)) { pointerMode = true; kbMode = false; }
+                    if (moved || Input.GetMouseButtonDown(0)) { pointerMode = true; kbMode = false; padMode = false; }
                 }
-                mouseDown = !touchMode && Input.GetMouseButton(0) && !hud.PointerOverUI();
+                mouseDown = !touchMode && Input.GetMouseButton(0) && !hud.PointerOverUI(mp);
             }
             hud.ShowTouch(touchMode && state == GState.Play);
 
@@ -1055,9 +1059,11 @@ namespace DeepFeast
             else
             {
                 if (Input.GetKeyDown(KeyCode.P) || Input.GetKeyDown(KeyCode.Escape)) TogglePause();
-                if ((Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) && (state == GState.Menu || state == GState.Over)) StartGame();
+                // With a card button focused, Enter presses that button through the UI instead.
+                if ((Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) && (state == GState.Menu || state == GState.Over) && !hud.HasFocus) StartGame();
             }
             if (Input.GetKeyDown(KeyCode.M)) ToggleMute();
+            ReadPad();
         }
 
         // ------------------------------------------------------------------ player
@@ -1091,7 +1097,8 @@ namespace DeepFeast
             if (autoplay) { var v = BotSteer(out wantDash); dx = v.x; dy = v.y; mag = v.sqrMagnitude > 0 ? 1 : 0; }
             else
             {
-                if (kbMode)
+                if (padMode) PadSteer(out dx, out dy, out mag);
+                else if (kbMode)
                 {
                     dx = (moveRight ? 1 : 0) - (moveLeft ? 1 : 0);
                     dy = (moveDown ? 1 : 0) - (moveUp ? 1 : 0);
@@ -1104,7 +1111,7 @@ namespace DeepFeast
                     float ddx = pointer.x - s.x, ddy = pointer.y - s.y, d = Dist(ddx, ddy);
                     if (d > 6) { dx = ddx / d; dy = ddy / d; mag = Mathf.Clamp01((d - 6) / 110); }
                 }
-                wantDash = dashKey || mouseDown || hud.DashHeld;
+                wantDash = dashKey || mouseDown || hud.DashHeld || padDash;
             }
 
             bool want = wantDash && mag > 0.2f;
