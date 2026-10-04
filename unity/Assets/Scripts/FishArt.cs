@@ -177,13 +177,13 @@ namespace DeepFeast
             var lantern = S("lanternfish", "slim", "#6f879c", "#16233a", "#c3d0dc", "#4d6178", 1, "lantern", 3, 14);
             lantern.forage = true; lantern.glow = 1; lantern.glowColor = U.Hex("#8ff4ff");
             Add(Identify(lantern, "Glacier lanternfish", "Benthosema glaciale", "https://en.wikipedia.org/wiki/Benthosema_glaciale"));
-            var hatchet = S("hatchetfish", "disc", "#c4d3e2", "#2a3a56", "#eef4fa", "#9fb2c6", 1, "hatchet", 4, 18);
+            var hatchet = S("hatchetfish", "disc", "#c4d3e2", "#2a3a56", "#eef4fa", "#9fb2c6", 1, "hatchet", 4, 30);
             hatchet.glow = 0.8f; hatchet.glowColor = U.Hex("#7fc8ff");
             Add(Identify(hatchet, "Lovely hatchetfish", "Argyropelecus aculeatus", "https://en.wikipedia.org/wiki/Argyropelecus_aculeatus"));
-            var angler = S("humpback_anglerfish", "round", "#5a4650", "#2e2228", "#7a6670", "#3e3036", 1, "angler", 12, 70);
+            var angler = S("humpback_anglerfish", "round", "#5a4650", "#2e2228", "#7a6670", "#3e3036", 1, "angler", 12, 95);
             angler.canSchool = false; angler.glow = 1; angler.glowColor = U.Hex("#a6ffe0"); angler.glowOffset = new Vector2(1.42f, 0.96f);
             Add(Identify(angler, "Humpback anglerfish", "Melanocetus johnsonii", "https://en.wikipedia.org/wiki/Melanocetus_johnsonii"));
-            var viper = S("viperfish", "long", "#3c4d58", "#141d26", "#71838c", "#2c3a44", 1, "viper", 18, 110);
+            var viper = S("viperfish", "long", "#3c4d58", "#141d26", "#71838c", "#2c3a44", 1, "viper", 18, 140);
             viper.canSchool = false; viper.glow = 0.8f; viper.glowColor = U.Hex("#8fd8ff");
             Add(Identify(viper, "Sloane's viperfish", "Chauliodus sloani", "https://en.wikipedia.org/wiki/Sloane%27s_viperfish"));
             var swordfish = S("swordfish", "torpedo", "#6a5f7e", "#2e2a40", "#ddd6cc", "#4b4560", 1, "swordfish", 60, 700);
@@ -195,21 +195,34 @@ namespace DeepFeast
             var manta = S(FishVolume.Manta, "flat", "#3a4048", "#16191e", "#eef0ee", "#2a2f36", 1, "manta", 60, 450);
             manta.canSchool = false;
             AddKnown(manta, "Giant manta ray", "Mobula birostris", "giant-manta-ray");
+            // Deep-water fish that grow big, so a grown hero still meets the abyss's own cast there,
+            // and a schooling one for the deep's shoals.
+            var oarfish = S("giant_oarfish", "long", "#c6ced8", "#56677a", "#eef2f6", "#d8433f", 1, "oarfish", 40, 600);
+            oarfish.canSchool = false;
+            Add(Identify(oarfish, "Giant oarfish", "Regalecus glesne", "https://en.wikipedia.org/wiki/Giant_oarfish"));
+            var coelacanth = S("coelacanth", "fat", "#45628a", "#1d2c44", "#6c86a6", "#3a5578", 1, "coelacanth", 50, 450);
+            coelacanth.canSchool = false;
+            Add(Identify(coelacanth, "West Indian Ocean coelacanth", "Latimeria chalumnae",
+                "https://en.wikipedia.org/wiki/West_Indian_Ocean_coelacanth"));
+            var roughy = S("orange_roughy", "oval", "#e4683f", "#a3361f", "#f6ab86", "#e2582f", 1, "roughy", 14, 90);
+            AddKnown(roughy, "Orange roughy", "Hoplostethus atlanticus", "orange-roughy");
             d["minnow"].forage = true;
 
-            // Habitat weights (reef, kelp forest, abyss). Open-water hunters roam all three.
+            // Habitat weights (reef, kelp forest, abyss). Open-water hunters roam all three, but the
+            // shelf's fish are only rare visitors to the abyss, which keeps its own cast at every size.
             void Zone(string key, float reef, float kelp, float abyss) { var z = d[key]; z.reef = reef; z.kelp = kelp; z.abyss = abyss; }
-            Zone("minnow", 1, 1, 0.15f); Zone("clown", 1, 0, 0); Zone("tang", 1, 0.2f, 0); Zone("angel", 1, 0.2f, 0);
-            Zone("puffer", 1, 0.4f, 0); Zone("parrot", 1, 0, 0); Zone("snapper", 1, 0.6f, 0.2f); Zone("barracuda", 1, 0.6f, 0.2f);
-            Zone("grouper", 1, 0.8f, 0.3f); Zone("tuna", 0.6f, 0.6f, 0.4f);
-            Zone("almaco_jack", 0.8f, 0.6f, 0.3f); Zone("goliath_grouper", 1, 0.5f, 0.2f); Zone("atlantic_halibut", 0.2f, 0.6f, 1);
-            Zone("atlantic_mackerel", 0.6f, 1, 0.1f); Zone("mahi_mahi", 1, 0.4f, 0); Zone("skipjack_tuna", 0.7f, 0.7f, 0.2f);
-            Zone("striped_bass", 0.3f, 1, 0); Zone("yellowfin_tuna", 0.6f, 0.6f, 0.4f); Zone("bluefish", 0.5f, 1, 0.1f);
+            Zone("minnow", 1, 1, 0.05f); Zone("clown", 1, 0, 0); Zone("tang", 1, 0.2f, 0); Zone("angel", 1, 0.2f, 0);
+            Zone("puffer", 1, 0.4f, 0); Zone("parrot", 1, 0, 0); Zone("snapper", 1, 0.6f, 0); Zone("barracuda", 1, 0.6f, 0.05f);
+            Zone("grouper", 1, 0.8f, 0.05f); Zone("tuna", 0.6f, 0.6f, 0.15f);
+            Zone("almaco_jack", 0.8f, 0.6f, 0.05f); Zone("goliath_grouper", 1, 0.5f, 0.05f); Zone("atlantic_halibut", 0.2f, 0.6f, 1);
+            Zone("atlantic_mackerel", 0.6f, 1, 0); Zone("mahi_mahi", 1, 0.4f, 0); Zone("skipjack_tuna", 0.7f, 0.7f, 0.05f);
+            Zone("striped_bass", 0.3f, 1, 0); Zone("yellowfin_tuna", 0.6f, 0.6f, 0.15f); Zone("bluefish", 0.5f, 1, 0);
             Zone("red_drum", 1, 0.5f, 0);
-            Zone("pacific_sardine", 0.6f, 1, 0); Zone("garibaldi", 0.3f, 1, 0); Zone("california_sheephead", 0.3f, 1, 0.1f);
-            Zone("lingcod", 0.1f, 1, 0.5f); Zone("lanternfish", 0, 0.2f, 1); Zone("hatchetfish", 0, 0, 1);
-            Zone("humpback_anglerfish", 0, 0, 1); Zone("viperfish", 0, 0.05f, 1); Zone("swordfish", 0.6f, 0.6f, 0.6f);
-            Zone("ocean_sunfish", 0.5f, 0.6f, 0.4f); Zone(FishVolume.Manta, 0.8f, 0.3f, 0.2f);
+            Zone("pacific_sardine", 0.6f, 1, 0); Zone("garibaldi", 0.3f, 1, 0); Zone("california_sheephead", 0.3f, 1, 0);
+            Zone("lingcod", 0.1f, 1, 0.4f); Zone("lanternfish", 0, 0.2f, 1); Zone("hatchetfish", 0, 0, 1);
+            Zone("humpback_anglerfish", 0, 0, 1); Zone("viperfish", 0, 0.05f, 1); Zone("swordfish", 0.6f, 0.6f, 0.5f);
+            Zone("ocean_sunfish", 0.5f, 0.6f, 0.35f); Zone(FishVolume.Manta, 0.8f, 0.3f, 0.1f);
+            Zone("giant_oarfish", 0, 0.1f, 1); Zone("coelacanth", 0, 0.15f, 0.9f); Zone("orange_roughy", 0, 0.1f, 1);
 
             Shark = Identify(S("shark", "shark", "#879da4", "#334957", "#f2f5ee", "#647e87", 1, "shark", 0, 0),
                 "White shark", "Carcharodon carcharias", noaa + "white-shark");
@@ -883,6 +896,9 @@ namespace DeepFeast
             // The sunfish sculls with its tall fins and the manta flies on its wings: neither bends its body.
             "ocean_sunfish" => new Vector4(0.6f, 0.012f, 0.02f, 0.008f),
             FishVolume.Manta => new Vector4(0.35f, 0.008f, 0.02f, 0.012f),
+            // The oarfish ripples its long dorsal as it glides; the coelacanth sculls on its lobed fins.
+            "giant_oarfish" => new Vector4(0.75f, 0.05f, 0.02f, 0.008f),
+            "coelacanth" => new Vector4(0.55f, 0.035f, 0.035f, 0.01f),
             _ => Motion(s.shape),
         };
 

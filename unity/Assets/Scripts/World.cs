@@ -446,6 +446,36 @@ namespace DeepFeast
                     Draw.Stroke(d, line, 0.65f, 0.4f, U.WithA(shell * 0.7f, 0.45f));
                 }
             }
+            // Where the seabed falls away steeply it is bedrock under a skin of sand: strata run back into
+            // the slope from the face, so a big cliff reads as layered rock rather than one flat fill.
+            // Each layer is a soft band of darker sediment under a crisp groove with a lit lip above it.
+            var strataR = new Mulberry(2718);
+            static List<Vector2> Shifted(List<Vector2> line, float dy) => line.ConvertAll(point => new Vector2(point.x, point.y + dy));
+            for (float level = 760; level < 4300; level += 46 + strataR.Next() * 74)
+            {
+                float thick = 26 + strataR.Next() * 30, phase = strataR.Next() * 100;
+                for (int i = 1; i < cols - 2; i++)
+                {
+                    float a = floorS[i], b = floorS[i + 1];
+                    if (a == b || (a - level) * (b - level) > 0) continue;
+                    if (Mathf.Abs(floorS[i + 2] - floorS[i - 1]) / (3 * FSTEP) < 0.7f) continue;
+                    // Inside the sand at this depth lies toward the higher ground.
+                    int toward = a < b ? -1 : 1;
+                    float x0 = i * FSTEP + FSTEP * (level - a) / (b - a), length = 300 + strataR.Next() * 500;
+                    var line = new List<Vector2>();
+                    for (float t = 8; t <= length; t += 12)
+                    {
+                        float x = x0 + toward * t, y = level + Mathf.Sin((x + phase) / 53f) * 6 + Mathf.Sin((x + phase * 3) / 17f) * 2;
+                        if (FloorY(x) > y - 10) break;
+                        line.Add(new Vector2(x, y));
+                    }
+                    if (line.Count < 4) continue;
+                    var tone = FloorCol(level);
+                    Draw.Stroke(d, Shifted(line, thick * 0.5f), thick, thick * 0.6f, U.WithA(tone * 0.58f, 0.22f), U.WithA(tone * 0.58f, 0));
+                    Draw.Stroke(d, line, 5.5f, 2, U.WithA(tone * 0.42f, 0.50f), U.WithA(tone * 0.42f, 0));
+                    Draw.Stroke(d, Shifted(line, -4.2f), 3.4f, 1.2f, new Color(1, 0.95f, 0.82f, 0.26f), new Color(1, 0.95f, 0.82f, 0));
+                }
+            }
             var lip = new List<Vector2>(cols);
             for (int i = 0; i < cols; i++) lip.Add(new Vector2(i * FSTEP, floorS[i] + 2f));
             Draw.Stroke(d, lip, 3.5f, 3.5f, new Color(1f, 245 / 255f, 210 / 255f, 0.3f));

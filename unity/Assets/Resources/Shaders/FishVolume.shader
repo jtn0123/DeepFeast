@@ -13,6 +13,8 @@ Shader "DeepFeast/FishVolume"
         fixed4 _Base, _Dark, _Belly, _FogColor, _Accent, _WaterReflection, _GroundReflection;
         float _Phase, _Energy, _TailFlex, _TurnBend, _Flutter, _Mouth, _Height, _Fog, _Visibility, _Style, _Pattern, _Part, _Expression, _FrontView, _Facing, _ReflectionStrength, _SharkKind;
         float _PaintedFins, _PaintedPectoral, _Painterly, _Glow, _Roll, _Snout;
+        // The hero's growth through the tiers, 0 for a fry and 1 for a legend; 0 for every other fish.
+        float _Growth;
         // x: where the painted-outline fit ends; y: 1 when fitted. See FishVolume.FitToPainting.
         float4 _Fit;
         float _FitCenter[32], _FitScale[32];
@@ -64,6 +66,25 @@ Shader "DeepFeast/FishVolume"
         void Animate(inout appdata v)
         {
             if (_Part > 1.5 && _Part < 2.5 && _Expression == 1) v.vertex.y = v.surface.y + (v.vertex.y-v.surface.y)*.08;
+            // The hero's fins lengthen as it grows. The fragment still samples the painting at the
+            // rest position, so each painted fin stretches with its membrane; roots stay put.
+            if (_Growth>0 && _Part>.5 && _Part<1.5)
+            {
+                if (_FinRoot.w>.5) v.vertex.xyz+=(v.vertex.xyz-_FinRoot.xyz)*.45*_Growth*v.flex.x;
+                else if (v.flex.y>3.5)
+                {
+                    float center=centerY(-1.04);
+                    v.vertex.x=-1.04+(v.vertex.x+1.04)*(1+.50*_Growth);
+                    v.vertex.y=center+(v.vertex.y-center)*(1+.24*_Growth*v.flex.x);
+                }
+                else
+                {
+                    float side=v.flex.y<2.5?1:-1, lift=(v.vertex.y-centerY(v.vertex.x))*side-_Height*bodyProfile(v.vertex.x)*.98;
+                    lift=max(lift,0);
+                    v.vertex.y+=side*lift*.70*_Growth;
+                    v.vertex.x-=lift*.40*_Growth;
+                }
+            }
             if (_Pattern==31 && _Part<.5)
             {
                 // The manta's wings beat: outboard of the body they rise and fall, the tips lagging.
@@ -501,6 +522,41 @@ Shader "DeepFeast/FishVolume"
                     fixed3 belly=lerp(_Belly.rgb,_Dark.rgb,max(spot*.85,smoothstep(.85,1.35,span)*.55));
                     skin=lerp(belly,back,smoothstep(-.12,.12,y));
                 }
+                if (_Pattern==32)
+                {
+                    // Giant oarfish: mirror silver, a little bluer along the back, marked with short,
+                    // slanting dark dashes and scattered spots.
+                    float rise=(p.y-centerY(p.x))/max(_Height*bodyProfile(p.x),.001);
+                    skin=lerp(_Belly.rgb,_Base.rgb,smoothstep(-.8,.4,rise)*.85);
+                    skin=lerp(skin,_Dark.rgb,smoothstep(.55,.95,rise)*.45);
+                    float2 uv=float2(p.x*11,rise*2.6), cell=floor(uv), f=frac(uv)-.5;
+                    float seed=hash21(cell), seed2=hash21(cell+2.1);
+                    float2 dash=float2(f.x+f.y*.9,(f.y-f.x*.25+(seed2-.5)*.4)*3.2);
+                    float mark=(1-smoothstep(.06,.12,length(float2(max(abs(dash.x)-.24,0),dash.y*.3))))*step(.55,seed);
+                    float spot=(1-smoothstep(.07,.13,length(f-float2(seed2-.5,seed-.5)*.6)))*step(seed,.30);
+                    skin=lerp(skin,_Dark.rgb*.55,max(mark*.55,spot*.60)*(1-smoothstep(.60,.95,abs(rise))));
+                    skin+=.05*smoothstep(.55,1,sin(p.x*28+rise*2.5));
+                }
+                if (_Pattern==33)
+                {
+                    // Coelacanth: deep steel blue, darker along the back, flecked with irregular pale
+                    // blotches that are each fish's own markings.
+                    skin=lerp(skin,_Dark.rgb,smoothstep(.10,.85,y)*.45);
+                    float2 uv=p.xy*float2(5.5,7)+sin(p.yx*float2(9,7)+1.3)*.35, cell=floor(uv);
+                    float seed=hash21(cell), seed2=hash21(cell+5.7), size=lerp(.18,.34,seed2);
+                    float blotch=(1-smoothstep(size*.55,size,length((frac(uv)-float2(.3+.4*seed,.3+.4*seed2))*float2(1,lerp(.7,1.3,seed)))))*step(.42,seed);
+                    skin=lerp(skin,fixed3(.84,.88,.90),blotch*.78);
+                }
+                if (_Pattern==34)
+                {
+                    // Orange roughy: brick red over a paler, rosier belly; the bony head is pitted with
+                    // the shallow mucous channels that mark the slimeheads.
+                    skin=lerp(skin,_Dark.rgb,smoothstep(.15,.90,y)*.50);
+                    float head=smoothstep(_Head.x+.05,_Head.x+.30,p.x);
+                    float2 uv=p.xy*18, cell=floor(uv);
+                    float pit=(1-smoothstep(.15,.32,length(frac(uv)-.5)))*step(.5,hash21(cell));
+                    skin=lerp(skin,_Dark.rgb*.75,pit*head*.40);
+                }
                 // Small recessed gill crease follows the curved skin on both sides.
                 float gill = exp(-pow((p.x-.48+y*.13)*38,2)) * (1-smoothstep(.30,.65,abs(y)));
                 if (_Pattern == 8)
@@ -555,7 +611,8 @@ Shader "DeepFeast/FishVolume"
                 skin*=1-exp(-pow(rim/.016,2))*.42*cover;
                 skin=lerp(skin,skin*1.12+.05,exp(-pow((rim+.045)/.03,2))*.5*cover);
                 skin*=1-exp(-pow((rim-.05)/.04,2))*.10*cover;
-                if (_Pattern!=12 && _Pattern!=13 && _Pattern!=26)
+                // The oarfish is scaleless; the others' blotches already break the flank.
+                if (_Pattern!=12 && _Pattern!=13 && _Pattern!=26 && _Pattern!=32)
                 {
                     // Free edges face the tail, as overlapping scales do.
                     float rows=relative*7, row=floor(rows), column=frac(p.x*9+row*.5)-.5;
@@ -564,6 +621,32 @@ Shader "DeepFeast/FishVolume"
                     skin*=1-scale*.07;
                 }
                 return skin;
+            }
+            float segment(float2 p, float2 a, float2 b)
+            {
+                float2 pa=p-a, ba=b-a;
+                return length(pa-ba*saturate(dot(pa,ba)/dot(ba,ba)));
+            }
+            // The hero's coat deepens as it grows: richer color and a deep blue back from Hunter, the
+            // gold stripe burning orange, and a rake of pale old scars across the flank from Apex.
+            fixed3 heroCoat(float3 p, fixed3 rgb)
+            {
+                float g=_Growth, center=centerY(p.x), relative=(p.y-center)/max(_Height*bodyProfile(p.x),.001);
+                float luma=dot(rgb,fixed3(.2126,.7152,.0722));
+                rgb=lerp(luma.xxx,rgb,1+.35*smoothstep(.15,.6,g));
+                float gold=saturate((min(rgb.r,rgb.g)-rgb.b)*2.2);
+                rgb=lerp(rgb,rgb*fixed3(.42,.66,1.0),smoothstep(.05,.80,relative)*smoothstep(.25,.85,g)*.85*(1-gold));
+                rgb=lerp(rgb,rgb*fixed3(1.10,.80,.48)+fixed3(.04,.02,0),gold*smoothstep(.3,.9,g)*.65);
+                float2 q=float2(p.x,p.y-center);
+                float scars=0;
+                [unroll] for (int j=0;j<3;j++)
+                {
+                    float2 a=float2(-.10-j*.10,.22), b=float2(-.30-j*.10,-.10);
+                    float shown=smoothstep(.60+j*.08,.66+j*.08,g);
+                    rgb*=1-(1-smoothstep(.022,.040,segment(q-float2(.006,.012),a,b)))*shown*.30;
+                    scars=max(scars,(1-smoothstep(.013,.024,segment(q,a,b)))*shown);
+                }
+                return lerp(rgb,fixed3(.93,.92,.86),scars*.85);
             }
             fixed4 frag(v2f i) : SV_Target
             {
@@ -614,6 +697,7 @@ Shader "DeepFeast/FishVolume"
                     paintedSkin=lerp(paintedSkin,cleanSkin,max(contour,_FrontView));
                     // Vertex tint colors the puffer's spines; the rest of the body is white.
                     rgb=(_Painterly>.5?painterly(i.skin,cleanSkin):lerp(paintedSkin,cleanSkin,_Style))*i.color.rgb;
+                    if (_Growth>0) rgb=heroCoat(i.skin,rgb);
                     // Appendages (fangs, bill, lure) keep their own color.
                     if (i.color.a<.9) rgb=i.color.rgb;
                 }
@@ -647,6 +731,13 @@ Shader "DeepFeast/FishVolume"
                         float2 uv=i.skin.xy*float2(12,15), cell=floor(uv);
                         float seed=hash21(cell), seed2=hash21(cell+9.1);
                         rgb=lerp(rgb,_Dark.rgb*.40,(1-smoothstep(.10,.19,length(frac(uv)-float2(.25+.5*seed,.25+.5*seed2))))*step(.55,seed2)*.70*smoothstep(.10,.25,i.surface.x));
+                    }
+                    // The coelacanth's pale blotches carry on over its fins.
+                    if (_Pattern==33)
+                    {
+                        float2 uv=i.skin.xy*float2(9,11), cell=floor(uv);
+                        float seed=hash21(cell), seed2=hash21(cell+3.3);
+                        rgb=lerp(rgb,fixed3(.84,.88,.90),(1-smoothstep(.12,.22,length(frac(uv)-float2(.3+.4*seed,.3+.4*seed2))))*step(.6,seed2)*.6*smoothstep(.15,.35,i.surface.x));
                     }
                     if (_Pattern==8)
                     {
@@ -683,6 +774,8 @@ Shader "DeepFeast/FishVolume"
                     if (dot(i.color.rgb,1)>2.8) rgb=fixed3(.94,.95,.84);
                     else rgb=lerp(lerp(_Base.rgb,_Dark.rgb,.52),rgb,smoothstep(.04,.30,_Mouth));
                 }
+                // A grown hero's gold fins warm toward orange at their rims.
+                if (_Growth>0 && _Part>.5 && _Part<1.5) rgb=lerp(rgb,rgb*fixed3(1.08,.80,.50),smoothstep(.25,1,i.surface.x)*_Growth*.5);
                 float diffuse=saturate(dot(normal,normalize(float3(-.3,.65,-.7))));
                 float ndv=saturate(dot(normal,view));
                 // Two soft tone steps, closer to the cel shading of the painted art than a smooth ramp.
@@ -703,6 +796,8 @@ Shader "DeepFeast/FishVolume"
                 if (_Part<1.5) rgb=lerp(dot(rgb,fixed3(.2126,.7152,.0722)).xxx,rgb,_Painterly>.5?1.12:1.10);
                 if (_Part>.5 && _Part<1.5 && (_PaintedFins<.5 || _Style>.5)) rgb+=i.color.rgb*(1-diffuse)*.10;
                 rgb+=specular*fixed3(.65,.85,.9);
+                // A Legend's body and fins catch a warm golden rim light.
+                if (_Growth>.85 && _Part<1.5) rgb+=fixed3(1,.78,.32)*pow(1-ndv,2.2)*.42*smoothstep(.85,1,_Growth);
                 if (_Style>.5 && _Part<1.5)
                 {
                     float3 reflection=reflect(-view,normal);

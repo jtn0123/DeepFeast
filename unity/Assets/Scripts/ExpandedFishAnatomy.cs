@@ -53,6 +53,12 @@ namespace DeepFeast
                 "swordfish" => Form(0.66f, 0.27f, -0.05f, 1.55f, 1.55f, 0.80f, 0.09f, 0.02f),
                 // A tall, compressed disc whose rear stays deep: the body ends abruptly at the clavus.
                 "ocean_sunfish" => Form(1.08f, 0.20f, 0.10f, 0.95f, 0.80f, 0.40f, 0.60f),
+                // A long, thin ribbon, deepest just behind the short head and tapering evenly to a point.
+                "giant_oarfish" => Form(0.75f, 0.085f, 0.40f, 0.95f, 1.35f, 0.55f, 0.06f),
+                // Heavy and deep-bodied, with a broad tail stalk to carry the three-lobed tail.
+                "coelacanth" => Form(0.58f, 0.30f, 0.08f, 1.30f, 0.95f, 0.55f, 0.34f, 0.02f, -0.05f),
+                // A deep body behind a big, bony head whose mouth turns up at the front.
+                "orange_roughy" => Form(0.86f, 0.24f, 0.12f, 1.12f, 1.30f, 0.42f, 0.12f, 0.02f, -0.10f),
                 _ => null
             };
         }
@@ -215,6 +221,35 @@ namespace DeepFeast
                     SweptSpine(b, sp, model, 1, -0.80f, -0.98f, 0.09f, 0.30f);
                     return true;
 
+                case "giant_oarfish":
+                    // The red dorsal runs the whole length of the ribbon; its first rays stand up as a
+                    // tall crest over the head, swept back and ragged at the tips.
+                    ExpandedSpine(b, sp, model, 1, 0.84f, -1.02f, 0.11f,
+                        t => Mathf.SmoothStep(0, 1, t / 0.03f) * Mathf.Lerp(1, 0.65f, t) * (0.84f + 0.16f * Mathf.Abs(Mathf.Sin(t * Mathf.PI * 70))), 0.025f, 140);
+                    ExpandedSpine(b, sp, model, 1, 1.08f, 0.78f, 0.58f, t =>
+                    {
+                        float rays = 0.55f + 0.45f * Mathf.Pow(Mathf.Abs(Mathf.Sin(t * Mathf.PI * 6.5f)), 0.6f);
+                        return (t < 0.15f ? t / 0.15f : Mathf.Pow((1 - t) / 0.85f, 0.8f)) * rays;
+                    }, 0.30f, 48, 12);
+                    return true;
+
+                case "coelacanth":
+                    // A fan-shaped first dorsal, then the lobed second dorsal and anal fins, mirrored
+                    // above and below the tail stalk.
+                    ExpandedSpine(b, sp, model, 1, 0.34f, 0.02f, 0.30f,
+                        t => Mathf.Pow(FinSine(Mathf.Pow(t, 0.75f)), 0.5f) * (0.86f + 0.14f * Mathf.Abs(Mathf.Sin(t * Mathf.PI * 8))), 0.16f, 40);
+                    LobedFin(b, sp, model, 1, -0.36f, -0.62f, 0.26f);
+                    LobedFin(b, sp, model, -1, -0.40f, -0.66f, 0.24f);
+                    return true;
+
+                case "orange_roughy":
+                    // Stout spines lead into the soft dorsal; a short anal fin sits under the tail stalk.
+                    ExpandedSpine(b, sp, model, 1, 0.36f, -0.62f, 0.22f,
+                        t => (t < 0.30f ? Mathf.Lerp(0.55f, 1, t / 0.30f) : Mathf.Sqrt(Mathf.Clamp01((1 - t) / 0.70f)))
+                            * (t < 0.40f ? 0.82f + 0.18f * Mathf.Abs(Mathf.Sin(t * Mathf.PI * 10)) : 1), 0.06f, 44);
+                    ExpandedSpine(b, sp, model, -1, -0.30f, -0.66f, 0.17f, t => Mathf.Pow(FinSine(t), 0.6f), 0.07f);
+                    return true;
+
                 case "swordfish":
                     // A tall, rigid crescent dorsal close behind the head; the second dorsal and anal are tiny.
                     ExpandedSickle(b, sp, model, 1, 0.48f, 0.10f, 0.70f);
@@ -226,6 +261,28 @@ namespace DeepFeast
                 default:
                     return false;
             }
+        }
+
+        // A lobe-finned fish's fin: a fleshy, scaled stalk from a short root, opening into a rounded fan.
+        static void LobedFin(Builder b, Species sp, Model model, int side, float start, float end, float height)
+        {
+            float mid = (start + end) * 0.5f, half = (start - end) * 0.5f;
+            var flesh = Color.Lerp(sp.c0, sp.c1, 0.25f);
+            b.Membrane(sp.fin, 10, 32, side > 0 ? 2 : 3, (weight, along) =>
+            {
+                float s = 1 - 2 * along, rootX = mid + s * half * 0.55f;
+                float rootY = CenterY(rootX, model) + side * model.height * Profile(rootX, model) * 0.98f;
+                float spread = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0.35f, 0.75f, weight));
+                float rim = Mathf.Sqrt(Mathf.Max(0, 1 - s * s));
+                return new Vector3(rootX + s * half * 0.75f * spread - 0.10f * weight * weight,
+                    rootY + side * height * weight * Mathf.Lerp(1, 0.55f + 0.45f * rim, spread),
+                    Mathf.Sin(weight * Mathf.PI) * 0.03f);
+            }, false, (weight, along) =>
+            {
+                var color = Color.Lerp(flesh, FinColor(sp.fin, weight), Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0.30f, 0.55f, weight)));
+                if (weight < 0.45f) color.a = 1;
+                return color;
+            });
         }
 
         // Rises over the first `rise` of the base, holds, then rounds off over the last `fall`.
@@ -251,6 +308,9 @@ namespace DeepFeast
         static bool BuildExpandedCaudal(Builder b, Species sp, Model model)
         {
             if (sp.key == "ocean_sunfish") { Clavus(b, sp, model); return true; }
+            // The oarfish's ribbon simply tapers away under its dorsal fin.
+            if (sp.key == "giant_oarfish") return true;
+            if (sp.key == "coelacanth") { TrilobateCaudal(b, sp, model); return true; }
             // The manta has no caudal fin; its whip tail grows from the body.
             if (sp.key == Manta) return true;
             // Broad tails without the two long lobes of a jack or tuna. The halibut's trailing edge
@@ -278,6 +338,24 @@ namespace DeepFeast
                 return p;
             });
             return true;
+        }
+
+        // The coelacanth's tail: broad upper and lower lobes fanning from the deep stalk, and between
+        // them a small tuft that continues the spine past them.
+        static void TrilobateCaudal(Builder b, Species sp, Model model)
+        {
+            float stalk = model.height * model.profile.z, center = CenterY(-1.04f, model);
+            b.Membrane(sp.tailCol, 12, 64, 4, (weight, along) =>
+            {
+                float s = along * 2 - 1, edge = Mathf.Abs(s);
+                float tuft = Mathf.Exp(-Mathf.Pow(s / 0.09f, 2)), notch = Mathf.Exp(-Mathf.Pow((edge - 0.22f) / 0.08f, 2));
+                float angle = s * 1.10f, reach = 0.50f - 0.17f * notch + 0.24f * tuft - 0.06f * edge * edge;
+                var root = new Vector3(-1.04f, center + s * stalk, 0);
+                var rim = new Vector3(-1.04f - Mathf.Cos(angle) * reach, center + s * stalk + Mathf.Sin(angle) * reach, 0);
+                var p = Vector3.Lerp(root, rim, weight);
+                p.z = Mathf.Sin(weight * Mathf.PI) * 0.03f + Mathf.Sin(along * Mathf.PI * 24) * 0.0015f * weight;
+                return p;
+            });
         }
 
         // All membrane roots use exactly the body surface. Variation is authored at the rim,
@@ -339,6 +417,9 @@ namespace DeepFeast
                 "viperfish" => (new Vector2(1.02f, 0.06f), 0.085f),
                 "swordfish" => (new Vector2(0.98f, 0.06f), 0.120f),
                 "ocean_sunfish" => (new Vector2(0.62f, 0.16f), 0.085f),
+                "giant_oarfish" => (new Vector2(1.08f, 0.02f), 0.068f),
+                "coelacanth" => (new Vector2(0.98f, 0.10f), 0.090f),
+                "orange_roughy" => (new Vector2(0.92f, 0.12f), 0.150f),
                 Manta => (new Vector2(0.36f, 0.03f), 0.070f),
                 _ => (Vector2.zero, 0f)
             };
@@ -373,6 +454,10 @@ namespace DeepFeast
                 "viperfish" => (new Vector2(0.72f, -0.10f), 0.20f, 25f, 0.035f, 0.02f, FinForm.Blade),
                 "swordfish" => (new Vector2(0.45f, -0.16f), 0.55f, 22f, 0.07f, 0.10f, FinForm.Sickle),
                 "ocean_sunfish" => (new Vector2(0.30f, 0.0f), 0.20f, 10f, 0.09f, 0f, FinForm.Paddle),
+                "giant_oarfish" => (new Vector2(0.80f, -0.06f), 0.13f, 20f, 0.035f, 0.02f, FinForm.Blade),
+                // The coelacanth's pectorals are lobed paddles that it moves like limbs.
+                "coelacanth" => (new Vector2(0.42f, -0.18f), 0.36f, 38f, 0.12f, 0f, FinForm.Paddle),
+                "orange_roughy" => (new Vector2(0.46f, -0.10f), 0.30f, 20f, 0.07f, 0.03f, FinForm.Blade),
                 _ => null
             };
             basePoint = default; root = 0; rim = null;

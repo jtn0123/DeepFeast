@@ -55,6 +55,8 @@ namespace DeepFeast
         Vector2 cam = new Vector2(7000, 1500);
         float zoom = 1, menuCamX = 7000, menuDir = 1;
         float pxPerRef = 1, refW = 1400, refH = 820;
+        // The tier bar's lower edge, with a little clearance, in reference pixels.
+        const float HudTop = 86;
 
         readonly Fish player = new Fish { sp = null };
         bool pActive, pAlive, pTired, pDashing;
@@ -412,6 +414,8 @@ namespace DeepFeast
                 if (i < all.Count)
                 {
                     var f = MakeFish(all[i], 26, x, y, 1);
+                    // -stage <tier index> shows the hero's look at that growth stage.
+                    if (all[i] == Data.Player) f.stage = ArgF("-stage", 0);
                     fish.Add(f);
                 }
                 else if (i < all.Count + 2) AddJelly(x, y - 20, 20, i == all.Count ? 270 : 190);
@@ -609,6 +613,7 @@ namespace DeepFeast
                 for (int i = 0; i < Data.Tiers.Length; i++) if (player.r >= Data.Tiers[i].r) tier = i;
                 if (Legend) finaleT = finaleDelay;
             }
+            player.stage = tier;
             pInvuln = 2; pStamina = 1; pTired = false; pDashing = false; pActive = true; pAlive = true; System.Array.Clear(power, 0, power.Length); pStun = 0; pStungCool = 0;
             zoom = Data.ZoomFor(player.r);
             cam = new Vector2(player.x, player.y);
@@ -1154,22 +1159,43 @@ namespace DeepFeast
             ReadPad();
         }
 
-        // Wandering fish of a similar size slide apart vertically as they pass: two big silhouettes
-        // stacked on each other read as one shapeless blob. Fish that can eat the other keep the food chain.
-        float Spacing(Fish f)
+        // Fish of a similar size slide apart as they pass: two big silhouettes stacked on each other
+        // read as one shapeless blob. Wanderers part vertically; hunters closing on the hero fan out
+        // around it instead of arriving as one pile. Fish that can eat the other keep the food chain.
+        Vector2 Spacing(Fish f, bool hunting)
         {
-            float push = 0;
+            float px = 0, py = 0;
             foreach (var o in fish)
             {
-                if (o == f || o.school != null || o.shark || Mathf.Max(f.r, o.r) >= Mathf.Min(f.r, o.r) * 1.45f) continue;
-                float ox = f.x - o.x, oy = f.y - o.y, gap = (f.r + o.r) * 1.15f;
+                if (o == f || o.school != null || Mathf.Max(f.r, o.r) >= Mathf.Min(f.r, o.r) * 1.45f) continue;
+                float ox = f.x - o.x, oy = f.y - o.y, gap = (f.r + o.r) * (hunting ? 1.35f : 1.15f);
                 if (Mathf.Abs(ox) >= gap || Mathf.Abs(oy) >= gap) continue;
                 float od = Dist(ox, oy);
                 if (od >= gap) continue;
-                float side = Mathf.Abs(oy) > 1 ? Mathf.Sign(oy) : f.id < o.id ? -1 : 1;
-                push += side * (1 - od / gap) * 1.4f;
+                float push = (1 - od / gap) * 1.4f;
+                if (hunting && od > 1) { px += ox / od * push; py += oy / od * push; }
+                else py += (Mathf.Abs(oy) > 1 ? Mathf.Sign(oy) : f.id < o.id ? -1 : 1) * push;
             }
-            return Mathf.Clamp(push, -1.2f, 1.2f);
+            return Vector2.ClampMagnitude(new Vector2(px, py), hunting ? 0.8f : 1.2f);
+        }
+
+        // A shoal opens around a big fish swimming through it, as real shoals part around a
+        // predator, instead of letting the giant sit in a cloud of small silhouettes. A fast pass
+        // still catches the slow ones.
+        Vector2 Parting(Fish f)
+        {
+            float px = 0, py = 0;
+            foreach (var o in fish)
+            {
+                if (o.school != null || o.r < f.r * 1.45f) continue;
+                float ox = f.x - o.x, oy = f.y - o.y, reach = o.r * 1.4f + f.r * 2;
+                if (Mathf.Abs(ox) >= reach || Mathf.Abs(oy) >= reach) continue;
+                float od = Dist(ox, oy);
+                if (od >= reach || od < 1) continue;
+                float push = (1 - od / reach) * 2.4f;
+                px += ox / od * push; py += oy / od * push;
+            }
+            return Vector2.ClampMagnitude(new Vector2(px, py), 1.6f);
         }
 
         // ------------------------------------------------------------------ player
@@ -1276,6 +1302,8 @@ namespace DeepFeast
             pBlink = Mathf.Max(0, pBlink - dt);
 
             AnimateFish(player, dt, false);
+            // The hero grows into each new tier's look over a second or so, while the banner shows.
+            player.stage = Mathf.MoveTowards(player.stage, tier, dt * 0.8f);
             float target = player.chomp > 0 ? 0.15f : open ? 1 : 0;
             player.mouth += (target - player.mouth) * Mathf.Min(1, dt * 14);
 
@@ -1470,7 +1498,8 @@ namespace DeepFeast
                         float lead = Mathf.Min(d / bas, 0.6f);
                         float ax = player.x + player.vx * lead - f.x, ay = player.y + player.vy * lead - f.y, ad = Dist(ax, ay);
                         if (ad <= 0) ad = 1;
-                        tx = ax / ad; ty = ay / ad; spd = bas * 0.9f; agility = 2.1f;
+                        var spread = Spacing(f, true);
+                        tx = ax / ad + spread.x; ty = ay / ad + spread.y; spd = bas * 0.9f; agility = 2.1f;
                     }
                     else if (fleeing || (f.school != null && f.school.fleeT > 0))
                     {
@@ -1483,8 +1512,9 @@ namespace DeepFeast
                     else if (f.school != null)
                     {
                         var s = f.school;
-                        tx = s.dir + (s.cx + f.slotX - f.x) / (f.r * 10);
-                        ty = (s.cy + f.slotY - f.y) / (f.r * 10) + Mathf.Sin(time * 1.1f + s.cx * 0.001f) * 0.2f;
+                        var part = Parting(f);
+                        tx = s.dir + (s.cx + f.slotX - f.x) / (f.r * 10) + part.x;
+                        ty = (s.cy + f.slotY - f.y) / (f.r * 10) + Mathf.Sin(time * 1.1f + s.cx * 0.001f) * 0.2f + part.y;
                         spd = bas * f.cruise; agility = 2.2f;
                     }
                     else
@@ -1497,7 +1527,7 @@ namespace DeepFeast
                             if (U.Chance(0.12f)) f.dir *= -1;
                         }
                         tx = f.dir;
-                        ty = Mathf.Clamp((f.homeY - f.y) / (f.r * 20), -0.4f, 0.4f) + Mathf.Sin(time * 0.9f + f.phase) * 0.12f + Spacing(f);
+                        ty = Mathf.Clamp((f.homeY - f.y) / (f.r * 20), -0.4f, 0.4f) + Mathf.Sin(time * 0.9f + f.phase) * 0.12f + Spacing(f, false).y;
                         spd = bas * f.cruise; agility = 1.5f;
                     }
                 }
@@ -1642,6 +1672,13 @@ namespace DeepFeast
             float hw = refW / 2 / zoom, hh = refH / 2 / zoom;
             cam.x = Mathf.Clamp(cam.x, hw, World.W - hw);
             cam.y = Mathf.Clamp(cam.y, hh - Mathf.Min(170, hh * 0.28f), World.H - hh);
+            // At the surface the view rises into the sky rather than letting the hero swim up under
+            // the tier bar; a climbing fish reaches further up than a level one.
+            if (pActive)
+            {
+                float reach = player.r * Mathf.Lerp(0.8f, 1.45f, Mathf.Abs(Mathf.Sin(player.tilt)));
+                cam.y = Mathf.Min(cam.y, player.y - reach + hh - HudTop / zoom);
+            }
             shake *= Mathf.Exp(-dt * 7);
         }
 

@@ -90,8 +90,8 @@ namespace DeepFeast
             settingsCard = card;
             var title = Label(card, "SETTINGS", 46, U.Hex("#f2ecd9"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(44, -24), display);
             AddShadow(title, new Color(0, 0.09f, 0.14f, 0.7f), new Vector2(0, -3));
-            Label(card, "YOUR OCEAN, YOUR WAY", 13, U.Hex("#a6d2cb"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(46, -80));
-            settingsTabsHint = Label(card, "", 13, U.Hex("#8baebc"), TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-44, -124));
+            Label(card, "YOUR OCEAN, YOUR WAY", 15, U.Hex("#a6d2cb"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(46, -80));
+            settingsTabsHint = Label(card, "", 15, U.Hex("#8baebc"), TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-44, -124));
 
             AddPage(card, "DISPLAY", new[]
             {

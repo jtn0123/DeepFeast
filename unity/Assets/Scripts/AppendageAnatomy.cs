@@ -4,7 +4,7 @@ using UnityEngine;
 namespace DeepFeast
 {
     // Parts grown from the body: the anglerfish's lure, the viperfish's fangs and dorsal
-    // filament, the swordfish's bill and the manta's whip tail. They join the body mesh, so they share its swimming
+    // filament, the swordfish's bill, the oarfish's oars and the manta's whip tail. They join the body mesh, so they share its swimming
     // wave and contour; vertex alpha tells the shader to keep their own color, and the flex
     // channel pins each part to the lower jaw or to the skull instead of bending with the bite.
     public sealed partial class FishVolume
@@ -58,6 +58,20 @@ namespace DeepFeast
                     var bill = Color.Lerp(sp.c1, sp.c0, 0.45f); bill.a = 0.5f;
                     b.Tube(Curve(new Vector3(1.34f, lift, 0), new Vector3(1.90f, lift + 0.01f, 0), new Vector3(2.48f, lift - 0.01f, 0), 16),
                         t => Mathf.Lerp(0.062f, 0.004f, Mathf.Pow(t, 0.8f)), new Vector2(0.36f, 1), bill, Skull);
+                    break;
+                }
+                case "giant_oarfish":
+                {
+                    // Each pelvic fin is a single long ray ending in a small red paddle: the oars.
+                    var oar = sp.fin; oar.a = 0.4f;
+                    float under = CenterY(0.78f, model) - model.height * Profile(0.78f, model) * 0.9f;
+                    foreach (float z in new[] { -0.03f, 0.03f })
+                    {
+                        var tip = new Vector3(0.30f, under - 0.34f, z * 2.5f);
+                        b.Tube(Curve(new Vector3(0.78f, under, z), new Vector3(0.66f, under - 0.28f, z * 1.8f), tip, 18),
+                            t => Mathf.Lerp(0.017f, 0.009f, t), Vector2.one, oar, Skull);
+                        b.Ellipsoid(tip + new Vector3(-0.045f, -0.02f, 0), new Vector3(0.075f, 0.032f, 0.010f), Quaternion.Euler(0, 0, 35), oar, 8, 12, default, Skull);
+                    }
                     break;
                 }
                 case Manta:

@@ -19,6 +19,8 @@ namespace DeepFeast
         public bool shark;
         public float r, x, y, vx, vy, face = 1, faceS = 1, tilt, wag, phase, cruise, homeY, homeT;
         public float cool, chaseT, alertT, mouth, chomp, eatCool, aggro, slotX, slotY, life;
+        // The hero's growth stage, easing toward its tier index: longer fins and a richer coat.
+        public float stage;
         public int dir, leaveDir, bumpT = -1;
         public FState state;
         public School school;
