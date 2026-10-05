@@ -69,6 +69,7 @@ namespace DeepFeast
         FishView playerView;
         RenderTexture captureTarget;
         string captureName;
+        Recorder recorder;
         SpriteRenderer playerGlow, shieldRing, shieldFill, shieldShine;
         readonly SpriteRenderer[] stunStars = new SpriteRenderer[3];
 
@@ -147,7 +148,7 @@ namespace DeepFeast
             Debug.Log($"[DeepFeast] prewarmed {volumes} fish volumes in {watch.ElapsedMilliseconds} ms");
             BuildPlayerView();
 
-            sfx = new Sfx(gameObject, autoplay || Has("-mute"));
+            sfx = new Sfx(gameObject, autoplay || Has("-mute"), recorder?.Audio == true);
             hud = new Hud();
             if (Application.isBatchMode && shotDir != null)
             {
@@ -295,6 +296,7 @@ namespace DeepFeast
             float ts = ArgF("-timescale", 1);
             if (ts != 1) Time.timeScale = ts;
             if (shotDir != null) System.IO.Directory.CreateDirectory(shotDir);
+            if (shotDir != null && Application.isBatchMode && ArgF("-record", 0) > 0) recorder = new Recorder(shotDir, ArgF("-record", 0));
             Raster.DumpDir = Arg("-dumpart");
             if (Raster.DumpDir != null) System.IO.Directory.CreateDirectory(Raster.DumpDir);
         }
@@ -310,6 +312,12 @@ namespace DeepFeast
         // A real native-player camera capture when no display/backbuffer is available, including the same uGUI HUD.
         void LateUpdate()
         {
+            if (recorder != null && captureTarget != null)
+            {
+                Canvas.ForceUpdateCanvases();
+                presenter.RenderNow();
+                recorder.Frame(captureTarget);
+            }
             if (captureName == null) return;
             Canvas.ForceUpdateCanvases();
             presenter.RenderNow();
@@ -329,6 +337,7 @@ namespace DeepFeast
         void OnDestroy()
         {
             GameSettings.Changed -= ApplySettings;
+            recorder?.Close();
             if (captureTarget == null) return;
             captureTarget.Release();
             Destroy(captureTarget);
@@ -358,9 +367,9 @@ namespace DeepFeast
             {
                 statT -= rdt;
                 // Every long frame is reported with what it overlapped: a screenshot being written
-                // (test runs only) or a garbage collection.
+                // (test runs only) or a garbage collection. A recording's frames are all slow by design.
                 int gc = System.GC.CollectionCount(0);
-                if (Time.unscaledDeltaTime > 0.05f)
+                if (recorder == null && Time.unscaledDeltaTime > 0.05f)
                     Debug.Log($"[DeepFeast] long frame {Time.unscaledDeltaTime * 1000:0} ms at t={playTime:0.0}: " +
                         (captureFrame == Time.frameCount - 1 ? "after a screenshot" : gc != gcSeen ? $"garbage collection ({System.GC.CollectionCount(1)} gen1, {System.GC.CollectionCount(2)} gen2 so far)" : "no capture or collection") +
                         $", fish={fish.Count}, particles={parts.list.Count}");
@@ -1018,7 +1027,7 @@ namespace DeepFeast
             PaintedArt.PrepareMeshes();
             // The Fishdex portraits are photographed once, on the first frame after loading.
             if (!portraitsTaken) { portraitsTaken = true; Fishdex.EnsurePortraits(); }
-            float rdt = Mathf.Min(0.1f, Time.unscaledDeltaTime);
+            float rdt = Mathf.Min(0.1f, Recorder.UnscaledDelta);
             float dt = Mathf.Min(0.05f, Time.deltaTime);
             GameSettings.Tick(rdt);
             Resize();
@@ -2032,7 +2041,7 @@ namespace DeepFeast
                     lives, pStamina, pTired, Mathf.Max(0, Mathf.RoundToInt(player.y / 8)));
                 hud.UpdatePowers(power);
             }
-            hud.Tick(dt, rdt, (x, y) => ToScreen(x, y), alerts, interfaceReview != null ? time : Time.unscaledTime);
+            hud.Tick(dt, rdt, (x, y) => ToScreen(x, y), alerts, interfaceReview != null ? time : Recorder.UnscaledTime);
         }
     }
 }

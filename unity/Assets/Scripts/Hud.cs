@@ -663,7 +663,7 @@ namespace DeepFeast
             if (focusRing.parent != target.parent) focusRing.SetParent(target.parent, false);
             int ti = target.GetSiblingIndex(), ri = focusRing.GetSiblingIndex();
             if (ri != ti - 1) focusRing.SetSiblingIndex(ri < ti ? ti - 1 : ti);
-            float pulse = 1 + Mathf.Sin(Time.unscaledTime * 5) * 1.5f;
+            float pulse = 1 + Mathf.Sin(Recorder.UnscaledTime * 5) * 1.5f;
             Place(focusRing, target.anchorMin, target.anchorMax, target.anchoredPosition + new Vector2(0, 5 + pulse),
                 target.sizeDelta + Vector2.one * (10 + pulse * 2), target.pivot);
         }

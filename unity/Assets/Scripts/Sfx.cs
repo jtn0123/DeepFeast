@@ -17,7 +17,9 @@ namespace DeepFeast
         float master = 1, effects = 1;
         const float Listener = 0.5f, AmbientLevel = 0.22f;
 
-        public Sfx(GameObject host, bool forceMute)
+        // A recording keeps its sound whatever the mute: the audio renderer takes the whole mix and the
+        // speakers get silence.
+        public Sfx(GameObject host, bool forceMute, bool recording = false)
         {
             for (int i = 0; i < voices.Length; i++)
             {
@@ -28,7 +30,7 @@ namespace DeepFeast
             ambient.loop = true;
             ambient.playOnAwake = false;
             ambient.volume = AmbientLevel;
-            Muted = forceMute || PlayerPrefs.GetInt("deepfeast.muted", 0) == 1;
+            Muted = !recording && (forceMute || PlayerPrefs.GetInt("deepfeast.muted", 0) == 1);
             AudioListener.volume = Muted ? 0 : Listener;
             Build();
             ambient.clip = Ambient();
