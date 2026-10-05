@@ -350,13 +350,14 @@ namespace DeepFeast
             PlayerPrefs.Save();
         }
 
-        void Banner(string title, string sub, Color glow) => hud.Banner(title, sub, glow);
+        void Banner(string title, string sub, Color glow, bool urgent = false) => hud.Banner(title, sub, glow, urgent);
 
+        // First-time tips are small toasts, so they never hide the fish they talk about.
         void Hint(string key, string title, string sub, Color glow)
         {
             if (hints.Contains(key)) return;
             hints.Add(key);
-            Banner(title, sub, glow);
+            hud.Toast(title, sub, glow);
         }
 
         void CheckTier()
@@ -401,7 +402,7 @@ namespace DeepFeast
             // float the score (in the endless deep, the tally) above the player's head rather than over its mouth
             hud.AddText(f.x, Mathf.Min(f.y, player.y) - player.r * 1.5f - 10 / zoom, endless ? deepEaten.ToString("N0") : "+" + pts, combo > 1 ? U.Hex("#ffd447") : Color.white, combo > 2 ? 26 : 22);
             if (combo == 5 || combo == 10)
-                Banner(combo == 10 ? "MEGA FRENZY!" : "FEEDING FRENZY!", $"×{combo} combo", new Color(1, 170 / 255f, 40 / 255f));
+                hud.Toast(combo == 10 ? "MEGA FRENZY!" : "FEEDING FRENZY!", $"×{combo} combo", new Color(1, 170 / 255f, 40 / 255f));
             if (Fishdex.Record(f.sp))
             {
                 newSpecies++;
@@ -445,7 +446,7 @@ namespace DeepFeast
             shake = Mathf.Max(shake, 6);
             hud.PulseGrowth(false);
             Debug.Log($"[DeepFeast] finale: bite {finaleBites}, whale shark radius={f.r:0.0} player={player.r:0.0}");
-            if (f.r <= player.r * Data.EAT) Banner("SWALLOW IT!", "The whale shark is small enough now", new Color(1, 212 / 255f, 71 / 255f));
+            if (f.r <= player.r * Data.EAT) Banner("SWALLOW IT!", "The whale shark is small enough now", new Color(1, 212 / 255f, 71 / 255f), true);
         }
 
         void KillPlayer(Fish killer)
@@ -597,8 +598,8 @@ namespace DeepFeast
             s.shark = true; s.life = 14; s.state = FState.Chase; s.leaveDir = side; s.alertT = 1.4f;
             fish.Add(s);
             Debug.Log($"[DeepFeast] shark encounter: key={identity.key}, name={identity.displayName}, aggressive={identity.aggressive}, chaseMultiplier={identity.chaseSpeedMultiplier:0.00}, edible={edible}, radius={r:0.0}, life={s.life:0.0}.");
-            if (edible) Banner("SHARK!", "You are the Leviathan now — hunt it down!", new Color(1, 200 / 255f, 60 / 255f));
-            else Banner("SHARK!", "Hold click / Space to dash away", new Color(1, 60 / 255f, 80 / 255f));
+            if (edible) Banner("SHARK!", "You are the Leviathan now — hunt it down!", new Color(1, 200 / 255f, 60 / 255f), true);
+            else Banner("SHARK!", "Hold click / Space to dash away", new Color(1, 60 / 255f, 80 / 255f), true);
             sfx.Shark();
         }
 
@@ -616,7 +617,7 @@ namespace DeepFeast
             finaleBites = 0;
             fish.Add(finale);
             Debug.Log($"[DeepFeast] finale: whale shark radius={r:0.0} player={pr:0.0}");
-            Banner("THE WHALE SHARK", "Too big to swallow. Bite it down to size", new Color(1, 212 / 255f, 71 / 255f));
+            Banner("THE WHALE SHARK", "Too big to swallow. Bite it down to size", new Color(1, 212 / 255f, 71 / 255f), true);
             sfx.Shark();
         }
 

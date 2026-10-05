@@ -94,7 +94,16 @@ namespace DeepFeast
         readonly Image muteIcon;
         readonly Sprite noteSprite, mutedSprite;
         readonly HoldButton dashHold;
-        float bannerT = 99;
+        // Big moments take the centre banner and small news a toast under the score. Each channel
+        // shows one notice at a time, the rest wait their turn behind a short gap.
+        struct Notice { public string title, sub; public Color glow; }
+        readonly Queue<Notice> banners = new Queue<Notice>(), toasts = new Queue<Notice>();
+        readonly CanvasGroup toastGroup;
+        readonly RectTransform toastRT;
+        readonly Text toastTitle, toastSub;
+        readonly Image toastAccent;
+        float bannerT = 99, toastT = 99;
+        const float BANNER_LEN = 2.6f, TOAST_LEN = 1.6f, NOTICE_GAP = 0.3f;
         float hudAlpha, hudTarget;
         float targetGrowth, shownGrowth, growthPulse, scorePulse;
         bool growthInitialized;
@@ -169,6 +178,20 @@ namespace DeepFeast
             combo = Label(comboRT, "", 19, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0, 1), display);
             AddOutline(combo, new Color(0.55f, 0.22f, 0, 0.75f), 1.5f);
             comboPill.gameObject.SetActive(false);
+
+            // toast: combos, pearls and first-time tips, under the score and out of the hero's way
+            toastRT = Node("Toast", hud);
+            Place(toastRT, new Vector2(0, 1), new Vector2(0, 1), new Vector2(14, -104), new Vector2(300, 56), new Vector2(0, 1));
+            toastGroup = toastRT.gameObject.AddComponent<CanvasGroup>();
+            toastGroup.alpha = 0; toastGroup.blocksRaycasts = false;
+            var toastPlate = Panel(toastRT, PanelCol, 14);
+            Stretch(toastPlate.rectTransform);
+            AddOutline(toastPlate, EdgeCol, 1.5f);
+            toastAccent = Panel(toastRT, Color.white, 3);
+            Place(toastAccent.rectTransform, new Vector2(0, 0), new Vector2(0, 1), new Vector2(7, 0), new Vector2(5, -16), new Vector2(0, 0.5f));
+            toastTitle = Label(toastRT, "", 21, Color.white, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(22, -6), display);
+            AddShadow(toastTitle, new Color(0, 0.08f, 0.16f, 0.55f), new Vector2(0, -2));
+            toastSub = Label(toastRT, "", 14, new Color(1, 1, 1, 0.82f), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(22, -32));
 
             // tier + growth (top centre)
             var tp = Panel(hud, PanelCol, 18);
@@ -431,6 +454,7 @@ namespace DeepFeast
             EventSystem.current?.SetSelectedGameObject(null);
             growthInitialized = false;
             growthPulse = scorePulse = 0;
+            ClearNotices();
         }
 
         public void ShowPause(bool on)
@@ -585,15 +609,47 @@ namespace DeepFeast
             growthPulse = tierUp ? 0.75f : 0.22f;
         }
 
-        public void Banner(string title, string sub, Color glow)
+        // An urgent banner (a shark, the whale shark's last bite) cuts in at once; others queue.
+        public void Banner(string title, string sub, Color glow, bool urgent = false)
         {
-            bannerTitle.text = title;
-            bannerSub.text = sub ?? "";
-            bannerGlow.color = U.WithA(glow, 0.18f);
-            bannerGrad.b = Color.Lerp(Color.white, glow, 0.2f);
-            bannerGrad.c = Color.Lerp(Color.white, glow, 0.65f);
+            var n = new Notice { title = title, sub = sub ?? "", glow = glow };
+            if (urgent) ShowBanner(n);
+            else banners.Enqueue(n);
+        }
+
+        // A toast already waiting its turn (a second frenzy) isn't queued twice.
+        public void Toast(string title, string sub, Color glow)
+        {
+            foreach (var t in toasts) if (t.title == title) return;
+            toasts.Enqueue(new Notice { title = title, sub = sub ?? "", glow = glow });
+        }
+
+        // A new swim starts with no notices left over from the last one.
+        void ClearNotices()
+        {
+            banners.Clear(); toasts.Clear();
+            bannerT = toastT = 99;
+        }
+
+        void ShowBanner(Notice n)
+        {
+            bannerTitle.text = n.title;
+            bannerSub.text = n.sub;
+            bannerGlow.color = U.WithA(n.glow, 0.18f);
+            bannerGrad.b = Color.Lerp(Color.white, n.glow, 0.2f);
+            bannerGrad.c = Color.Lerp(Color.white, n.glow, 0.65f);
             bannerTitle.SetVerticesDirty();
             bannerT = 0;
+        }
+
+        void ShowToast(Notice n)
+        {
+            toastTitle.text = n.title;
+            toastTitle.color = Color.Lerp(Color.white, n.glow, 0.45f);
+            toastSub.text = n.sub;
+            toastAccent.color = n.glow;
+            toastRT.sizeDelta = new Vector2(Mathf.Max(toastTitle.preferredWidth, toastSub.preferredWidth) + 40, 56);
+            toastT = 0;
         }
 
         public void AddText(float x, float y, string text, Color col, float size)
@@ -701,9 +757,14 @@ namespace DeepFeast
                 }
             }
 
-            // banner animation (2.6 s); it waits behind the pause card and never covers an overlay
-            if (!pause.activeSelf && !settings.activeSelf) bannerT += rdt;
-            float T = bannerT / 2.6f, alpha, sc, dy;
+            // banner (2.6 s) and toast (1.6 s) animations; they wait behind the pause card and never cover an overlay
+            if (!pause.activeSelf && !settings.activeSelf) { bannerT += rdt; toastT += rdt; }
+            if (bannerT >= BANNER_LEN + NOTICE_GAP && banners.Count > 0) ShowBanner(banners.Dequeue());
+            if (toastT >= TOAST_LEN + NOTICE_GAP && toasts.Count > 0) ShowToast(toasts.Dequeue());
+            float tt = toastT / TOAST_LEN, ta = tt >= 1 ? 0 : tt < 0.12f ? U.Smooth(tt / 0.12f) : tt < 0.82f ? 1 : 1 - U.Smooth((tt - 0.82f) / 0.18f);
+            toastGroup.alpha = ActiveOverlay == "none" ? ta : 0;
+            toastRT.anchoredPosition = new Vector2(14 - 24 * (1 - Mathf.Min(1, tt / 0.12f)), -104);
+            float T = bannerT / BANNER_LEN, alpha, sc, dy;
             if (T >= 1) { alpha = 0; sc = 1; dy = 0; }
             else if (T < 0.1f) { float k = U.Smooth(T / 0.1f); alpha = k; sc = Mathf.Lerp(0.7f, 1.06f, k); dy = Mathf.Lerp(-18, 0, k); }
             else if (T < 0.18f) { float k = U.Smooth((T - 0.1f) / 0.08f); alpha = 1; sc = Mathf.Lerp(1.06f, 1, k); dy = 0; }
