@@ -132,7 +132,7 @@ namespace DeepFeast
                 case 42: Release(); break;
                 case 43: Check(hud.ActiveOverlay == "pause" && hud.Selected == "Button_SETTINGS", "east closes settings"); Press(GamepadButton.Start); break;
                 case 44: Release(); break;
-                case 45: Check(state == GState.Play, "start resumes"); Debug.Log("[DeepFeast] complete gamepad flow passed."); break;
+                case 45: Check(state == GState.Play, "start resumes"); FlowPassed("gamepad"); break;
             }
             padStage++;
         }

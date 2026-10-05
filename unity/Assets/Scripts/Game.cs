@@ -101,7 +101,7 @@ namespace DeepFeast
         Vector2 botFrom;
         float worstFrame, shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, finaleDelay = 12, pearlEvery, realTime, statT, botWanderDir = 1, restartT = -1, notch;
         int shotN, uiFlowStage, captureFrame = -1, gcSeen;
-        bool menuShotDone, turnReviewLogged, portraitsTaken, rippleShown;
+        bool menuShotDone, turnReviewLogged, portraitsTaken, rippleShown, harnessRun, exiting, flowDone;
 
         float FocusR => pActive ? player.r : 22;
         float ViewW => refW / zoom;
@@ -115,6 +115,8 @@ namespace DeepFeast
         void Awake()
         {
             ParseArgs();
+            // A test or review run fails on the first error or exception it logs.
+            if (harnessRun) Application.logMessageReceived += FailOnError;
             if (scenery != null) UnityEngine.Random.InitState(20261003);
             Application.runInBackground = true;
             GameSettings.Load(Persist, Arg("-set"));
@@ -301,6 +303,7 @@ namespace DeepFeast
             if (ts != 1) Time.timeScale = ts;
             if (shotDir != null) System.IO.Directory.CreateDirectory(shotDir);
             if (shotDir != null && Application.isBatchMode && ArgF("-record", 0) > 0) recorder = new Recorder(shotDir, ArgF("-record", 0));
+            harnessRun = autoplay || gallery || padTest || scenery != null || shotDir != null || quitAfter > 0;
             Raster.DumpDir = Arg("-dumpart");
             if (Raster.DumpDir != null) System.IO.Directory.CreateDirectory(Raster.DumpDir);
         }
@@ -341,20 +344,48 @@ namespace DeepFeast
         void OnDestroy()
         {
             GameSettings.Changed -= ApplySettings;
+            Application.logMessageReceived -= FailOnError;
             recorder?.Close();
             if (captureTarget == null) return;
             captureTarget.Release();
             Destroy(captureTarget);
         }
 
+        // A harness run ends with an exit code a script can check: 0 when it ran cleanly, 1 when a
+        // check failed, anything logged an error or exception, or a flow had not finished in time.
+        void Exit(int code, string why)
+        {
+            if (exiting) return;
+            exiting = true;
+            Debug.Log($"[DeepFeast] exit {code}: {why}");
+            Application.Quit(code);
+        }
+
+        void FailOnError(string message, string stack, LogType type)
+        {
+            if (type == LogType.Error || type == LogType.Exception || type == LogType.Assert) Exit(1, $"{type}: {message}");
+        }
+
+        void QuitWhenDue()
+        {
+            if (quitAfter <= 0 || realTime < quitAfter) return;
+            bool flow = padTest || interfaceReview == "flow";
+            if (flow && !flowDone) Exit(1, $"the {(padTest ? "gamepad" : "UI")} flow stalled at stage {(padTest ? padStage : uiFlowStage)} by {quitAfter} s");
+            else Exit(0, "quit after " + quitAfter);
+        }
+
+        // A finished flow has nothing more to show, so a headless run ends there.
+        void FlowPassed(string flow)
+        {
+            Debug.Log($"[DeepFeast] complete {flow} flow passed.");
+            flowDone = true;
+            if (Application.isBatchMode) Exit(0, flow + " flow passed");
+        }
+
         void Harness(float rdt)
         {
             realTime += rdt;
-            if (quitAfter > 0 && realTime >= quitAfter)
-            {
-                Debug.Log("[DeepFeast] quit after " + quitAfter);
-                Application.Quit();
-            }
+            QuitWhenDue();
             if (padTest) { PadFlow(); return; }
             if (!autoplay && shotDir == null) return;
             if (state == GState.Menu && realTime > 2.5f)
@@ -474,13 +505,13 @@ namespace DeepFeast
                     f.state = mouth > 0.4f && f.sp != Data.Player ? FState.Chase : FState.Wander;
                 }
                 if (realTime >= nextShot) { Shot($"pose_{shotN++:000}"); nextShot += Mathf.Max(1 / 30f, shotEvery); }
-                if (quitAfter > 0 && realTime >= quitAfter) Application.Quit();
+                QuitWhenDue();
                 return;
             }
             if (shotN == 0 && realTime > 2.5f) { Shot("gallery"); shotN = 1; }
             if (shotN == 1 && realTime > 3.5f) { foreach (var f in fish) { f.state = f.sp == Data.Player ? FState.Wander : FState.Chase; f.mouth = 1; } shotN = 2; }
             if (shotN == 2 && realTime > 4.5f) { Shot("gallery_bite"); shotN = 3; }
-            if (quitAfter > 0 && realTime >= quitAfter) Application.Quit();
+            QuitWhenDue();
         }
 
         // ================================================================== flow
@@ -513,11 +544,12 @@ namespace DeepFeast
         void Scenery(float rdt)
         {
             realTime += rdt;
+            // Checked first: a flow whose check failed or stalled still ends on time.
+            QuitWhenDue();
             if (interfaceReview == "flow")
             {
                 time = 2;
                 InterfaceFlow();
-                if (quitAfter > 0 && realTime >= quitAfter) Application.Quit();
                 return;
             }
             bool animate = Has("-animate-scenery");
@@ -536,7 +568,6 @@ namespace DeepFeast
                 Shot(animate ? $"scenery_{shotN:000}" : interfaceReview != null ? "interface" : Has("-turn-review") ? "turn" : "scenery");
                 shotN++; nextShot = realTime + shotEvery;
             }
-            if (quitAfter > 0 && realTime >= quitAfter) Application.Quit();
         }
 
         void SetupInterface()
@@ -607,7 +638,7 @@ namespace DeepFeast
                     CheckSetting(hud.Selected == "Button_SETTINGS", "focus returns to the settings button");
                     uiFlowStage++; break;
                 case 23 when realTime > 14.6f: hud.SubmitPrimary(); Check(GState.Play, "none", "resume after settings"); uiFlowStage++; break;
-                case 24 when realTime > 15: Debug.Log("[DeepFeast] complete native UI flow passed."); uiFlowStage++; break;
+                case 24 when realTime > 15: uiFlowStage++; FlowPassed("native UI"); break;
             }
         }
 

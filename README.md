@@ -49,7 +49,7 @@ Sprite detail sets how finely the game paints its generated effects (pearls, bub
 | --- | --- |
 | `-autoplay` | A bot plays the game (and restarts on game over); every frame over 50 ms is logged with what it overlapped |
 | `-shots <dir>` / `-shotevery <s>` | Save screenshots of the menu and every N seconds of play |
-| `-quitafter <s>` | Quit after N real seconds |
+| `-quitafter <s>` | Quit after N real seconds; a `flow` or `-padtest` run that has not finished by then fails |
 | `-size <r>` | Start at radius `r` (jump straight to bigger tiers) |
 | `-startx <x>` | Start near the seabed at world x (e.g. `11000` for the deep trench) |
 | `-dumpart <dir>` | Write every baked sprite texture to `dir` as a PNG |
@@ -73,6 +73,8 @@ Sprite detail sets how finely the game paints its generated effects (pearls, bub
 | `-padtest` | A virtual gamepad plays through the menu, steering, dashing, pause, results card, Fishdex and settings, checking each step |
 | `-pearlevery <s>` | Drop a pearl every N seconds, cycling shield, magnet, burst and lantern |
 | `-timescale <x>` / `-mute` / `-nopause` | Speed up, silence, don't pause on focus loss |
+
+Every harness run ends with an exit code: 0 when it ran cleanly, 1 when a check failed, anything logged an error or exception, or a flow stalled before `-quitafter`. The log's last `[DeepFeast] exit` line gives the reason. Headless `flow` and `-padtest` runs quit as soon as their flow passes.
 
 ## Code map (`unity/Assets/Scripts`)
 
