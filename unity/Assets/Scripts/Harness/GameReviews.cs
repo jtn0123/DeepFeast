@@ -159,6 +159,7 @@ namespace DeepFeast
                 for (int i = 0; i < Fishdex.Entries.Count; i++) if (i % 5 < 3 && !Fishdex.Entries[i].IsShark) Fishdex.Record(Fishdex.Entries[i]);
                 state = GState.Menu; pActive = false; hud.ShowMenu(4240); hud.OpenDex();
             }
+            else if (interfaceReview == "deep") { state = GState.Over; pActive = false; hud.ShowOver(48210, "Legend", 731, 1688, false, 48210, 2, 219, true, 219); }
             else { state = GState.Over; pActive = false; hud.ShowOver(2340, "Predator", 42, 164, false, 4240, 3); }
         }
 

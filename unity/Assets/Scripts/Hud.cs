@@ -74,7 +74,7 @@ namespace DeepFeast
         readonly Font font, display;
         readonly RectTransform rootRT, worldLayer, hudRT;
         readonly CanvasGroup hudGroup, bannerGroup;
-        readonly Text score, combo, tierName, tierNext, depth, bannerTitle, bannerSub, dashLabel, habitatName;
+        readonly Text score, scoreCaption, combo, tierName, tierNext, depth, bannerTitle, bannerSub, dashLabel, habitatName;
         readonly Image growth, dash, bannerGlow, comboPill, livesBg;
         readonly RectTransform growthRT, dashRT, bannerRT, livesRT, comboRT;
         readonly VertexGradient bannerGrad, growthGrad;
@@ -156,7 +156,7 @@ namespace DeepFeast
             hudGroup.alpha = 0; hudGroup.blocksRaycasts = false;
 
             // score + combo pill (top left)
-            Label(hud, "SCORE", 13, U.Hex("#9bbdcb"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(24, -11));
+            scoreCaption = Label(hud, "SCORE", 13, U.Hex("#9bbdcb"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(24, -11));
             score = Label(hud, "0", 36, Color.white, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(23, -25), display);
             Gradient(score, Color.white, Color.white, U.Hex("#bff6ff"));
             AddOutline(score, new Color(0, 0.14f, 0.26f, 0.6f), 2f);
@@ -440,11 +440,13 @@ namespace DeepFeast
             else EventSystem.current?.SetSelectedGameObject(null);
         }
 
-        public void ShowOver(int scoreV, string tier, int eaten, float time, bool isBest, int best, int newSpecies)
+        // deep is the fish eaten in the endless deep after a victory, or -1 for a run that never won.
+        public void ShowOver(int scoreV, string tier, int eaten, float time, bool isBest, int best, int newSpecies, int deep = -1, bool deepRecord = false, int deepBest = 0)
         {
-            overNote.text = newSpecies > 0 ? $"{newSpecies} new species in your Fishdex  ·  {Fishdex.FoundCount} / {Fishdex.Entries.Count}" : "Every legend starts as a fry.";
+            overNote.text = deep >= 0 ? $"{deep:N0} fish eaten in the endless deep  ·  record {deepBest:N0}"
+                : newSpecies > 0 ? $"{newSpecies} new species in your Fishdex  ·  {Fishdex.FoundCount} / {Fishdex.Entries.Count}" : "Every legend starts as a fry.";
             overTitle.text = isBest && scoreV > 0 ? "A NEW LEGEND!" : "GOBBLED!";
-            newBest.text = isBest && scoreV > 0 ? "NEW BEST!" : "";
+            newBest.text = isBest && scoreV > 0 ? "NEW BEST!" : deepRecord ? "NEW ENDLESS RECORD!" : "";
             sScore.text = scoreV.ToString("N0");
             sTier.text = tier;
             sEaten.text = eaten.ToString();
@@ -535,8 +537,10 @@ namespace DeepFeast
             dexTiles.Add(tile);
         }
 
-        public void UpdateHud(int scoreV, int comboV, bool comboOn, string tier, float prog, string next, int lives, float stamina, bool tired, int depthM)
+        // In the endless deep the score is banked and the counter shows the fish eaten since the victory.
+        public void UpdateHud(int scoreV, bool deep, int comboV, bool comboOn, string tier, float prog, string next, int lives, float stamina, bool tired, int depthM)
         {
+            SetText(scoreCaption, deep ? "FISH IN THE DEEP" : "SCORE");
             SetText(score, scoreV.ToString("N0"));
             bool showCombo = comboOn && comboV > 1;
             if (comboPill.gameObject.activeSelf != showCombo) comboPill.gameObject.SetActive(showCombo);

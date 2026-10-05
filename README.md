@@ -47,7 +47,7 @@ Sprite detail sets how finely the game paints its generated effects (pearls, bub
 
 | Flag | Effect |
 | --- | --- |
-| `-autoplay` | A bot plays the game (and restarts on game over); every frame over 50 ms is logged with what it overlapped |
+| `-autoplay` | A bot plays the game (keeps swimming after a victory, restarts on game over); every frame over 50 ms is logged with what it overlapped, and the run fails if the sea drops below 40 fish |
 | `-shots <dir>` / `-shotevery <s>` | Save screenshots of the menu and every N seconds of play |
 | `-quitafter <s>` | Quit after N real seconds; a `flow` or `-padtest` run that has not finished by then fails |
 | `-size <r>` | Start at radius `r` (jump straight to bigger tiers) |
@@ -57,7 +57,7 @@ Sprite detail sets how finely the game paints its generated effects (pearls, bub
 | `-gallery -zoom <x> -focus <key>` | Move the gallery camera in `x` times, centred on one species by its key (the gallery log lists them, e.g. `atlantic_halibut`), to review fish up close |
 | `-gallery -animate-gallery` | Capture swimming and a repeating anticipation/open/recovery cycle; `-shotevery` sets the frame interval |
 | `-gallery -animate-turns` | Add direction changes to the animated species gallery |
-| `-interface <menu\|pause\|over\|victory\|dex\|settings\|flow>` | Fixed native menu/results review; `flow` verifies play, pause, resume, retry, victory, keep swimming, the Fishdex and settings through Unity Submit and Move events |
+| `-interface <menu\|pause\|over\|deep\|victory\|dex\|settings\|flow>` | Fixed native menu/results review (`deep` is the game-over card after the endless deep); `flow` verifies play, pause, resume, retry, victory, keep swimming, the Fishdex and settings through Unity Submit and Move events |
 | `-settingspage <n>` | With `-interface settings`, show page `n` (0 display, 1 graphics, 2 sound & play) |
 | `-set <key=value,...>` | Pin settings for a test run by field name, e.g. `-set vSync=false,maxFps=0` or `renderScale=200,msaa=8` |
 | `-scenery kelp -turn-review -turn <facing>` | Hold facing interpolation near the midpoint for native turn-visibility regression captures |

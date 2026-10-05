@@ -56,6 +56,9 @@ namespace DeepFeast
         }
 
         public static float Smooth(float t) => t * t * (3 - 2 * t);
+        // Mathf.Clamp, except that an empty range (a fish taller than the water where it swims)
+        // gives its middle instead of a point past one end.
+        public static float ClampSafe(float v, float lo, float hi) => lo > hi ? (lo + hi) / 2 : Mathf.Clamp(v, lo, hi);
         public static float Damp(float rate, float dt) => Mathf.Min(1f, dt * rate);
 
         /// Game space is y-down (like the web prototype); Unity is y-up.

@@ -33,6 +33,15 @@ namespace DeepFeast
             return still;
         }
 
+        // A fish that fled into a corner or past the end of the world, out of reach of the hero's
+        // body (kept a radius from the ends and nearly half a radius from the surface), is let go.
+        bool Reachable(Fish f)
+        {
+            float pr = player.r, hx = Mathf.Clamp(f.x, pr, World.W - pr);
+            float hy = U.ClampSafe(f.y, pr * 0.4f, world.FloorY(hx) - pr * 0.6f);
+            return Dist(f.x - hx, f.y - hy) < (pr + f.r * 0.5f) * 0.9f;
+        }
+
         Vector2 BotSteer(float dt, out bool dash)
         {
             dash = false;
@@ -51,8 +60,9 @@ namespace DeepFeast
             }
             foreach (var j in jellies)
             {
+                // Two lengths of its sting: wider would push a giant hero into a corner of the sea.
                 float dx = j.x - player.x, dy = j.y + j.r * 0.7f - player.y, d = Mathf.Max(1, Dist(dx, dy));
-                float R = j.r * 3 + pr * 3;
+                float R = (pr * 0.7f + j.r * 0.85f) * 2;
                 if (d < R) { float w = 1 - d / R; avoid -= new Vector2(dx, dy) / d * w * w * 6; }
             }
 
@@ -67,7 +77,7 @@ namespace DeepFeast
             float bestV = 0, heldV = 0;
             foreach (var f in fish)
             {
-                if (f == finale || f == botSkip || f.r > pr * Data.EAT) continue;
+                if (f == finale || f == botSkip || f.r > pr * Data.EAT || !Reachable(f)) continue;
                 float v = (f.r / pr) / (Dist(f.x - player.x, f.y - player.y) + pr * 3);
                 if (f == botTarget) heldV = v;
                 if (v > bestV) { bestV = v; best = f; }
@@ -108,10 +118,12 @@ namespace DeepFeast
             }
 
             var want = seek + avoid;
-            // Pressing into the seabed or the surface gets nowhere: slide along it instead.
+            // Pressing into the seabed, the surface or either end of the sea gets nowhere: slide along it instead.
             if (want.y > 0 && world.FloorY(player.x) - player.y < pr * 1.2f) want.y = 0;
             if (want.y < 0 && player.y < pr * 1.2f) want.y = 0;
-            if (want.sqrMagnitude < 1e-4f) want = new Vector2(botWanderDir, 0);
+            if (want.x < 0 && player.x < pr * 1.2f || want.x > 0 && player.x > World.W - pr * 1.2f) want.x = 0;
+            // Cornered with nowhere to slide, it makes for its meal and risks a sting.
+            if (want.sqrMagnitude < 1e-4f) want = seek.sqrMagnitude > 1e-4f ? seek : new Vector2(botWanderDir, 0);
             // Fleeing and the last stretch to a meal turn sharply; otherwise the hero eases round.
             float turn = avoid.sqrMagnitude > 1 ? 10 : close < pr * 5 ? 12 : 5;
             botHeading = ((Vector2)Vector3.RotateTowards(botHeading, want.normalized, dt * turn, 0)).normalized;

@@ -187,12 +187,14 @@ namespace DeepFeast
                     int food = 0;
                     foreach (var f in fish)
                         if (f.r <= player.r * Data.EAT && Mathf.Abs(f.x - cam.x) < ViewW / 2 && Mathf.Abs(f.y - cam.y) < ViewH / 2) food++;
-                    Debug.Log($"[DeepFeast] stat t={(int)playTime} r={player.r:0.0} tier={Data.Tiers[tier].name} lives={lives} score={score} eaten={eaten} fish={fish.Count} food={food} fps={1f / Mathf.Max(1e-4f, Time.smoothDeltaTime):0} worst={worstFrame * 1000:0}ms still={TakeBotStill():0}%");
+                    Debug.Log($"[DeepFeast] stat t={(int)playTime} r={player.r:0.0} tier={Data.Tiers[tier].name} lives={lives} score={score} eaten={eaten}{(endless ? " deep=" + deepEaten : "")} fish={fish.Count} food={food} fps={1f / Mathf.Max(1e-4f, Time.smoothDeltaTime):0} worst={worstFrame * 1000:0}ms still={TakeBotStill():0}%");
                     // The cast around the player shows that spawns follow the habitat.
                     var cast = new SortedDictionary<string, int>();
                     foreach (var f in fish) { cast.TryGetValue(f.sp.key, out int n); cast[f.sp.key] = n + 1; }
                     Debug.Log($"[DeepFeast] cast y={player.y:0} zone={Habitat.At(player.y).name}: " + string.Join(", ", System.Linq.Enumerable.Select(cast, c => c.Key + "=" + c.Value)));
                     worstFrame = 0;
+                    // The sea must stay stocked; the endless deep once emptied when its fish outgrew the water.
+                    if (playTime >= 10 && fish.Count < 40) Exit(1, $"the sea emptied: {fish.Count} fish at t={(int)playTime}");
                 }
             }
             if (state == GState.Victory && autoplay)
