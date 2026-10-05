@@ -362,6 +362,7 @@ namespace DeepFeast
             if (Legend && !endless) finaleT = finaleDelay;
             bool extra = lives < 5;
             if (extra) lives++;
+            Debug.Log($"[DeepFeast] tier {Data.Tiers[t].name} t={playTime:0.0} r={player.r:0.0} eaten={eaten}");
             Banner(Data.Tiers[t].name.ToUpperInvariant() + "!", Data.Tiers[t].blurb + (extra ? "  +1 life" : ""), new Color(1, 212 / 255f, 71 / 255f));
             sfx.TierUp();
             hud.PulseGrowth(true);
@@ -377,7 +378,7 @@ namespace DeepFeast
             float pr = player.r;
             player.chomp = 0.22f;
             // Young fish grow fast so the first tiers come quickly; the boost fades out by Hunter.
-            float growth = Data.GROW * Mathf.Lerp(1.8f, 1, Mathf.InverseLerp(Data.Tiers[0].r, Data.Tiers[2].r, pr));
+            float growth = Data.GROW * Mathf.Lerp(3.4f, 1, Mathf.InverseLerp(Data.Tiers[0].r, Data.Tiers[2].r, pr));
             // Past Legend growth tapers off, so the hero never outgrows the screen.
             float legendR = Data.Tiers[Data.Tiers.Length - 1].r;
             growth *= Mathf.Lerp(1, 0.15f, Mathf.InverseLerp(legendR, legendR * 1.5f, pr));
@@ -444,6 +445,7 @@ namespace DeepFeast
             pAlive = false;
             dieT = 1.5f;
             lives--;
+            Debug.Log($"[DeepFeast] eaten t={playTime:0.0} r={player.r:0.0} by {(killer != null ? killer.sp.key : "nothing")}, lives={lives}");
             if (killer != null) { killer.chomp = 0.5f; killer.state = FState.Wander; killer.cool = 6; }
             Burst(player.x, player.y, player.r * 1.4f, Data.Player.c0);
             Sparkle(player.x, player.y, player.r, 16, U.Hex("#ffd447"));
