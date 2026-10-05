@@ -102,7 +102,11 @@ namespace DeepFeast
         readonly RectTransform toastRT;
         readonly Text toastTitle, toastSub;
         readonly Image toastAccent;
-        float bannerT = 99, toastT = 99;
+        float bannerT = 99, toastT = 99, bannerFit = 1;
+        // The interface's scale for the player's text size, and the canvas width in its units.
+        float uiScale = 1, canvasW = 1400;
+        // How far below the top of the screen the banner sits.
+        float bannerY = 180;
         const float BANNER_LEN = 2.6f, TOAST_LEN = 1.6f, NOTICE_GAP = 0.3f;
         float hudAlpha, hudTarget;
         float targetGrowth, shownGrowth, growthPulse, scorePulse;
@@ -158,6 +162,8 @@ namespace DeepFeast
 
             worldLayer = Node("WorldLabels", rootRT);
             Stretch(worldLayer);
+            // Scaled about its top-left corner, so labels placed in the game's units stay on their fish.
+            worldLayer.pivot = new Vector2(0, 1);
 
             // ---------------------------------------------------------- HUD
             var hud = hudRT = Node("Hud", rootRT); Stretch(hud);
@@ -258,7 +264,7 @@ namespace DeepFeast
 
             // ---------------------------------------------------------- banner
             bannerRT = Node("Banner", rootRT);
-            Place(bannerRT, new Vector2(0.5f, 0.78f), new Vector2(0.5f, 0.78f), Vector2.zero, new Vector2(900, 120));
+            Place(bannerRT, new Vector2(0.5f, 1), new Vector2(0.5f, 1), Vector2.zero, new Vector2(900, 120));
             bannerGroup = bannerRT.gameObject.AddComponent<CanvasGroup>();
             bannerGroup.alpha = 0; bannerGroup.blocksRaycasts = false;
             // A soft dark plate under a thin colored glow keeps the pale lettering legible over sunlit water.
@@ -403,21 +409,35 @@ namespace DeepFeast
         // ------------------------------------------------------------------ public API
         /// insets: the screen's unsafe margins (a notch, rounded corners) in reference units, as
         /// left, bottom, right, top. The playing HUD stays inside them.
-        public void Resize(float pxPerRef, float refW, Vector4 insets)
+        public void Resize(float pxPerRef, float refW, float refH, Vector4 insets)
         {
-            scaler.scaleFactor = pxPerRef;
-            hudRT.offsetMin = new Vector2(insets.x, insets.y);
-            hudRT.offsetMax = new Vector2(-insets.z, -insets.w);
-            textTop = insets.w + (refW < 960 ? 136 : 88);
+            // Text size enlarges the whole interface by working the canvas in larger units, as far as
+            // the top row of the HUD still fits across the screen. Labels that follow fish keep the
+            // game's own units (the world layer scales back), so they stay on their fish.
+            float s = Mathf.Max(1, Mathf.Min(GameSettings.Data.textSize / 100f, refW / 900));
+            uiScale = s;
+            scaler.scaleFactor = pxPerRef * s;
+            worldLayer.localScale = Vector3.one / s;
+            float w = refW / s, h = refH / s;
+            canvasW = w;
+            hudRT.offsetMin = new Vector2(insets.x, insets.y) / s;
+            hudRT.offsetMax = new Vector2(-insets.z, -insets.w) / s;
+            textTop = insets.w + (w < 960 ? 136 : 88) * s;
+            // Banners sit a little over a fifth of the way down, and always clear of the top row of the HUD.
+            bannerY = Mathf.Max(0.22f * h, textTop / s + 92);
             // narrow screens: drop the lives below the tier panel so they don't collide
-            livesRT.anchoredPosition = refW < 960 ? new Vector2(-16, -86) : new Vector2(-16, -12);
-            menuCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 940);
-            pauseCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 600);
-            overCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 740);
-            victoryCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 740);
-            dexCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 1200);
-            settingsCard.parent.localScale = Vector3.one * Mathf.Min(1, (refW - 40) / 1040);
+            livesRT.anchoredPosition = w < 960 ? new Vector2(-16, -86) : new Vector2(-16, -12);
+            Fit(menuCard, w, h, 940, 600);
+            Fit(pauseCard, w, h, 600, 420);
+            Fit(overCard, w, h, 740, 560);
+            Fit(victoryCard, w, h, 740, 560);
+            Fit(dexCard, w, h, 1200, 760);
+            Fit(settingsCard, w, h, 1040, 720);
         }
+
+        // A card shrinks to fit the screen, never grows past its size at the chosen text size.
+        static void Fit(RectTransform card, float w, float h, float cw, float ch) =>
+            card.parent.localScale = Vector3.one * Mathf.Min(1, (w - 40) / cw, (h - 20) / ch);
         public void UseCaptureCamera(Camera camera)
         {
             canvas.renderMode = RenderMode.ScreenSpaceCamera;
@@ -599,7 +619,7 @@ namespace DeepFeast
                 chip.rt.anchoredPosition = new Vector2(14, 110 + row++ * 36);
                 chip.fill.sizeDelta = new Vector2(Mathf.Max(8, left[i] / Powers.Durations[i] * 104), 8);
                 // The bar flickers through its last two seconds.
-                chip.bar.color = U.WithA(Powers.Colors[i], left[i] < 2 && Mathf.FloorToInt(left[i] * 8) % 2 == 0 ? 0.35f : 1);
+                chip.bar.color = U.WithA(Powers.Colors[i], left[i] < 2 && GameSettings.BlinkOff(left[i], 4) ? 0.35f : 1);
             }
         }
 
@@ -639,6 +659,8 @@ namespace DeepFeast
             bannerGrad.b = Color.Lerp(Color.white, n.glow, 0.2f);
             bannerGrad.c = Color.Lerp(Color.white, n.glow, 0.65f);
             bannerTitle.SetVerticesDirty();
+            // A long title on a narrow or enlarged screen shrinks to fit across it.
+            bannerFit = Mathf.Min(1, (canvasW - 40) / Mathf.Max(1, Mathf.Max(bannerTitle.preferredWidth, bannerSub.preferredWidth)));
             bannerT = 0;
         }
 
@@ -684,11 +706,13 @@ namespace DeepFeast
             ApplyControls();
         }
 
-        void ApplyControls()
+        // Also called when settings change, so the dash guide follows hold or toggle.
+        public void ApplyControls()
         {
-            bool pad = shownControls != Controls.KeyboardMouse, ps = shownControls == Controls.PlayStation;
+            bool pad = shownControls != Controls.KeyboardMouse, ps = shownControls == Controls.PlayStation, toggle = GameSettings.Data.dashToggle;
+            string press = toggle ? "Press" : "Hold";
             guideSteer.text = pad ? "Left stick / d-pad" : "Mouse / touch / WASD";
-            guideDash.text = pad ? (ps ? "Hold Cross or R2" : "Hold A or RT") : "Hold click / Space";
+            guideDash.text = pad ? (ps ? press + " Cross or R2" : press + " A or RT") : toggle ? "Click / Space" : "Hold click / Space";
             guideBreak.text = pad ? (ps ? "Options pauses  ·  Share mutes" : "Start pauses  ·  View mutes") : "P pauses  ·  M mutes";
             pauseHint.text = pad ? (ps ? "OPTIONS / CIRCLE to resume" : "START / B to resume") : "P / ESC to resume";
             settingsTabsHint.text = pad ? (ps ? "L1 / R1  CHANGE PAGE" : "LB / RB  CHANGE PAGE") : "TAB  CHANGE PAGE";
@@ -771,8 +795,8 @@ namespace DeepFeast
             else if (T < 0.8f) { alpha = 1; sc = 1; dy = 0; }
             else { float k = U.Smooth((T - 0.8f) / 0.2f); alpha = 1 - k; sc = Mathf.Lerp(1, 0.98f, k); dy = 14 * k; }
             bannerGroup.alpha = ActiveOverlay == "none" ? alpha : 0;
-            bannerRT.localScale = new Vector3(sc, sc, 1);
-            bannerRT.anchoredPosition = new Vector2(0, dy);
+            bannerRT.localScale = new Vector3(sc * bannerFit, sc * bannerFit, 1);
+            bannerRT.anchoredPosition = new Vector2(0, dy - bannerY);
 
             // floating score texts
             for (int i = texts.Count - 1; i >= 0; i--)
@@ -784,7 +808,7 @@ namespace DeepFeast
                 var s = toScreen(f.x, f.y);
                 float rise = (1 - a) * 46;
                 float k = a > 0.85f ? 1 + (a - 0.85f) * 3 : 1;
-                f.t.fontSize = Mathf.RoundToInt(f.size * k);
+                f.t.fontSize = Mathf.RoundToInt(f.size * k * uiScale);
                 f.t.color = U.WithA(f.col, Mathf.Min(1, a * 1.6f));
                 f.t.rectTransform.anchoredPosition = new Vector2(s.x, -Mathf.Max(s.y - rise, textTop + f.t.fontSize * 0.6f));
             }

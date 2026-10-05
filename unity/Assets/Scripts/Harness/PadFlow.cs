@@ -48,7 +48,10 @@ namespace DeepFeast
                     Set(new GamepadState { leftStick = new Vector2(1, 0) }.WithButton(GamepadButton.South));
                     break;
                 case 7: Check(pDashing, "south dashes"); Release(); break;
-                case 8: Press(GamepadButton.Start); break;
+                case 8:
+                    if (GameSettings.Data.dashToggle) Check(dashOn, "a toggled dash outlasts the press");
+                    Press(GamepadButton.Start);
+                    break;
                 case 9: Release(); break;
                 case 10: Check(state == GState.Paused, "start pauses"); Shot("pad_pause"); Press(GamepadButton.East); break;
                 case 11: Release(); break;

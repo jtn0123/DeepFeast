@@ -37,7 +37,8 @@ Menus, the results cards and the Fishdex navigate with arrows or the d-pad and c
 | --- | --- |
 | Display | Fullscreen or windowed, resolution, render scale (50–200% of the output), VSync, max frame rate (Unlimited, 30, 60, 90, 120, 144, 165, 240, 360 or Custom), custom frame rate (20–1000), FPS counter |
 | Graphics | Anti-aliasing (off, 2×, 4×, 8× MSAA), glow (off, subtle, medium, strong), colour grading (off, subtle, rich), water ripples, sprite detail (1×, 2×, 3×; next launch), effects detail (low, normal, high), fish shadows |
-| Sound & play | Master, music, effects and ambience volume; screen shake |
+| Sound | Master, music, effects and ambience volume |
+| Accessibility | Text size (100, 125 or 150%, as far as the screen has room), reduce flashing (every blink and flicker slows to once a second), screen shake, dash (hold, or toggle with a press) |
 
 Settings are saved as JSON in PlayerPrefs (`deepfeast.settings`). The scene is drawn into its own half-float target at the render scale and MSAA level, then presented under the HUD through `Shaders/PostFx.shader`: a soft-threshold bloom chain, a colour grade blended between reef, kelp and abyss looks, and ring-shaped refraction ripples from dashes and hits. The text stays sharp and ungraded at any scale. Very large targets step down to fewer MSAA samples to stay under about 1.5 GB.
 
@@ -58,7 +59,7 @@ Sprite detail sets how finely the game paints its generated effects (pearls, bub
 | `-gallery -animate-gallery` | Capture swimming and a repeating anticipation/open/recovery cycle; `-shotevery` sets the frame interval |
 | `-gallery -animate-turns` | Add direction changes to the animated species gallery |
 | `-interface <menu\|pause\|over\|deep\|victory\|dex\|settings\|flow>` | Fixed native menu/results review (`deep` is the game-over card after the endless deep); `flow` verifies play, pause, resume, retry, victory, keep swimming, the Fishdex and settings through Unity Submit and Move events |
-| `-settingspage <n>` | With `-interface settings`, show page `n` (0 display, 1 graphics, 2 sound & play) |
+| `-settingspage <n>` | With `-interface settings`, show page `n` (0 display, 1 graphics, 2 sound, 3 accessibility) |
 | `-set <key=value,...>` | Pin settings for a test run by field name, e.g. `-set vSync=false,maxFps=0` or `renderScale=200,msaa=8` |
 | `-scenery kelp -turn-review -turn <facing>` | Hold facing interpolation near the midpoint for native turn-visibility regression captures |
 | `-scenery <reef\|kelp\|abyss\|surface>` | Fixed camera, fish placement and visual time for native environment comparisons; saves `scenery.png` after 3.1 seconds |
@@ -70,7 +71,7 @@ Sprite detail sets how finely the game paints its generated effects (pearls, bub
 | `-shark <s>` | First shark arrives after N seconds |
 | `-sharkvariant <n>` | Start the shark rotation at variant `n` |
 | `-finale <s>` | Seconds after reaching Legend before the whale shark finale (default 12) |
-| `-padtest` | A virtual gamepad plays through the menu, steering, dashing, pause, results card, Fishdex and settings, checking each step |
+| `-padtest` | A virtual gamepad plays through the menu, steering, dashing, pause, results card, Fishdex and settings, checking each step; with `-set dashToggle=true` it also checks that a toggled dash outlasts the press |
 | `-pearlevery <s>` | Drop a pearl every N seconds, cycling shield, magnet, burst and lantern |
 | `-timescale <x>` / `-mute` / `-nopause` | Speed up, silence, don't pause on focus loss |
 

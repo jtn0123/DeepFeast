@@ -191,13 +191,34 @@ namespace DeepFeast
                     help = () => "Fish near the seabed cast soft shadows on the sunlit sand.",
                 },
             });
-            AddPage(card, "SOUND & PLAY", new[]
+            AddPage(card, "SOUND", new[]
             {
                 Percent("master", "MASTER VOLUME", () => Opt.master, v => Opt.master = v, 10, 100, "Everything you hear. M mutes at any time."),
                 Percent("music", "MUSIC VOLUME", () => Opt.music, v => Opt.music = v, 10, 100, "The music that follows you from the reef down to the abyss."),
                 Percent("effects", "EFFECTS VOLUME", () => Opt.effects, v => Opt.effects = v, 10, 100, "Chomps, dashes, pearls and warnings."),
                 Percent("ambience", "AMBIENCE VOLUME", () => Opt.ambience, v => Opt.ambience = v, 10, 100, "The low hum of the ocean all around you."),
+            });
+            AddPage(card, "ACCESSIBILITY", new[]
+            {
+                new Option
+                {
+                    key = "textSize", label = "TEXT SIZE",
+                    value = () => Opt.textSize + "%", step = dir => Opt.textSize = Step(GameSettings.TextSizes, Opt.textSize, dir),
+                    help = () => "Makes the HUD, banners and menus larger, as far as the screen has room.",
+                },
+                new Option
+                {
+                    key = "reduceFlashing", label = "REDUCE FLASHING",
+                    value = () => Opt.reduceFlashing ? "On" : "Off", step = _ => Opt.reduceFlashing = !Opt.reduceFlashing,
+                    help = () => "Slows every blink and flicker (a hero just back from a bite, a fading shield, pearl or power) to a gentle beat.",
+                },
                 Percent("shake", "SCREEN SHAKE", () => Opt.shake, v => Opt.shake = v, 25, 150, "How hard the screen shakes when you are hit or take a big bite."),
+                new Option
+                {
+                    key = "dashToggle", label = "DASH",
+                    value = () => Opt.dashToggle ? "Toggle" : "Hold", step = _ => Opt.dashToggle = !Opt.dashToggle,
+                    help = () => Opt.dashToggle ? "Press dash once to start, again to stop. Running out of breath stops it too." : "Dash for as long as you hold the button.",
+                },
             });
 
             for (int i = 0; i < pages.Count; i++)
@@ -207,7 +228,7 @@ namespace DeepFeast
                 b.raycastTarget = true;
                 b.gameObject.name = "Button_" + pages[i].tabLabel.text;
                 pages[i].tabLabel.rectTransform.SetParent(b.rectTransform, false);
-                Place(b.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(-376 + i * 210, -104), new Vector2(200, 50), new Vector2(0.5f, 1));
+                Place(b.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(-386 + i * 190, -104), new Vector2(180, 50), new Vector2(0.5f, 1));
                 pages[i].tabImage = b;
                 pages[i].tabFill = Gradient(b, Color.white, Color.white, Color.white);
                 pages[i].tabFill.multiplyGraphicColor = true;

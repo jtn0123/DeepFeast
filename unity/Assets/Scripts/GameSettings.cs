@@ -31,6 +31,9 @@ namespace DeepFeast
         public bool shadows = true;
         public bool showFps;
         public int shake = 100;          // percent
+        public int textSize = 100;       // percent: 100, 125 or 150
+        public bool reduceFlashing;      // blinks and flickers slow to one beat a second
+        public bool dashToggle;          // a press starts and stops a dash instead of holding it
         public int master = 100, music = 100, effects = 100, ambience = 100;
     }
 
@@ -54,6 +57,7 @@ namespace DeepFeast
         public static readonly int[] RenderScales = { 50, 67, 75, 85, 100, 125, 150, 175, 200 };
         public static readonly int[] MsaaLevels = { 1, 2, 4, 8 };
         public static readonly float[] Densities = { 0.5f, 1, 2 };
+        public static readonly int[] TextSizes = { 100, 125, 150 };
         public const int MaxSpriteDetail = 3;
         public const int MinFps = 20, MaxCustomFps = 1000;
 
@@ -103,6 +107,7 @@ namespace DeepFeast
             d.spriteDetail = Mathf.Clamp(d.spriteDetail, 1, MaxSpriteDetail);
             d.effectDensity = Mathf.Clamp(d.effectDensity, 0, Densities.Length - 1);
             d.shake = Mathf.Clamp(d.shake, 0, 150);
+            if (Array.IndexOf(TextSizes, d.textSize) < 0) d.textSize = 100;
             d.master = Mathf.Clamp(d.master, 0, 100);
             d.music = Mathf.Clamp(d.music, 0, 100);
             d.effects = Mathf.Clamp(d.effects, 0, 100);
@@ -131,6 +136,13 @@ namespace DeepFeast
 
         /// How many effects to make, relative to normal.
         public static float EffectDensity => Densities[Data.effectDensity];
+
+        /// How fast a blink or flicker may run: with Reduce flashing on, nothing strobes faster than
+        /// once a second, well under the three flashes a second that can trouble photosensitive players.
+        public static float FlashHz(float hz) => Data.reduceFlashing ? Mathf.Min(hz, 1) : hz;
+
+        /// Whether a blink of hz on-off cycles a second is in its off half at time t.
+        public static bool BlinkOff(float t, float hz) => Mathf.FloorToInt(t * 2 * FlashHz(hz)) % 2 == 0;
 
         /// Startup: a saved choice puts the window back as the player left it; with nothing saved
         /// yet the rows simply describe the window the game opened in. Call before any art is made.

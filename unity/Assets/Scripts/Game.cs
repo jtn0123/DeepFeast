@@ -280,7 +280,7 @@ namespace DeepFeast
                 if (Legend) finaleT = finaleDelay;
             }
             player.stage = tier;
-            pInvuln = 2; pStamina = 1; pTired = false; pDashing = false; pActive = true; pAlive = true; System.Array.Clear(power, 0, power.Length); pStun = 0; pStungCool = 0;
+            pInvuln = 2; pStamina = 1; pTired = false; pDashing = false; dashOn = false; pActive = true; pAlive = true; System.Array.Clear(power, 0, power.Length); pStun = 0; pStungCool = 0;
             zoom = Data.ZoomFor(player.r);
             cam = new Vector2(player.x, player.y);
             for (int i = 0; i < 70; i++) SpawnOne(true);
@@ -298,6 +298,7 @@ namespace DeepFeast
         {
             var d = GameSettings.Data;
             sfx.SetLevels(d.master / 100f, d.music / 100f, d.effects / 100f, d.ambience / 100f);
+            hud.ApplyControls();
         }
 
         void ToggleMute()
@@ -454,6 +455,7 @@ namespace DeepFeast
         {
             pAlive = false;
             dieT = 1.5f;
+            dashOn = false;
             lives--;
             Debug.Log($"[DeepFeast] eaten t={playTime:0.0} r={player.r:0.0} by {(killer != null ? killer.sp.key : "nothing")}, lives={lives}");
             if (killer != null) { killer.chomp = 0.5f; killer.state = FState.Wander; killer.cool = 6; }
@@ -600,7 +602,7 @@ namespace DeepFeast
             fish.Add(s);
             Debug.Log($"[DeepFeast] shark encounter: key={identity.key}, name={identity.displayName}, aggressive={identity.aggressive}, chaseMultiplier={identity.chaseSpeedMultiplier:0.00}, edible={edible}, radius={r:0.0}, life={s.life:0.0}.");
             if (edible) Banner("SHARK!", "You are the Leviathan now — hunt it down!", new Color(1, 200 / 255f, 60 / 255f), true);
-            else Banner("SHARK!", "Hold click / Space to dash away", new Color(1, 60 / 255f, 80 / 255f), true);
+            else Banner("SHARK!", (GameSettings.Data.dashToggle ? "Click" : "Hold click") + " / Space to dash away", new Color(1, 60 / 255f, 80 / 255f), true);
             sfx.Shark();
         }
 
@@ -710,6 +712,9 @@ namespace DeepFeast
                 if (slowT > 0) { slowT -= dt; dt *= 0.35f; }
                 Step(dt);
             }
+            // A press that began outside the swim (the click or button that started or resumed it)
+            // has to be let go before it can toggle the dash.
+            if (state != GState.Play || !pAlive) dashWasPressed = true;
             Render(state == GState.Paused ? 0 : dt, rdt);
             sfx.Music(rdt, Habitat.At(cam.y), pActive ? tier / (Data.Tiers.Length - 1f) : 0, pActive && Danger());
         }
@@ -735,7 +740,7 @@ namespace DeepFeast
             var safe = captureTarget != null ? new Rect(0, 0, w, h) : Screen.safeArea;
             if (notch > 0) safe.yMax = Mathf.Min(safe.yMax, h - notch);
             var insets = new Vector4(Mathf.Max(0, safe.xMin), Mathf.Max(0, safe.yMin), Mathf.Max(0, w - safe.xMax), Mathf.Max(0, h - safe.yMax));
-            hud?.Resize(pxPerRef, refW, insets / pxPerRef);
+            hud?.Resize(pxPerRef, refW, refH, insets / pxPerRef);
             presenter.Fit((int)w, (int)h);
         }
 
@@ -775,7 +780,7 @@ namespace DeepFeast
         }
 
         // ------------------------------------------------------------------ input
-        bool moveUp, moveDown, moveLeft, moveRight, dashKey, mouseDown;
+        bool moveUp, moveDown, moveLeft, moveRight, dashKey, mouseDown, dashOn, dashWasPressed;
 
         void ReadInput()
         {
@@ -922,7 +927,17 @@ namespace DeepFeast
                     float ddx = pointer.x - s.x, ddy = pointer.y - s.y, d = Dist(ddx, ddy);
                     if (d > 6) { dx = ddx / d; dy = ddy / d; mag = Mathf.Clamp01((d - 6) / 110); }
                 }
-                wantDash = dashKey || mouseDown || hud.DashHeld || padDash;
+                bool pressed = dashKey || mouseDown || hud.DashHeld || padDash;
+                // With Dash set to toggle, a press starts a dash and the next press, or running out
+                // of breath, ends it.
+                if (GameSettings.Data.dashToggle)
+                {
+                    if (pressed && !dashWasPressed) dashOn = !dashOn;
+                    if (pTired) dashOn = false;
+                    wantDash = dashOn;
+                }
+                else wantDash = pressed;
+                dashWasPressed = pressed;
             }
 
             bool want = wantDash && mag > 0.2f;
@@ -1488,7 +1503,7 @@ namespace DeepFeast
             playerGlow.enabled = pv;
             if (pv)
             {
-                bool blinkOut = pInvuln > 0 && Mathf.FloorToInt(time * 12) % 2 == 0;
+                bool blinkOut = pInvuln > 0 && GameSettings.BlinkOff(time, 6);
                 playerView.SetVisible(!blinkOut);
                 var mode = pBlink > 0 ? FishView.EyeMode.Blink : player.chomp > 0 ? FishView.EyeMode.Happy : FishView.EyeMode.Normal;
                 playerView.Pose(player, Layer.Player, mode, dt);
@@ -1512,7 +1527,7 @@ namespace DeepFeast
             shieldRing.enabled = shieldFill.enabled = shieldShine.enabled = sh;
             if (sh)
             {
-                float a = pShield < 2 ? 0.3f + 0.3f * Mathf.Sin(time * 20) : 0.6f;
+                float a = pShield < 2 ? 0.3f + 0.3f * Mathf.Sin(time * U.TAU * GameSettings.FlashHz(3.2f)) : 0.6f;
                 float R = player.r * 1.9f + Mathf.Sin(time * 4) * player.r * 0.08f;
                 var pos = U.V3(player.x, player.y);
                 shieldRing.transform.localPosition = pos; shieldRing.transform.localScale = Vector3.one * (2 * R / 0.9f);
@@ -1582,7 +1597,7 @@ namespace DeepFeast
             foreach (var p in pearls)
             {
                 float bob = Mathf.Sin(time * 2 + p.ph) * p.r * 0.4f;
-                bool hidden = p.life < 3 && Mathf.FloorToInt(time * 8) % 2 == 1;
+                bool hidden = p.life < 3 && GameSettings.BlinkOff(time, 4);
                 p.body.enabled = p.star.enabled = p.ring.enabled = p.glow.enabled = !hidden;
                 var pos = U.V3(p.x, p.y + bob);
                 p.body.transform.localPosition = pos; p.body.transform.localScale = Vector3.one * p.r;
@@ -1639,7 +1654,7 @@ namespace DeepFeast
                     {
                         float dx = s.x - refW / 2, dy = s.y - refH / 2;
                         float m = Mathf.Min((refW / 2 - 34) / Mathf.Max(1e-3f, Mathf.Abs(dx)), (refH / 2 - 34) / Mathf.Max(1e-3f, Mathf.Abs(dy)));
-                        alerts.Add(new Alert { onScreen = false, screen = new Vector2(refW / 2 + dx * m, refH / 2 + dy * m), angle = Mathf.Atan2(dy, dx), pulse = 0.6f + 0.4f * Mathf.Sin(time * 10), quarry = quarry });
+                        alerts.Add(new Alert { onScreen = false, screen = new Vector2(refW / 2 + dx * m, refH / 2 + dy * m), angle = Mathf.Atan2(dy, dx), pulse = 0.6f + 0.4f * Mathf.Sin(time * U.TAU * GameSettings.FlashHz(1.6f)), quarry = quarry });
                     }
                 }
             }
