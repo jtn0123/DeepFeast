@@ -297,7 +297,7 @@ namespace DeepFeast
         void ApplySettings()
         {
             var d = GameSettings.Data;
-            sfx.SetLevels(d.master / 100f, d.effects / 100f, d.ambience / 100f);
+            sfx.SetLevels(d.master / 100f, d.music / 100f, d.effects / 100f, d.ambience / 100f);
         }
 
         void ToggleMute()
@@ -325,6 +325,7 @@ namespace DeepFeast
             state = GState.Victory;
             pDashing = false;
             if (score > best) { best = score; SaveBest(); }
+            sfx.Victory();
             hud.ShowVictory(score, eaten, playTime, best);
             Debug.Log($"[DeepFeast] victory t={(int)playTime} score={score} r={player.r:0.0} eaten={eaten}");
         }
@@ -710,6 +711,15 @@ namespace DeepFeast
                 Step(dt);
             }
             Render(state == GState.Paused ? 0 : dt, rdt);
+            sfx.Music(rdt, Habitat.At(cam.y), pActive ? tier / (Data.Tiers.Length - 1f) : 0, pActive && Danger());
+        }
+
+        // A shark encounter or the finale is under way: both are announced, so the music may follow.
+        bool Danger()
+        {
+            if (finale != null) return true;
+            foreach (var f in fish) if (f.shark && f.state != FState.Leave) return true;
+            return false;
         }
 
         void OnApplicationFocus(bool focus) { if (!focus && !noPause) { TogglePause(true); } }

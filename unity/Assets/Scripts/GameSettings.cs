@@ -31,7 +31,7 @@ namespace DeepFeast
         public bool shadows = true;
         public bool showFps;
         public int shake = 100;          // percent
-        public int master = 100, effects = 100, ambience = 100;
+        public int master = 100, music = 100, effects = 100, ambience = 100;
     }
 
     // Loads, saves and applies the player's options. Test runs start from the defaults, never
@@ -104,6 +104,7 @@ namespace DeepFeast
             d.effectDensity = Mathf.Clamp(d.effectDensity, 0, Densities.Length - 1);
             d.shake = Mathf.Clamp(d.shake, 0, 150);
             d.master = Mathf.Clamp(d.master, 0, 100);
+            d.music = Mathf.Clamp(d.music, 0, 100);
             d.effects = Mathf.Clamp(d.effects, 0, 100);
             d.ambience = Mathf.Clamp(d.ambience, 0, 100);
         }

@@ -37,7 +37,7 @@ Menus, the results cards and the Fishdex navigate with arrows or the d-pad and c
 | --- | --- |
 | Display | Fullscreen or windowed, resolution, render scale (50–200% of the output), VSync, max frame rate (Unlimited, 30, 60, 90, 120, 144, 165, 240, 360 or Custom), custom frame rate (20–1000), FPS counter |
 | Graphics | Anti-aliasing (off, 2×, 4×, 8× MSAA), glow (off, subtle, medium, strong), colour grading (off, subtle, rich), water ripples, sprite detail (1×, 2×, 3×; next launch), effects detail (low, normal, high), fish shadows |
-| Sound & play | Master, effects and ambience volume; screen shake |
+| Sound & play | Master, music, effects and ambience volume; screen shake |
 
 Settings are saved as JSON in PlayerPrefs (`deepfeast.settings`). The scene is drawn into its own half-float target at the render scale and MSAA level, then presented under the HUD through `Shaders/PostFx.shader`: a soft-threshold bloom chain, a colour grade blended between reef, kelp and abyss looks, and ring-shaped refraction ripples from dashes and hits. The text stays sharp and ungraded at any scale. Very large targets step down to fewer MSAA samples to stay under about 1.5 GB.
 
@@ -91,6 +91,7 @@ A run with any of these flags (other than `-mute`), or any `-batchmode` run, is 
 - `PadInput.cs` — gamepad steering, dash and pause
 - `Fishdex.cs` — saved species discoveries and the portraits photographed from the 3D models
 - `Sfx.cs` — synthesised sound effects and ambience
+- `Music.cs` — synthesised music: a pad for each habitat, an arpeggio that grows with the hero, a pulse under shark encounters and the finale, and a victory sting
 - `Harness/` — the command-line test harness, kept out of the game code: flags, screenshots, recording and exit codes (`GameHarness.cs`), the gallery, scenery and UI-flow reviews (`GameReviews.cs`), the autoplay bot (`GameBot.cs`), the `-padtest` virtual-pad check (`PadFlow.cs`), `-record` (`Recorder.cs`) and the species and turn reviews (`SpeciesVisualReview.cs`, `FishTurnReview.cs`)
 - `Raster.cs` / `Draw.cs` / `Util.cs` — software rasteriser (with blur / pseudo-3D lighting), mesh drawing helpers, noise, procedural textures
 

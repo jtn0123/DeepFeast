@@ -194,6 +194,7 @@ namespace DeepFeast
             AddPage(card, "SOUND & PLAY", new[]
             {
                 Percent("master", "MASTER VOLUME", () => Opt.master, v => Opt.master = v, 10, 100, "Everything you hear. M mutes at any time."),
+                Percent("music", "MUSIC VOLUME", () => Opt.music, v => Opt.music = v, 10, 100, "The music that follows you from the reef down to the abyss."),
                 Percent("effects", "EFFECTS VOLUME", () => Opt.effects, v => Opt.effects = v, 10, 100, "Chomps, dashes, pearls and warnings."),
                 Percent("ambience", "AMBIENCE VOLUME", () => Opt.ambience, v => Opt.ambience = v, 10, 100, "The low hum of the ocean all around you."),
                 Percent("shake", "SCREEN SHAKE", () => Opt.shake, v => Opt.shake = v, 25, 150, "How hard the screen shakes when you are hit or take a big bite."),

@@ -11,6 +11,7 @@ namespace DeepFeast
         readonly AudioSource[] voices = new AudioSource[14];
         int next;
         readonly AudioSource ambient;
+        readonly Music music;
         AudioClip chomp, ding, tierUp, hurt, alert, shark, zap, pearl, dash, bump;
         public bool Muted { get; private set; }
         // The player's volume settings, 0 to 1.
@@ -38,6 +39,7 @@ namespace DeepFeast
             Build();
             ambient.clip = Ambient();
             ambient.Play();
+            music = new Music(host);
         }
 
         public void SetMuted(bool m)
@@ -47,9 +49,10 @@ namespace DeepFeast
             AudioListener.volume = m ? 0 : Listener * master;
         }
 
-        public void SetLevels(float masterLevel, float effectsLevel, float ambienceLevel)
+        public void SetLevels(float masterLevel, float musicLevel, float effectsLevel, float ambienceLevel)
         {
             master = masterLevel; effects = effectsLevel;
+            music.SetLevel(musicLevel);
             ambient.volume = AmbientLevel * ambienceLevel;
             AudioListener.volume = Muted ? 0 : Listener * master;
         }
@@ -70,10 +73,12 @@ namespace DeepFeast
             Play(chomp, p / 420f);
             if (combo > 1) Play(ding, Mathf.Pow(1.0595f, combo * 2));
         }
-        public void TierUp() => Play(tierUp);
-        public void Hurt() => Play(hurt);
+        public void TierUp() { Play(tierUp); music.Duck(0.35f); }
+        public void Hurt() { Play(hurt); music.Duck(0.6f); }
         public void Alert() => Play(alert);
-        public void Shark() => Play(shark);
+        public void Shark() { Play(shark); music.Duck(0.5f); }
+        public void Victory() => music.Victory();
+        public void Music(float rdt, Habitat.Look look, float growth, bool danger) => music.Update(rdt, look, growth, danger);
         public void Zap() => Play(zap);
         public void Pearl() => Play(pearl);
         public void Dash() => Play(dash);
