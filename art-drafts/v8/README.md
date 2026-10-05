@@ -29,7 +29,7 @@ Gameplay, collision radii, tier rules, scoring, AI, scene layouts and atlas pixe
 
 ## Validation and limits
 
-The Unity 6000.3.25f1 macOS production build and existing twelve-species geometry/motion checks passed. The shader compiled for Metal, and the app signature passed verification. Final native captures completed after the finished rebuild. See [build checks](logs/build-checks.log) and [capture evidence](capture-checks.json).
+The Unity 6000.3.25f1 macOS production build and existing twelve-species geometry/motion checks passed. The shader compiled for Metal, and the app signature passed verification. Final native captures completed after the finished rebuild. See [capture evidence](capture-checks.json).
 
 Before frames are byte-identical copies from v7. All four 120-frame sequences were checked for finite samples, matching time/facing/yaw/mouth/expression inputs and frame-edge clipping. MP4s retain 30 FPS; GIFs use 20 FPS. Capture resolution is 960 × 720, the review camera and radii are unchanged, and animations use explicit 1/30-second steps. The slow review sequence is not ordinary gameplay speed.
 

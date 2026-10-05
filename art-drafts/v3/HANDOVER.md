@@ -44,7 +44,7 @@ The extra uncompressed atlases add about **12 MiB of base GPU texture storage**.
 | Check | Result |
 | --- | --- |
 | Current source | Worktree and canonical local `main` started at `da45f4b`; origin fetched and checked for newer source. |
-| Unity build | Unity **6000.3.25f1**, macOS build succeeded with **0 build errors**; [build log](logs/build-final.log). |
+| Unity build | Unity **6000.3.25f1**, macOS build succeeded with **0 build errors**. |
 | Production validation | 12 fish, 24 aligned pose keys, 16 props, 10 environment grids, alpha, import settings, pivots, dimensions and both shaders passed. |
 | Native environments | Four baseline and four final native runs completed with exit 0; all eight renders inspected. |
 | Grounding iteration | First render exposed floating wide kelp footings on steep terrain. Revised placement buries them to the lower side of the slope; final native captures reviewed. |

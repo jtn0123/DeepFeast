@@ -28,7 +28,7 @@ The landmarks are decorative, grounded behind the terrain and fish. Gameplay ter
 
 `AnimateFish` interpolated facing between −1 and +1; `FishView.Pose` used that value as physical width. Mid-turn fish collapsed toward zero, with an old 6% minimum. The new renderer uses facing as turn progress and preserves an 84% minimum width.
 
-The new editor regression deliberately failed on the old implementation: a minnow at facing −0.1 rendered at 10% width. It passed after the minimal fix, then passed again during the final production build for **12 species × 7 facing samples**. Native midpoint captures show the player changing from **0.060** to **0.842** width ratio. The test requires at least 80%, allowing future restrained turn animation while preventing disappearance. See [fail-before](logs/turn-fail-before.log), [pass-after](logs/turn-pass-after.log) and [final build](logs/build-final.log).
+The new editor regression deliberately failed on the old implementation: a minnow at facing −0.1 rendered at 10% width. It passed after the minimal fix, then passed again during the final production build for **12 species × 7 facing samples**. Native midpoint captures show the player changing from **0.060** to **0.842** width ratio. The test requires at least 80%, allowing future restrained turn animation while preventing disappearance.
 
 ## Verification
 
@@ -37,13 +37,13 @@ The new editor regression deliberately failed on the old implementation: a minno
 | Current source | Worktree and canonical local `main` began at `542a24f`; origin was fetched and inspected before editing. |
 | Build and production art | Unity **6000.3.25f1**, macOS build succeeded, **0 build errors**, **137.7 MB**. Twelve species, 24 pose keys, 16 props, 10 environment meshes, atlas/import checks, three painted shaders and turn regression passed. |
 | Native comparisons | Five fresh baseline player runs and nine final comparison runs exited 0; every delivered comparison was visually inspected. The four environment baselines retain their prior native capture provenance. |
-| Menu flow | Real Unity Submit events passed play → pause → resume → game over → retry, with state/overlay assertions. This verifies button callbacks, not physical keyboard or pointer input. [Log](logs/after-flow.log). |
+| Menu flow | Real Unity Submit events passed play → pause → resume → game over → retry, with state/overlay assertions. This verifies button callbacks, not physical keyboard or pointer input. |
 | Narrow layout | Native title captured and inspected at 960×720, with no card/text clipping. |
 | Native animation | Both videos encoded and fully decoded without errors; beginning/middle/end source frames inspected. Fish clip includes turns and feeding poses; habitat clip shows rooted sway and drifting particles. |
-| Small fry | 35-second native autoplay starting at radius 12 in kelp. Last periodic sample: radius **16.1**, **3 lives**, **422 points**, **10 eaten**. [Log](logs/fry.log). |
-| Hunter | 22-second native autoplay starting at radius 30 over the reef; larger fish/scenery visibility inspected. [Log](logs/gameplay.log). |
+| Small fry | 35-second native autoplay starting at radius 12 in kelp. Last periodic sample: radius **16.1**, **3 lives**, **422 points**, **10 eaten**. |
+| Hunter | 22-second native autoplay starting at radius 30 over the reef; larger fish/scenery visibility inspected. |
 | Review artifact | All nine before/after pairs loaded at 1280×720; nine boards exported; slider toggled and clipped correctly. Both videos loaded at 1280×720; seeking to a sampled frame succeeded with no media errors. |
-| Installed native app | Copied to the canonical checkout; all **147 regular bundle files** match the verified build, and deep/strict code-signature verification passed. Installed app completed a kelp capture with exit 0. [Log](logs/installed-smoke.log). |
+| Installed native app | Copied to the canonical checkout; all **147 regular bundle files** match the verified build, and deep/strict code-signature verification passed. Installed app completed a kelp capture with exit 0. |
 | Source hygiene | Atlas PNG bytes unchanged; baseline patch applies; whitespace check passed. |
 
 Autoplay sampled approximately **57–59 FPS** with a 60 FPS target, capture overhead and concurrent runs. This is limited local evidence, not a performance comparison or target-device benchmark.

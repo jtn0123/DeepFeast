@@ -28,7 +28,7 @@ The shark comparison uses the previous **v8 3D draft** on the left and this pass
 
 ## Validation
 
-The Unity 6000.3.25f1 macOS production build passes with zero errors and no FishVolume shader warnings. Build validation checks all 24 identities, all seven visible native mesh parts per species, finite actual vertices, real body depth, continuous turns, correct pitch, settled bank and frozen pause. It also checks generated sprite buffers before their CPU pixels are released, legacy atlas poses, metadata and the three-shark rotation. See [build checks](logs/build-checks.log).
+The Unity 6000.3.25f1 macOS production build passes with zero errors and no FishVolume shader warnings. Build validation checks all 24 identities, all seven visible native mesh parts per species, finite actual vertices, real body depth, continuous turns, correct pitch, settled bank and frozen pause. It also checks generated sprite buffers before their CPU pixels are released, legacy atlas poses, metadata and the three-shark rotation.
 
 Native captures use graphics-enabled Metal batch mode. Each loop contains 120 frames at 30 FPS with explicit 1/30-second animation steps. Labeled review groups are 1280 × 960; the unchanged comparison driver is 960 × 720. GIFs use 20 FPS. The native MP4s, JSON timelines and selected raw side/oblique/head-on frames are committed with this handover. [Capture checks](capture-checks.json) record timeline, frame-edge and media verification.
 

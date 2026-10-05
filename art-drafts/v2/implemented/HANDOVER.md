@@ -47,7 +47,7 @@ Unity permits `Sprite.OverrideGeometry` in the player loop; the fish grids are q
 | Check | Result / evidence |
 | --- | --- |
 | Latest baseline | Worktree fast-forwarded to the actual local `main` at `5f75e02` before implementation; baseline captures came from that app. |
-| macOS build | Succeeded, **0 build errors**, 125.7 MB; [`logs/build-final.log`](logs/build-final.log). |
+| macOS build | Succeeded, **0 build errors**, 125.7 MB. |
 | Production-art validation | All 12 species, 24 distinct aligned pose keys, 6 props, bounding rectangles, scale, actual alpha, import settings and shader compilation passed before the build. |
 | Runtime swimming geometry | All 24 grids prepared successfully; gallery and gameplay logs. |
 | Species/jaw gallery | Six-second native run exited successfully; closed/open captures visually inspected for clipping, opaque backgrounds and duplicate features. |
