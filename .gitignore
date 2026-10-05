@@ -2,3 +2,6 @@
 
 # python tooling
 __pycache__/
+
+# snapshot archives: every commit is its own snapshot
+*.zip

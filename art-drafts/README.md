@@ -8,7 +8,7 @@ The original v1 concept handover is preserved below as historical context.
 
 # Deep Feast visual drafts, v1
 
-Start with `HANDOVER.md` for a complete receiving-agent briefing. `DeepFeast-visual-handover-v1.zip` is the portable transfer bundle.
+Start with `HANDOVER.md` for a complete receiving-agent briefing.
 
 These are review concepts. No game code or existing artwork was replaced.
 

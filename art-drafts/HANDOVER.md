@@ -16,7 +16,7 @@ The user requested improved draft graphics for fish and other game visuals, pres
 
 Six fish concepts, four hazard/prop groups, and one full gameplay art mockup are complete. These are review concepts, not integrated production assets. The game source is unchanged. No final art selection, game integration, commit, pull request, or deployment has happened in this thread.
 
-Read this document with the accompanying images. For transfer, use `DeepFeast-visual-handover-v1.zip`; it contains this document, all image files, the review gallery, reference renderers, and generation prompts.
+Read this document with the accompanying images. This folder holds everything it refers to: all image files, the review gallery, reference renderers, and generation prompts.
 
 ## Project and working state
 
