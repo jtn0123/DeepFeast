@@ -94,15 +94,16 @@ namespace DeepFeast
         float ViewH => refH / zoom;
         bool Playing => state == GState.Play && pActive && pAlive;
         bool Legend => tier >= Data.Tiers.Length - 1;
-        // Test and review runs never write the player's best score or Fishdex.
-        bool Persist => !autoplay && scenery == null && !gallery && !padTest;
+        // Only real play saves the best score, the Fishdex, the settings and the mute switch; test,
+        // review and headless runs never do. Set from the command line.
+        bool persist;
 
         // ================================================================== setup
         void Awake()
         {
             ParseArgs();
             Application.runInBackground = true;
-            GameSettings.Load(Persist, Arg("-set"));
+            GameSettings.Load(persist, Arg("-set"));
             GameSettings.ApplyAtBoot();
             // The scene is multisampled in its own target; the screen itself needs no samples.
             QualitySettings.antiAliasing = 0;
@@ -137,7 +138,7 @@ namespace DeepFeast
             Debug.Log($"[DeepFeast] prewarmed {volumes} fish volumes in {watch.ElapsedMilliseconds} ms");
             BuildPlayerView();
 
-            sfx = new Sfx(gameObject, autoplay || Has("-mute"), recorder?.Audio == true);
+            sfx = new Sfx(gameObject, persist, autoplay || Has("-mute"), recorder?.Audio == true);
             hud = new Hud();
             SetupCapture();
             hud.OnPlay = StartGame;
@@ -149,7 +150,7 @@ namespace DeepFeast
             ApplySettings();
 
             best = PlayerPrefs.GetInt("deepfeast.best", 0);
-            Fishdex.Load(Persist);
+            Fishdex.Load(persist);
             hud.ShowMenu(best);
 
             Resize();
@@ -338,7 +339,7 @@ namespace DeepFeast
 
         void SaveBest()
         {
-            if (!Persist) return;
+            if (!persist) return;
             PlayerPrefs.SetInt("deepfeast.best", best);
             PlayerPrefs.Save();
         }

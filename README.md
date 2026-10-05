@@ -59,7 +59,7 @@ Sprite detail sets how finely the game paints its generated effects (pearls, bub
 | `-gallery -animate-turns` | Add direction changes to the animated species gallery |
 | `-interface <menu\|pause\|over\|victory\|dex\|settings\|flow>` | Fixed native menu/results review; `flow` verifies play, pause, resume, retry, victory, keep swimming, the Fishdex and settings through Unity Submit and Move events |
 | `-settingspage <n>` | With `-interface settings`, show page `n` (0 display, 1 graphics, 2 sound & play) |
-| `-set <key=value,...>` | Pin settings for a test run by field name, e.g. `-set vSync=false,maxFps=0` or `renderScale=200,msaa=8`; test runs never save settings |
+| `-set <key=value,...>` | Pin settings for a test run by field name, e.g. `-set vSync=false,maxFps=0` or `renderScale=200,msaa=8` |
 | `-scenery kelp -turn-review -turn <facing>` | Hold facing interpolation near the midpoint for native turn-visibility regression captures |
 | `-scenery <reef\|kelp\|abyss\|surface>` | Fixed camera, fish placement and visual time for native environment comparisons; saves `scenery.png` after 3.1 seconds |
 | `-scenery <name> -ripple` | Send a water ripple from the hero just before the shot |
@@ -74,7 +74,7 @@ Sprite detail sets how finely the game paints its generated effects (pearls, bub
 | `-pearlevery <s>` | Drop a pearl every N seconds, cycling shield, magnet, burst and lantern |
 | `-timescale <x>` / `-mute` / `-nopause` | Speed up, silence, don't pause on focus loss |
 
-Every harness run ends with an exit code: 0 when it ran cleanly, 1 when a check failed, anything logged an error or exception, or a flow stalled before `-quitafter`. The log's last `[DeepFeast] exit` line gives the reason. Headless `flow` and `-padtest` runs quit as soon as their flow passes.
+A run with any of these flags (other than `-mute`), or any `-batchmode` run, is a test run: it never saves the best score, Fishdex, settings or mute switch. Every harness run ends with an exit code: 0 when it ran cleanly, 1 when a check failed, anything logged an error or exception, or a flow stalled before `-quitafter`. The log's last `[DeepFeast] exit` line gives the reason. Headless `flow` and `-padtest` runs quit as soon as their flow passes.
 
 ## Code map (`unity/Assets/Scripts`)
 

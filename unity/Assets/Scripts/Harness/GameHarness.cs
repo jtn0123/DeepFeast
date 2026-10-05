@@ -19,6 +19,13 @@ namespace DeepFeast
         string captureName;
         Recorder recorder;
 
+        // Every flag that makes a run a test or review rather than play.
+        static readonly string[] HarnessFlags =
+        {
+            "-autoplay", "-gallery", "-padtest", "-scenery", "-interface", "-shots", "-shotevery", "-quitafter", "-record",
+            "-size", "-startx", "-shark", "-sharkvariant", "-finale", "-pearlevery", "-timescale", "-set", "-notch",
+            "-dumpart", "-nopause",
+        };
         static string[] args;
         static bool Has(string k) => Array.IndexOf(args, k) >= 0;
         static string Arg(string k) { int i = Array.IndexOf(args, k); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; }
@@ -27,6 +34,8 @@ namespace DeepFeast
         void ParseArgs()
         {
             args = Environment.GetCommandLineArgs();
+            persist = !Application.isBatchMode && !Array.Exists(HarnessFlags, Has);
+            if (!persist) Debug.Log("[DeepFeast] test run: the best score, Fishdex, settings and mute switch are not saved");
             autoplay = Has("-autoplay");
             gallery = Has("-gallery");
             padTest = Has("-padtest");

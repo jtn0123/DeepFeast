@@ -16,11 +16,14 @@ namespace DeepFeast
         // The player's volume settings, 0 to 1.
         float master = 1, effects = 1;
         const float Listener = 0.5f, AmbientLevel = 0.22f;
+        // Test runs never save the mute switch.
+        readonly bool persist;
 
         // A recording keeps its sound whatever the mute: the audio renderer takes the whole mix and the
         // speakers get silence.
-        public Sfx(GameObject host, bool forceMute, bool recording = false)
+        public Sfx(GameObject host, bool persist, bool forceMute, bool recording = false)
         {
+            this.persist = persist;
             for (int i = 0; i < voices.Length; i++)
             {
                 voices[i] = host.AddComponent<AudioSource>();
@@ -40,8 +43,7 @@ namespace DeepFeast
         public void SetMuted(bool m)
         {
             Muted = m;
-            PlayerPrefs.SetInt("deepfeast.muted", m ? 1 : 0);
-            PlayerPrefs.Save();
+            if (persist) { PlayerPrefs.SetInt("deepfeast.muted", m ? 1 : 0); PlayerPrefs.Save(); }
             AudioListener.volume = m ? 0 : Listener * master;
         }
 
