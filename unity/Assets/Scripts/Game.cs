@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using UnityEngine;
 
 namespace DeepFeast
@@ -67,9 +66,6 @@ namespace DeepFeast
         bool Powered(PearlKind k) => power[(int)k] > 0;
         float MagnetReach => player.r * 6 + 60;
         FishView playerView;
-        RenderTexture captureTarget;
-        string captureName;
-        Recorder recorder;
         SpriteRenderer playerGlow, shieldRing, shieldFill, shieldShine;
         readonly SpriteRenderer[] stunStars = new SpriteRenderer[3];
 
@@ -86,22 +82,12 @@ namespace DeepFeast
         readonly Dictionary<float, Sprite> bellSprites = new Dictionary<float, Sprite>();
         Sprite pearlSprite, pearlStar, pearlRing;
         int nextId = 1, nextSharkVariant, pearlSeq;
+        bool portraitsTaken;
 
         // ------------------------------------------------------------------ input
         bool kbMode, pointerMode, touchMode;
         Vector2 pointer;
         Vector3 lastMouse;
-
-        // ------------------------------------------------------------------ test harness (command line)
-        bool autoplay, noPause, gallery, animateGallery, padTest;
-        string shotDir, scenery, interfaceReview;
-        // How long the bot's hero barely moved, out of how long it was watched, since the last stat:
-        // sampled every quarter second against the distance it covers at a third of its cruising speed.
-        float botStill, botWatch, botSample;
-        Vector2 botFrom;
-        float worstFrame, shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, finaleDelay = 12, pearlEvery, realTime, statT, botWanderDir = 1, restartT = -1, notch;
-        int shotN, uiFlowStage, captureFrame = -1, gcSeen;
-        bool menuShotDone, turnReviewLogged, portraitsTaken, rippleShown, harnessRun, exiting, flowDone;
 
         float FocusR => pActive ? player.r : 22;
         float ViewW => refW / zoom;
@@ -115,9 +101,6 @@ namespace DeepFeast
         void Awake()
         {
             ParseArgs();
-            // A test or review run fails on the first error or exception it logs.
-            if (harnessRun) Application.logMessageReceived += FailOnError;
-            if (scenery != null) UnityEngine.Random.InitState(20261003);
             Application.runInBackground = true;
             GameSettings.Load(Persist, Arg("-set"));
             GameSettings.ApplyAtBoot();
@@ -156,12 +139,7 @@ namespace DeepFeast
 
             sfx = new Sfx(gameObject, autoplay || Has("-mute"), recorder?.Audio == true);
             hud = new Hud();
-            if (Application.isBatchMode && shotDir != null)
-            {
-                captureTarget = new RenderTexture((int)ArgF("-screen-width", 1280), (int)ArgF("-screen-height", 720), 24);
-                captureTarget.Create();
-                hud.UseCaptureCamera(presenter.CaptureTo(captureTarget));
-            }
+            SetupCapture();
             hud.OnPlay = StartGame;
             hud.OnResume = () => TogglePause(false);
             hud.OnMute = ToggleMute;
@@ -180,9 +158,7 @@ namespace DeepFeast
             zoom = Data.ZoomFor(22);
             for (int i = 0; i < 60; i++) SpawnOne(true);
             lastMouse = Input.mousePosition;
-            if (gallery) SetupGallery();
-            if (scenery != null) SetupScenery();
-            if (interfaceReview != null) SetupInterface();
+            SetupReview();
         }
 
         void BuildPlayerView()
@@ -271,377 +247,13 @@ namespace DeepFeast
             return r.ToSprite(Vector2.zero, 64);
         }
 
-        // ================================================================== args / harness
-        static string[] args;
-        static bool Has(string k) => Array.IndexOf(args, k) >= 0;
-        static string Arg(string k) { int i = Array.IndexOf(args, k); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; }
-        static float ArgF(string k, float d) => float.TryParse(Arg(k), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : d;
-
-        void ParseArgs()
-        {
-            args = Environment.GetCommandLineArgs();
-            autoplay = Has("-autoplay");
-            gallery = Has("-gallery");
-            padTest = Has("-padtest");
-            animateGallery = Has("-animate-gallery") || Has("-animate-turns");
-            scenery = Arg("-scenery");
-            interfaceReview = Arg("-interface");
-            if (interfaceReview != null && scenery == null) scenery = "reef";
-            noPause = autoplay || padTest || scenery != null || Has("-nopause");
-            shotDir = Arg("-shots");
-            shotEvery = ArgF("-shotevery", 15);
-            quitAfter = ArgF("-quitafter", 0);
-            startSize = ArgF("-size", 0);
-            startX = ArgF("-startx", -1);
-            firstShark = ArgF("-shark", -1);
-            nextSharkVariant = (int)ArgF("-sharkvariant", 0);
-            finaleDelay = ArgF("-finale", 12);
-            // Test runs can drop pearls on a fixed beat, cycling through every kind.
-            pearlEvery = ArgF("-pearlevery", 0);
-            notch = ArgF("-notch", 0);
-            float ts = ArgF("-timescale", 1);
-            if (ts != 1) Time.timeScale = ts;
-            if (shotDir != null) System.IO.Directory.CreateDirectory(shotDir);
-            if (shotDir != null && Application.isBatchMode && ArgF("-record", 0) > 0) recorder = new Recorder(shotDir, ArgF("-record", 0));
-            harnessRun = autoplay || gallery || padTest || scenery != null || shotDir != null || quitAfter > 0;
-            Raster.DumpDir = Arg("-dumpart");
-            if (Raster.DumpDir != null) System.IO.Directory.CreateDirectory(Raster.DumpDir);
-        }
-
-        void Shot(string name)
-        {
-            if (shotDir == null) return;
-            if (captureTarget != null) { captureName = name; return; }
-            ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(shotDir, name + ".png"));
-            Debug.Log($"[DeepFeast] shot {name}");
-        }
-
-        // A real native-player camera capture when no display/backbuffer is available, including the same uGUI HUD.
-        void LateUpdate()
-        {
-            if (recorder != null && captureTarget != null)
-            {
-                Canvas.ForceUpdateCanvases();
-                presenter.RenderNow();
-                recorder.Frame(captureTarget);
-            }
-            if (captureName == null) return;
-            Canvas.ForceUpdateCanvases();
-            presenter.RenderNow();
-            var old = RenderTexture.active;
-            var image = new Texture2D(captureTarget.width, captureTarget.height, TextureFormat.RGB24, false);
-            try
-            {
-                RenderTexture.active = captureTarget;
-                image.ReadPixels(new Rect(0, 0, image.width, image.height), 0, 0);
-                image.Apply();
-                System.IO.File.WriteAllBytes(System.IO.Path.Combine(shotDir, captureName + ".png"), image.EncodeToPNG());
-                Debug.Log($"[DeepFeast] native camera shot {captureName} ({image.width}x{image.height})");
-            }
-            finally { RenderTexture.active = old; Destroy(image); captureName = null; captureFrame = Time.frameCount; }
-        }
-
         void OnDestroy()
         {
             GameSettings.Changed -= ApplySettings;
-            Application.logMessageReceived -= FailOnError;
-            recorder?.Close();
-            if (captureTarget == null) return;
-            captureTarget.Release();
-            Destroy(captureTarget);
-        }
-
-        // A harness run ends with an exit code a script can check: 0 when it ran cleanly, 1 when a
-        // check failed, anything logged an error or exception, or a flow had not finished in time.
-        void Exit(int code, string why)
-        {
-            if (exiting) return;
-            exiting = true;
-            Debug.Log($"[DeepFeast] exit {code}: {why}");
-            Application.Quit(code);
-        }
-
-        void FailOnError(string message, string stack, LogType type)
-        {
-            if (type == LogType.Error || type == LogType.Exception || type == LogType.Assert) Exit(1, $"{type}: {message}");
-        }
-
-        void QuitWhenDue()
-        {
-            if (quitAfter <= 0 || realTime < quitAfter) return;
-            bool flow = padTest || interfaceReview == "flow";
-            if (flow && !flowDone) Exit(1, $"the {(padTest ? "gamepad" : "UI")} flow stalled at stage {(padTest ? padStage : uiFlowStage)} by {quitAfter} s");
-            else Exit(0, "quit after " + quitAfter);
-        }
-
-        // A finished flow has nothing more to show, so a headless run ends there.
-        void FlowPassed(string flow)
-        {
-            Debug.Log($"[DeepFeast] complete {flow} flow passed.");
-            flowDone = true;
-            if (Application.isBatchMode) Exit(0, flow + " flow passed");
-        }
-
-        void Harness(float rdt)
-        {
-            realTime += rdt;
-            QuitWhenDue();
-            if (padTest) { PadFlow(); return; }
-            if (!autoplay && shotDir == null) return;
-            if (state == GState.Menu && realTime > 2.5f)
-            {
-                if (!menuShotDone) { menuShotDone = true; Shot("menu"); return; }
-                if (autoplay && realTime > 3) { StartGame(); nextShot = 4; }
-            }
-            if (state == GState.Play && shotDir != null && playTime >= nextShot)
-            {
-                Shot($"play_{shotN++:00}_t{(int)playTime}_r{(int)player.r}");
-                nextShot = playTime + shotEvery;
-            }
-            if (state == GState.Play && autoplay)
-            {
-                statT -= rdt;
-                botWatch += rdt;
-                if ((botSample -= rdt) <= 0)
-                {
-                    botSample = 0.25f;
-                    if (Dist(player.x - botFrom.x, player.y - botFrom.y) < Data.SpeedFor(player.r) * 0.3f * 0.25f) botStill += 0.25f;
-                    botFrom = new Vector2(player.x, player.y);
-                }
-                // Every long frame is reported with what it overlapped: a screenshot being written
-                // (test runs only) or a garbage collection. A recording's frames are all slow by design.
-                int gc = System.GC.CollectionCount(0);
-                if (recorder == null && Time.unscaledDeltaTime > 0.05f)
-                    Debug.Log($"[DeepFeast] long frame {Time.unscaledDeltaTime * 1000:0} ms at t={playTime:0.0}: " +
-                        (captureFrame == Time.frameCount - 1 ? "after a screenshot" : gc != gcSeen ? $"garbage collection ({System.GC.CollectionCount(1)} gen1, {System.GC.CollectionCount(2)} gen2 so far)" : "no capture or collection") +
-                        $", fish={fish.Count}, particles={parts.list.Count}");
-                gcSeen = gc;
-                // Screenshots are the harness's own cost, not the game's.
-                if (captureFrame != Time.frameCount - 1) worstFrame = Mathf.Max(worstFrame, Time.unscaledDeltaTime);
-                if (statT <= 0)
-                {
-                    statT = 10;
-                    Debug.Log($"[DeepFeast] stat t={(int)playTime} r={player.r:0.0} tier={Data.Tiers[tier].name} lives={lives} score={score} eaten={eaten} fish={fish.Count} fps={1f / Mathf.Max(1e-4f, Time.smoothDeltaTime):0} worst={worstFrame * 1000:0}ms still={100 * botStill / Mathf.Max(botWatch, 1e-3f):0}%");
-                    botStill = botWatch = 0;
-                    // The cast around the player shows that spawns follow the habitat.
-                    var cast = new SortedDictionary<string, int>();
-                    foreach (var f in fish) { cast.TryGetValue(f.sp.key, out int n); cast[f.sp.key] = n + 1; }
-                    Debug.Log($"[DeepFeast] cast y={player.y:0} zone={Habitat.At(player.y).name}: " + string.Join(", ", System.Linq.Enumerable.Select(cast, c => c.Key + "=" + c.Value)));
-                    worstFrame = 0;
-                }
-            }
-            if (state == GState.Victory && autoplay)
-            {
-                if (restartT < 0) { restartT = 3; }
-                restartT -= rdt;
-                if (restartT <= 1.5f && restartT + rdt > 1.5f) Shot($"victory_{shotN++:00}");
-                if (restartT <= 0) { restartT = -1; hud.SubmitPrimary(); nextShot = playTime + 2; }
-            }
-            if (state == GState.Over && autoplay)
-            {
-                if (restartT < 0) { restartT = 2.5f; }
-                restartT -= rdt;
-                if (restartT <= 1.2f && restartT + rdt > 1.2f) Shot($"over_{shotN++:00}");
-                if (restartT <= 0) { restartT = -1; StartGame(); nextShot = playTime + 2; }
-            }
-        }
-
-        // -gallery: every species side by side at one size, plus jellies and a pearl, for art review
-        void SetupGallery()
-        {
-            state = GState.Play;
-            hud.StartPlay();
-            foreach (var f in fish) ReleaseView(f);
-            fish.Clear(); schools.Clear();
-            var all = Data.AllSpecies;
-            zoom = 1.5f;
-            cam = new Vector2(10200, 1300);
-            int columns = all.Count > 30 ? 8 : 6;
-            int slots = all.Count + 3, rows = Mathf.CeilToInt(slots / (float)columns);
-            float cw = refW / columns / zoom, top = cam.y - refH / 2 / zoom;
-            for (int i = 0; i < slots; i++)
-            {
-                float x = cam.x + (i % columns - (columns - 1) * 0.5f) * cw;
-                float y = top + (105 + (i / columns + 0.5f) * (refH - 125) / rows) / zoom;
-                if (i < all.Count)
-                {
-                    var f = MakeFish(all[i], 26, x, y, 1);
-                    // -stage <tier index> shows the hero's look at that growth stage.
-                    if (all[i] == Data.Player) f.stage = ArgF("-stage", 0);
-                    fish.Add(f);
-                }
-                else if (i < all.Count + 2) AddJelly(x, y - 20, 20, i == all.Count ? 270 : 190);
-                else
-                    for (int k = 0; k < Powers.Count; k++) AddPearl(x + (k - 1.5f) * cw * 0.22f, y, 9, (PearlKind)k);
-            }
-            // Detail reviews: -zoom <times> moves in close, on -focus <species key> if given.
-            zoom *= ArgF("-zoom", 1);
-            string focusKey = Arg("-focus");
-            if (focusKey != null)
-            {
-                var focus = fish.Find(f => f.sp.key == focusKey);
-                if (focus != null) cam = new Vector2(focus.x, focus.y);
-                else Debug.LogWarning($"[DeepFeast] -focus: no species with key '{focusKey}'.");
-            }
-            Debug.Log($"[DeepFeast] native gallery: {all.Count} catalog identities, {columns} columns, {rows} rows; " +
-                string.Join(", ", System.Linq.Enumerable.Select(all, sp => sp.key + "=" + sp.displayName)));
-        }
-
-        void Gallery(float rdt)
-        {
-            realTime += rdt; time += rdt;
-            foreach (var f in fish) f.wag += rdt * 5;
-            foreach (var j in jellies) j.phase += rdt * j.pf;
-            if (animateGallery)
-            {
-                float poseTime = time % 2.1f;
-                float mouth = poseTime < 0.55f ? 0 : poseTime < 0.75f ? Mathf.InverseLerp(0.55f, 0.75f, poseTime) :
-                    poseTime < 0.98f ? 1 : poseTime < 1.17f ? 1 - Mathf.InverseLerp(0.98f, 1.17f, poseTime) : 0;
-                foreach (var f in fish)
-                {
-                    if (Has("-animate-turns")) { f.faceS = Mathf.Cos(time * Mathf.PI / 1.6f); f.face = f.faceS < 0 ? -1 : 1; }
-                    f.mouth = mouth;
-                    f.chomp = poseTime >= 0.98f && poseTime < 1.2f ? 1.2f - poseTime : 0;
-                    f.state = mouth > 0.4f && f.sp != Data.Player ? FState.Chase : FState.Wander;
-                }
-                if (realTime >= nextShot) { Shot($"pose_{shotN++:000}"); nextShot += Mathf.Max(1 / 30f, shotEvery); }
-                QuitWhenDue();
-                return;
-            }
-            if (shotN == 0 && realTime > 2.5f) { Shot("gallery"); shotN = 1; }
-            if (shotN == 1 && realTime > 3.5f) { foreach (var f in fish) { f.state = f.sp == Data.Player ? FState.Wander : FState.Chase; f.mouth = 1; } shotN = 2; }
-            if (shotN == 2 && realTime > 4.5f) { Shot("gallery_bite"); shotN = 3; }
-            QuitWhenDue();
+            CloseHarness();
         }
 
         // ================================================================== flow
-        // Fixed native camera/creatures/time for comparable environment reviews; normal gameplay never enters this path.
-        void SetupScenery()
-        {
-            StartGame();
-            foreach (var f in fish) ReleaseView(f);
-            fish.Clear(); schools.Clear();
-            foreach (var j in jellies) DestroyJelly(j);
-            jellies.Clear();
-            hud.ClearTexts();
-            float x = scenery == "abyss" ? 11000 : scenery == "kelp" ? 7200 : scenery == "surface" ? 8600 : 5500;
-            zoom = 1.05f;
-            cam = new Vector2(x, scenery == "surface" ? 340 : world.FloorY(x) - 260);
-            // -size shrinks the hero so the review fish become threats.
-            player.r = startSize > 0 ? startSize : 22; tier = 1; pInvuln = 0;
-            player.x = x; player.y = cam.y; player.wag = 2;
-            var species = new[] { Data.SpeciesMap["clown"], Data.SpeciesMap["tang"], Data.SpeciesMap["snapper"], Data.SpeciesMap["angel"] };
-            for (int i = 0; i < species.Length; i++)
-            {
-                float fx = x + (i - 1.5f) * 250;
-                // -nearfloor: the fish swim just above the sand, to review their shadows.
-                float fy = Has("-nearfloor") ? world.FloorY(fx) - 40 - i * 45 : cam.y - 100 + (i % 2) * 90;
-                fish.Add(MakeFish(species[i], 17 + i * 2, fx, fy, i % 2 == 0 ? 1 : -1));
-            }
-            Debug.Log($"[DeepFeast] scenery {scenery}: camera={cam}, zoom={zoom}, fixed seed=20261003.");
-        }
-
-        void Scenery(float rdt)
-        {
-            realTime += rdt;
-            // Checked first: a flow whose check failed or stalled still ends on time.
-            QuitWhenDue();
-            if (interfaceReview == "flow")
-            {
-                time = 2;
-                InterfaceFlow();
-                return;
-            }
-            bool animate = Has("-animate-scenery");
-            time = 2 + (animate ? shotN * shotEvery : 0);
-            // -ripple: a ring from the hero just before the shot, as a hit would send.
-            if (Has("-ripple") && !rippleShown && realTime > 2.8f) { rippleShown = true; Ripple(player.x, player.y, 1.6f); }
-            foreach (var f in fish) f.wag = time * 5;
-            player.wag = time * 5;
-            if (Has("-turn-review"))
-            {
-                player.face = -1; player.faceS = ArgF("-turn", 0.01f);
-                foreach (var f in fish) { f.face = -1; f.faceS = player.faceS; }
-            }
-            if (realTime > 3.1f && (shotN == 0 || animate && realTime >= nextShot))
-            {
-                Shot(animate ? $"scenery_{shotN:000}" : interfaceReview != null ? "interface" : Has("-turn-review") ? "turn" : "scenery");
-                shotN++; nextShot = realTime + shotEvery;
-            }
-        }
-
-        void SetupInterface()
-        {
-            if (interfaceReview == "menu" || interfaceReview == "flow") { state = GState.Menu; pActive = false; hud.ShowMenu(4240); }
-            else if (interfaceReview == "pause") { state = GState.Paused; hud.ShowPause(true); }
-            else if (interfaceReview == "victory") { state = GState.Victory; hud.ShowVictory(48210, 512, 1312, 48210); }
-            else if (interfaceReview == "settings")
-            {
-                state = GState.Menu; pActive = false; hud.ShowMenu(4240); hud.OpenSettings();
-                // -settingspage N shows another page; its first row takes focus.
-                for (int i = 0; i < (int)ArgF("-settingspage", 0); i++) hud.SettingsTab(1);
-            }
-            else if (interfaceReview == "dex")
-            {
-                // A sample collection: most of the reef and kelp, a little of the deep, no sharks yet.
-                for (int i = 0; i < Fishdex.Entries.Count; i++) if (i % 5 < 3 && !Fishdex.Entries[i].IsShark) Fishdex.Record(Fishdex.Entries[i]);
-                state = GState.Menu; pActive = false; hud.ShowMenu(4240); hud.OpenDex();
-            }
-            else { state = GState.Over; pActive = false; hud.ShowOver(2340, "Predator", 42, 164, false, 4240, 3); }
-        }
-
-        void InterfaceFlow()
-        {
-            void Check(GState expected, string overlay, string action)
-            {
-                if (state != expected || hud.ActiveOverlay != overlay)
-                    throw new InvalidOperationException($"UI flow {action} failed: state={state}, overlay={hud.ActiveOverlay}.");
-                Debug.Log($"[DeepFeast] UI flow {action} passed: state={state}, overlay={overlay}.");
-            }
-            void CheckSetting(bool ok, string action)
-            {
-                if (!ok) throw new InvalidOperationException($"UI flow {action} failed: selected={hud.Selected}, settings={JsonUtility.ToJson(GameSettings.Data)}.");
-                Debug.Log($"[DeepFeast] UI flow {action} passed: selected={hud.Selected}.");
-            }
-            switch (uiFlowStage)
-            {
-                case 0 when realTime > 3.2f: Shot("menu"); uiFlowStage++; break;
-                case 1 when realTime > 3.8f: hud.SubmitPrimary(); pInvuln = 0; Check(GState.Play, "none", "play submit"); uiFlowStage++; break;
-                case 2 when realTime > 4.4f: TogglePause(true); Check(GState.Paused, "pause", "pause"); uiFlowStage++; break;
-                case 3 when realTime > 4.8f: Shot("pause"); uiFlowStage++; break;
-                case 4 when realTime > 5.4f: hud.SubmitPrimary(); Check(GState.Play, "none", "resume submit"); uiFlowStage++; break;
-                case 5 when realTime > 5.8f: Shot("resumed"); uiFlowStage++; break;
-                case 6 when realTime > 6.4f: GameOver(); Check(GState.Over, "over", "game over"); uiFlowStage++; break;
-                case 7 when realTime > 7: Shot("over"); uiFlowStage++; break;
-                case 8 when realTime > 7.4f: hud.SubmitPrimary(); Check(GState.Play, "none", "retry submit"); uiFlowStage++; break;
-                case 9 when realTime > 8: Victory(); Check(GState.Victory, "victory", "victory"); uiFlowStage++; break;
-                case 10 when realTime > 8.6f: Shot("victory"); uiFlowStage++; break;
-                case 11 when realTime > 9: hud.SubmitPrimary(); Check(GState.Play, "none", "keep swimming submit"); uiFlowStage++; break;
-                case 12 when realTime > 9.6f: GameOver(); Check(GState.Over, "over", "second game over"); uiFlowStage++; break;
-                case 13 when realTime > 10: hud.SubmitButton("FISHDEX"); Check(GState.Over, "fishdex", "fishdex submit"); uiFlowStage++; break;
-                case 14 when realTime > 10.6f: Shot("fishdex"); uiFlowStage++; break;
-                case 15 when realTime > 11: hud.SubmitButton("BACK"); Check(GState.Over, "over", "fishdex back"); uiFlowStage++; break;
-                case 16 when realTime > 11.4f: hud.SubmitPrimary(); Check(GState.Play, "none", "retry after fishdex"); uiFlowStage++; break;
-                case 17 when realTime > 11.8f: TogglePause(true); Check(GState.Paused, "pause", "pause again"); uiFlowStage++; break;
-                case 18 when realTime > 12.2f: hud.SubmitButton("SETTINGS"); Check(GState.Paused, "settings", "settings submit"); uiFlowStage++; break;
-                case 19 when realTime > 12.8f: Shot("settings"); uiFlowStage++; break;
-                case 20 when realTime > 13.2f:
-                    hud.FocusSetting("master"); hud.MoveFocused(UnityEngine.EventSystems.MoveDirection.Left);
-                    CheckSetting(GameSettings.Data.master == 90, "left lowers the master volume");
-                    uiFlowStage++; break;
-                case 21 when realTime > 13.8f:
-                    Shot("settings_sound"); hud.MoveFocused(UnityEngine.EventSystems.MoveDirection.Right);
-                    CheckSetting(GameSettings.Data.master == 100, "right raises it again");
-                    uiFlowStage++; break;
-                case 22 when realTime > 14.2f:
-                    hud.SubmitButton("BACK"); Check(GState.Paused, "pause", "settings back");
-                    CheckSetting(hud.Selected == "Button_SETTINGS", "focus returns to the settings button");
-                    uiFlowStage++; break;
-                case 23 when realTime > 14.6f: hud.SubmitPrimary(); Check(GState.Play, "none", "resume after settings"); uiFlowStage++; break;
-                case 24 when realTime > 15: uiFlowStage++; FlowPassed("native UI"); break;
-            }
-        }
-
         void StartGame()
         {
             foreach (var f in fish) ReleaseView(f);
@@ -1074,16 +686,7 @@ namespace DeepFeast
             float dt = Mathf.Min(0.05f, Time.deltaTime);
             GameSettings.Tick(rdt);
             Resize();
-            if (scenery != null)
-            {
-                Scenery(rdt); Render(0, rdt);
-                if (Has("-turn-review") && !turnReviewLogged && realTime > 3.2f)
-                {
-                    turnReviewLogged = true;
-                    Debug.Log($"[DeepFeast] turn review: player width ratio={Mathf.Abs(playerView.root.transform.localScale.x):0.000}.");
-                }
-                return;
-            }
+            if (scenery != null) { Scenery(rdt); Render(0, rdt); return; }
             if (gallery) { Gallery(rdt); Render(rdt, rdt); return; }
             ReadInput();
             Harness(rdt);
@@ -1732,99 +1335,6 @@ namespace DeepFeast
                 cam.y = Mathf.Min(cam.y, player.y - reach + hh - HudTop / zoom);
             }
             shake *= Mathf.Exp(-dt * 7);
-        }
-
-        // ------------------------------------------------------------------ bot (for -autoplay testing and recordings)
-        // The bot plays the way a person does: it picks a meal and stays on it, gives up on one it cannot
-        // catch, flees hunters, and cruises on through open water when nothing is in reach. Its heading
-        // turns like a swimmer's, so it never dithers between two meals or hangs against the surface.
-        Fish botTarget, botSkip;
-        float botChase;
-        Vector2 botHeading = Vector2.right;
-
-        Vector2 BotSteer(float dt, out bool dash)
-        {
-            dash = false;
-            float pr = player.r;
-            Vector2 avoid = Vector2.zero;
-            foreach (var f in fish)
-            {
-                if (f == finale || f.r < pr * Data.DANGER) continue;
-                float dx = f.x - player.x, dy = f.y - player.y, d = Mathf.Max(1, Dist(dx, dy));
-                bool hunting = f.state == FState.Chase;
-                float R = f.r * (hunting ? 4.5f : 2.6f) + pr * 5;
-                if (d >= R) continue;
-                float w = 1 - d / R; w *= w * (hunting ? 9 : 4);
-                avoid -= new Vector2(dx, dy) / d * w;
-                if (hunting && d < f.r * 2.4f + pr * 4) dash = true;
-            }
-            foreach (var j in jellies)
-            {
-                float dx = j.x - player.x, dy = j.y + j.r * 0.7f - player.y, d = Mathf.Max(1, Dist(dx, dy));
-                float R = j.r * 3 + pr * 3;
-                if (d < R) { float w = 1 - d / R; avoid -= new Vector2(dx, dy) / d * w * w * 6; }
-            }
-
-            // A meal is kept until it is eaten, outgrows the hero or outruns it for four seconds; one
-            // that got away is left alone after that. Only a clearly better meal takes its place.
-            if (botTarget != null && (!fish.Contains(botTarget) || botTarget.r > pr * Data.EAT || botChase > 4))
-            {
-                if (botChase > 4) botSkip = botTarget;
-                botTarget = null;
-            }
-            Fish best = null;
-            float bestV = 0, heldV = 0;
-            foreach (var f in fish)
-            {
-                if (f == finale || f == botSkip || f.r > pr * Data.EAT) continue;
-                float v = (f.r / pr) / (Dist(f.x - player.x, f.y - player.y) + pr * 3);
-                if (f == botTarget) heldV = v;
-                if (v > bestV) { bestV = v; best = f; }
-            }
-            if (best != null && best != botTarget && (botTarget == null || bestV > heldV * 1.5f)) { botTarget = best; botChase = 0; }
-            botChase += dt;
-
-            Vector2 seek;
-            float close = float.MaxValue;
-            Pearl pearl = null;
-            foreach (var p in pearls)
-            {
-                float d = Dist(p.x - player.x, p.y - player.y);
-                if (d < close) { close = d; pearl = p; }
-            }
-            if (finale != null)
-            {
-                // The finale is worth more than any snack: follow the gold arrow and dash in close.
-                float dx = finale.x - player.x, dy = finale.y - player.y, d = Mathf.Max(1, Dist(dx, dy));
-                seek = new Vector2(dx, dy) / d * 4; close = d;
-                if (d < pr * 6 && pStamina > 0.4f) dash = true;
-            }
-            else if (pearl != null) seek = new Vector2(pearl.x - player.x, pearl.y - player.y) / Mathf.Max(1, close) * 1.5f;
-            else if (botTarget != null)
-            {
-                float dx = botTarget.x - player.x, dy = botTarget.y - player.y, d = Mathf.Max(1, Dist(dx, dy));
-                seek = new Vector2(dx, dy) / d; close = d;
-                // A meal that keeps slipping away earns a short lunge, as a player would make.
-                if (botChase > 1.2f && d < pr * 5 && pStamina > 0.3f) dash = true;
-            }
-            else
-            {
-                // Nothing in reach: cruise on through the middle of the water, where new fish turn up.
-                if (player.x < 600) botWanderDir = 1; else if (player.x > World.W - 600) botWanderDir = -1;
-                float top = pr * 2 + 60, bottom = world.FloorY(player.x) - pr * 2.5f;
-                float level = bottom > top ? Mathf.Clamp(player.y, top, bottom) : (top + bottom) / 2;
-                seek = new Vector2(botWanderDir, Mathf.Clamp((level - player.y) / (pr * 4), -0.7f, 0.7f));
-            }
-
-            var want = seek + avoid;
-            // Pressing into the seabed or the surface gets nowhere: slide along it instead.
-            if (want.y > 0 && world.FloorY(player.x) - player.y < pr * 1.2f) want.y = 0;
-            if (want.y < 0 && player.y < pr * 1.2f) want.y = 0;
-            if (want.sqrMagnitude < 1e-4f) want = new Vector2(botWanderDir, 0);
-            // Fleeing and the last stretch to a meal turn sharply; otherwise the hero eases round.
-            float turn = avoid.sqrMagnitude > 1 ? 10 : close < pr * 5 ? 12 : 5;
-            botHeading = ((Vector2)Vector3.RotateTowards(botHeading, want.normalized, dt * turn, 0)).normalized;
-            return botHeading;
         }
 
         // ================================================================== rendering glue

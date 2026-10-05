@@ -78,7 +78,7 @@ Every harness run ends with an exit code: 0 when it ran cleanly, 1 when a check 
 
 ## Code map (`unity/Assets/Scripts`)
 
-- `Game.cs` — state machine, player, fish AI, spawning, camera, render glue, bot
+- `Game.cs` — state machine, player, fish AI, spawning, camera, render glue
 - `FishArt.cs` — species/shape data and the baked fish sprites + fish rig
 - `PaintedArt.cs` / `Resources/Concept/painted-atlas.json` — twelve painted species, aligned pose keys, deformable meshes and reef props
 - `EnvironmentArt.cs` / `Shaders/PlantSway.shader` — shared painted plant/reef meshes, rooted current deformation and water fog
@@ -88,9 +88,10 @@ Every harness run ends with an exit code: 0 when it ran cleanly, 1 when a check 
 - `Hud.cs` — uGUI HUD, banners, power-up timers, menus and the Fishdex screen built in code
 - `HudSettings.cs` / `GameSettings.cs` — the settings card and its option rows; saving and applying display, frame-rate, graphics and sound options
 - `Presenter.cs` / `Shaders/PostFx.shader` — draws the scene into a scaled, multisampled target and presents it under the HUD with glow, grading and ripples
-- `PadInput.cs` — gamepad steering, dash, pause and the `-padtest` virtual-pad check
+- `PadInput.cs` — gamepad steering, dash and pause
 - `Fishdex.cs` — saved species discoveries and the portraits photographed from the 3D models
 - `Sfx.cs` — synthesised sound effects and ambience
+- `Harness/` — the command-line test harness, kept out of the game code: flags, screenshots, recording and exit codes (`GameHarness.cs`), the gallery, scenery and UI-flow reviews (`GameReviews.cs`), the autoplay bot (`GameBot.cs`), the `-padtest` virtual-pad check (`PadFlow.cs`), `-record` (`Recorder.cs`) and the species and turn reviews (`SpeciesVisualReview.cs`, `FishTurnReview.cs`)
 - `Raster.cs` / `Draw.cs` / `Util.cs` — software rasteriser (with blur / pseudo-3D lighting), mesh drawing helpers, noise, procedural textures
 
 The display font is [Lilita One](https://fonts.google.com/specimen/Lilita+One) by Juan Montoreano, used under the SIL Open Font License (`unity/Assets/Resources/Fonts/OFL.txt`).
