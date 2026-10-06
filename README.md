@@ -13,12 +13,15 @@ A Feeding Frenzy–style fish game: start as a tiny fry, eat anything smaller, d
 2. Open any scene (or `Assets/Scenes/Main.unity`) and press Play — `Bootstrap` builds the whole game from code.
 3. Menu **Deep Feast → Build macOS / Build WebGL** for players (output goes to `unity/Builds/`, git-ignored).
 
-Headless build:
+Headless build and checks (macOS; set `UNITY=/path/to/Unity` if the editor isn't in the default Hub folder):
 
 ```sh
-/Applications/Unity/Hub/Editor/6000.3.25f1/Unity.app/Contents/MacOS/Unity \
-  -batchmode -quit -projectPath unity -executeMethod DeepFeast.EditorTools.Build.Mac -logFile -
+tools/build.sh                     # build the macOS player; fails on errors, warnings or a failed art validation
+tools/verify.sh                    # build, then run the UI flow, gamepad flows, autoplay and menu captures; run before committing
+tools/run.sh <outdir> <name> ...   # one test run of the built player with any harness flags below
 ```
+
+`tools/run.sh` always runs the player with `-batchmode -mute` and adds `-quitafter 300` if the flags don't set a deadline. It prints the run's `[DeepFeast] exit` line and returns its exit code.
 
 ### Controls
 
