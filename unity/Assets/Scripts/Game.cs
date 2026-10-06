@@ -148,8 +148,9 @@ namespace DeepFeast
             GameSettings.Changed += ApplySettings;
             ApplySettings();
 
-            best = PlayerPrefs.GetInt("deepfeast.best", 0);
-            deepBest = PlayerPrefs.GetInt("deepfeast.deep", 0);
+            // A test run starts from no records, so its results don't depend on this Mac's saves.
+            best = persist ? PlayerPrefs.GetInt("deepfeast.best", 0) : 0;
+            deepBest = persist ? PlayerPrefs.GetInt("deepfeast.deep", 0) : 0;
             Fishdex.Load(persist);
             hud.ShowMenu(best);
 

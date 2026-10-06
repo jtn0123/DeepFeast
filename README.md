@@ -77,8 +77,9 @@ Sprite detail sets how finely the game paints its generated effects (pearls, bub
 | `-padtest` | A virtual gamepad plays through the menu, steering, dashing, pause, results card, Fishdex and settings, checking each step; with `-set dashToggle=true` it also checks that a toggled dash outlasts the press |
 | `-pearlevery <s>` | Drop a pearl every N seconds, cycling shield, magnet, burst and lantern |
 | `-timescale <x>` / `-mute` / `-nopause` | Speed up, silence, don't pause on focus loss |
+| `-seed <n>` | Seed the game's random numbers. Every test run logs its seed (`[DeepFeast] seed …`), so a run can be repeated with the same world, spawns and scenery; frame timing still varies, so a long autoplay drifts apart. Scenery reviews always use 20261003 |
 
-A run with any of these flags (other than `-mute`), or any `-batchmode` run, is a test run: it never saves the best score, Fishdex, settings or mute switch. Every harness run ends with an exit code: 0 when it ran cleanly, 1 when a check failed, anything logged an error or exception, or a flow stalled before `-quitafter`. The log's last `[DeepFeast] exit` line gives the reason. Headless `flow` and `-padtest` runs quit as soon as their flow passes.
+A run with any of these flags (other than `-mute`), or any `-batchmode` run, is a test run: it starts from no best score, Fishdex, settings or mute switch and never saves them. Every harness run ends with an exit code: 0 when it ran cleanly, 1 when a check failed, anything logged an error or exception, or a flow stalled before `-quitafter`. The log's last `[DeepFeast] exit` line gives the reason. Headless `flow` and `-padtest` runs quit as soon as their flow passes.
 
 ## Code map (`unity/Assets/Scripts`)
 

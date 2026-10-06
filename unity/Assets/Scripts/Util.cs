@@ -8,7 +8,11 @@ namespace DeepFeast
     public static class U
     {
         public const float TAU = Mathf.PI * 2f;
-        static readonly System.Random rng = new System.Random();
+        // Main thread only: the bakes on worker threads draw no random numbers.
+        static System.Random rng = new System.Random();
+
+        /// Restarts the shared random sequence, so a test run can lay out its world and spawns again.
+        public static void Seed(int seed) => rng = new System.Random(seed);
 
         public static float Rand() => (float)rng.NextDouble();
         public static float Rand(float a, float b) => a + (float)rng.NextDouble() * (b - a);

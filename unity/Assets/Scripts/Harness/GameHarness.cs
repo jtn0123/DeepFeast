@@ -13,7 +13,7 @@ namespace DeepFeast
         bool autoplay, noPause, gallery, animateGallery, padTest;
         string shotDir, scenery, interfaceReview;
         float worstFrame, shotEvery = 15, nextShot, quitAfter, startSize, startX = -1, firstShark = -1, finaleDelay = 12, pearlEvery, realTime, statT, restartT = -1, notch;
-        int shotN, uiFlowStage, captureFrame = -1, gcSeen;
+        int shotN, uiFlowStage, captureFrame = -1, gcSeen, seed;
         bool menuShotDone, turnReviewLogged, rippleShown, harnessRun, exiting, flowDone;
         RenderTexture captureTarget;
         string captureName;
@@ -24,7 +24,7 @@ namespace DeepFeast
         {
             "-autoplay", "-gallery", "-padtest", "-scenery", "-interface", "-shots", "-shotevery", "-quitafter", "-record",
             "-size", "-startx", "-shark", "-sharkvariant", "-finale", "-pearlevery", "-timescale", "-set", "-notch",
-            "-dumpart", "-nopause",
+            "-dumpart", "-nopause", "-seed",
         };
         static string[] args;
         static bool Has(string k) => Array.IndexOf(args, k) >= 0;
@@ -35,7 +35,7 @@ namespace DeepFeast
         {
             args = Environment.GetCommandLineArgs();
             persist = !Application.isBatchMode && !Array.Exists(HarnessFlags, Has);
-            if (!persist) Debug.Log("[DeepFeast] test run: the best score, Fishdex, settings and mute switch are not saved");
+            if (!persist) Debug.Log("[DeepFeast] test run: the best score, Fishdex, settings and mute switch start empty and are not saved");
             autoplay = Has("-autoplay");
             gallery = Has("-gallery");
             padTest = Has("-padtest");
@@ -64,7 +64,16 @@ namespace DeepFeast
             if (Raster.DumpDir != null) System.IO.Directory.CreateDirectory(Raster.DumpDir);
             // A test or review run fails on the first error or exception it logs.
             if (harnessRun) Application.logMessageReceived += FailOnError;
-            if (scenery != null) UnityEngine.Random.InitState(20261003);
+            // A test run draws its random numbers from a seed it logs, so -seed N repeats its world,
+            // spawns and scenery. Frame timing still varies, so a long autoplay drifts apart.
+            // Scenery reviews always use the same seed.
+            if (harnessRun || Has("-seed"))
+            {
+                seed = int.TryParse(Arg("-seed"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int s) ? s
+                    : scenery != null ? 20261003 : Environment.TickCount & int.MaxValue;
+                U.Seed(seed);
+                Debug.Log($"[DeepFeast] seed {seed} (repeat with -seed {seed})");
+            }
         }
 
         // Headless captures render the camera and HUD into their own target instead of the screen.

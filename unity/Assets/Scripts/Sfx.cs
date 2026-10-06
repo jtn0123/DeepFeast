@@ -34,7 +34,7 @@ namespace DeepFeast
             ambient.loop = true;
             ambient.playOnAwake = false;
             ambient.volume = AmbientLevel;
-            Muted = !recording && (forceMute || PlayerPrefs.GetInt("deepfeast.muted", 0) == 1);
+            Muted = !recording && (forceMute || (persist && PlayerPrefs.GetInt("deepfeast.muted", 0) == 1));
             AudioListener.volume = Muted ? 0 : Listener;
             Build();
             ambient.clip = Ambient();

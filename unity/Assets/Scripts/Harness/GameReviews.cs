@@ -105,7 +105,7 @@ namespace DeepFeast
                 float fy = Has("-nearfloor") ? world.FloorY(fx) - 40 - i * 45 : cam.y - 100 + (i % 2) * 90;
                 fish.Add(MakeFish(species[i], 17 + i * 2, fx, fy, i % 2 == 0 ? 1 : -1));
             }
-            Debug.Log($"[DeepFeast] scenery {scenery}: camera={cam}, zoom={zoom}, fixed seed=20261003.");
+            Debug.Log($"[DeepFeast] scenery {scenery}: camera={cam}, zoom={zoom}, seed={seed}.");
         }
 
         void Scenery(float rdt)
