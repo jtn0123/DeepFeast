@@ -1,0 +1,286 @@
+{
+  "baselineCommit": "da45f4bb8386e3fc87e0df045d967e5a3dbe1e53",
+  "baselinePatch": "baseline-harness.patch",
+  "unity": "6000.3.25f1",
+  "build": {
+    "result": "Succeeded",
+    "errors": 0,
+    "sizeMB": 137.7
+  },
+  "capture": {
+    "type": "Native macOS Unity camera RenderTexture with uGUI HUD",
+    "resolution": [
+      1280,
+      720
+    ],
+    "activeDisplays": 0,
+    "fixedVisualTime": 2,
+    "cameraAndFishPlacementsMatched": true,
+    "ambientSchoolPlacementMayVary": true
+  },
+  "animation": {
+    "frames": 45,
+    "fps": 12,
+    "duration": 3.75
+  },
+  "runs": [
+    {
+      "log": "art-drafts/v3/logs/after-abyss.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery"
+      ],
+      "stats": []
+    },
+    {
+      "log": "art-drafts/v3/logs/after-kelp.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery"
+      ],
+      "stats": []
+    },
+    {
+      "log": "art-drafts/v3/logs/after-reef.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery"
+      ],
+      "stats": []
+    },
+    {
+      "log": "art-drafts/v3/logs/after-surface.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery"
+      ],
+      "stats": []
+    },
+    {
+      "log": "art-drafts/v3/logs/before-abyss.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery"
+      ],
+      "stats": []
+    },
+    {
+      "log": "art-drafts/v3/logs/before-kelp.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery"
+      ],
+      "stats": []
+    },
+    {
+      "log": "art-drafts/v3/logs/before-reef.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery"
+      ],
+      "stats": []
+    },
+    {
+      "log": "art-drafts/v3/logs/before-surface.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery"
+      ],
+      "stats": []
+    },
+    {
+      "log": "art-drafts/v3/logs/fry.log",
+      "exitCode": 0,
+      "shots": [
+        "menu",
+        "play_00_t4_r12",
+        "play_01_t8_r14",
+        "play_02_t12_r14",
+        "play_03_t16_r14",
+        "play_04_t20_r14",
+        "play_05_t24_r14",
+        "play_06_t28_r15"
+      ],
+      "stats": [
+        "[DeepFeast] stat t=0 r=12.0 tier=Fry lives=3 score=0 eaten=0 fish=148 fps=56",
+        "[DeepFeast] stat t=10 r=14.2 tier=Fry lives=3 score=183 eaten=6 fish=85 fps=56",
+        "[DeepFeast] stat t=20 r=14.2 tier=Fry lives=3 score=283 eaten=6 fish=85 fps=57",
+        "[DeepFeast] stat t=30 r=15.7 tier=Fry lives=3 score=385 eaten=10 fish=85 fps=59"
+      ]
+    },
+    {
+      "log": "art-drafts/v3/logs/gameplay.log",
+      "exitCode": 0,
+      "shots": [
+        "menu",
+        "play_00_t4_r30",
+        "play_01_t8_r30",
+        "play_02_t12_r30",
+        "play_03_t16_r30"
+      ],
+      "stats": [
+        "[DeepFeast] stat t=0 r=30.0 tier=Hunter lives=3 score=0 eaten=0 fish=99 fps=56",
+        "[DeepFeast] stat t=10 r=30.0 tier=Hunter lives=3 score=0 eaten=0 fish=83 fps=56"
+      ]
+    },
+    {
+      "log": "art-drafts/v3/logs/motion.log",
+      "exitCode": 0,
+      "shots": [
+        "scenery_000",
+        "scenery_001",
+        "scenery_002",
+        "scenery_003",
+        "scenery_004",
+        "scenery_005",
+        "scenery_006",
+        "scenery_007",
+        "scenery_008",
+        "scenery_009",
+        "scenery_010",
+        "scenery_011",
+        "scenery_012",
+        "scenery_013",
+        "scenery_014",
+        "scenery_015",
+        "scenery_016",
+        "scenery_017",
+        "scenery_018",
+        "scenery_019",
+        "scenery_020",
+        "scenery_021",
+        "scenery_022",
+        "scenery_023",
+        "scenery_024",
+        "scenery_025",
+        "scenery_026",
+        "scenery_027",
+        "scenery_028",
+        "scenery_029",
+        "scenery_030",
+        "scenery_031",
+        "scenery_032",
+        "scenery_033",
+        "scenery_034",
+        "scenery_035",
+        "scenery_036",
+        "scenery_037",
+        "scenery_038",
+        "scenery_039",
+        "scenery_040",
+        "scenery_041",
+        "scenery_042",
+        "scenery_043",
+        "scenery_044"
+      ],
+      "stats": []
+    }
+  ],
+  "files": [
+    {
+      "path": "unity/Assets/Resources/Concept/atlas-plants-v3.png",
+      "bytes": 2233699,
+      "sha256": "577a6ff21982d7f58b57a1ab030d9a188abbb7dd660f672db6f84cab6e984b1f"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/atlas-reefs-v3.png",
+      "bytes": 2512515,
+      "sha256": "55c3a5d01520c1e6b666d1b47a9abfa267e7e305a2bbee831c4eedf8726399a9"
+    },
+    {
+      "path": "unity/Assets/Resources/Concept/painted-atlas.json",
+      "bytes": 10138,
+      "sha256": "dc355035cec4a3470cdb246ce96b446b715e944f460bfd9cb11687803843aec2"
+    },
+    {
+      "path": "unity/Assets/Scripts/EnvironmentArt.cs",
+      "bytes": 4853,
+      "sha256": "aa1e49797eec93c6ebea79ecaaf56e5987f1201d817cbfd7551dd2e5c9f0161e"
+    },
+    {
+      "path": "unity/Assets/Resources/Shaders/PlantSway.shader",
+      "bytes": 1956,
+      "sha256": "2163fb28baf142ca363746d4e99df147cb55a78f0139188280638ce6a67bbb78"
+    },
+    {
+      "path": "art-drafts/v3/before/abyss/scenery.png",
+      "bytes": 580315,
+      "sha256": "49597d4b3a5829eddff1c54a336a6e39fc31febf2a20a1481d5906beea98305f"
+    },
+    {
+      "path": "art-drafts/v3/before/kelp/scenery.png",
+      "bytes": 869008,
+      "sha256": "a469349257b80f14734c3a5aa6b162ef1066e624da0eed426cce09e29b99f0c2"
+    },
+    {
+      "path": "art-drafts/v3/before/reef/scenery.png",
+      "bytes": 670238,
+      "sha256": "4f920e372c68982a7c4bc77cbb4a43fd5ae631a83ad619135f97587747ad075a"
+    },
+    {
+      "path": "art-drafts/v3/before/surface/scenery.png",
+      "bytes": 587460,
+      "sha256": "444638595b2279cb86da21855c6edb548b4cf006bda687ac2a97372323beb813"
+    },
+    {
+      "path": "art-drafts/v3/after/abyss/scenery.png",
+      "bytes": 823001,
+      "sha256": "7854d7457d342d47a0d58db4fdc8a7389d4240428147fde7ddbec0ca44118ff2"
+    },
+    {
+      "path": "art-drafts/v3/after/kelp/scenery.png",
+      "bytes": 1328475,
+      "sha256": "6d6d21fab57d20ba70ce9788d720ee9e8458d1fa4ca7eb99c78bb1623f6c234d"
+    },
+    {
+      "path": "art-drafts/v3/after/reef/scenery.png",
+      "bytes": 830935,
+      "sha256": "6fe5f11af727c7e6d0c11a735a3a3e9f4177cf073d3fc79a911fd2fd446c728c"
+    },
+    {
+      "path": "art-drafts/v3/after/surface/scenery.png",
+      "bytes": 740721,
+      "sha256": "8bde688d1dec329bfc2c4fe9ccd04a2eee0ec83a4c96db8371e33940a9ee21c0"
+    },
+    {
+      "path": "art-drafts/v3/comparisons/abyss.png",
+      "bytes": 747250,
+      "sha256": "b2dd131d723031f7c6a06b6eb074d0083360a0507ded51516384152718352380"
+    },
+    {
+      "path": "art-drafts/v3/comparisons/kelp.png",
+      "bytes": 1153375,
+      "sha256": "1b561652045f6c3a8d20ee64d1b7d7360e56b728d7f8cbd857cff7312fb54858"
+    },
+    {
+      "path": "art-drafts/v3/comparisons/reef.png",
+      "bytes": 801148,
+      "sha256": "666d60b415754c46a063d58e5afb1eec0d4007e6d490e97c97b897f741667bbb"
+    },
+    {
+      "path": "art-drafts/v3/comparisons/surface.png",
+      "bytes": 834538,
+      "sha256": "0b7bdfcc377dc8254a34b4f3d504b23a4cbb85298f490b9f6eb37fc81ffa8605"
+    },
+    {
+      "path": "art-drafts/v3/current-animation.mp4",
+      "bytes": 1383568,
+      "sha256": "7f0286793e0ba7fb4b6e1257f3dc03098ddc345e21a815bc57f83f60c627b39e"
+    },
+    {
+      "path": "art-drafts/v3/fry/play_01_t8_r14.png",
+      "bytes": 1194027,
+      "sha256": "4ab340036f7029defec95960732bbe6ab83caeeda6025c45bb2d746e33ceec27"
+    },
+    {
+      "path": "art-drafts/v3/gameplay/play_00_t4_r30.png",
+      "bytes": 960739,
+      "sha256": "069e0747df37c8389f9373f9d74c41764ad46d3556ac540f92e9cf894f206fa8"
+    }
+  ],
+  "limitations": [
+    "No active-display windowed input/audio/resize test",
+    "No WebGL/mobile build",
+    "No hardware performance benchmark"
+  ]
+}

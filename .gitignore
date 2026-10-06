@@ -1,1 +1,10 @@
 .DS_Store
+
+# python tooling
+__pycache__/
+
+# snapshot archives: every commit is its own snapshot
+*.zip
+
+# run logs: they hold local paths and Unity licensing machine IDs
+*.log

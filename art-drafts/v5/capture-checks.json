@@ -1,0 +1,34 @@
+{
+  "current": {
+    "native_frames": 120,
+    "no_edge_clipping": true,
+    "pixel_bounds_minmax": [
+      261,
+      31,
+      699,
+      684
+    ]
+  },
+  "painted": {
+    "native_frames": 120,
+    "no_edge_clipping": true,
+    "pixel_bounds_minmax": [
+      284,
+      73,
+      677,
+      648
+    ]
+  },
+  "sculpted": {
+    "native_frames": 120,
+    "no_edge_clipping": true,
+    "pixel_bounds_minmax": [
+      284,
+      73,
+      677,
+      648
+    ]
+  },
+  "identical_turn_inputs": true,
+  "current_baseline": "Unchanged native 8dbd365 captures from v4/turn-animation/after"
+}

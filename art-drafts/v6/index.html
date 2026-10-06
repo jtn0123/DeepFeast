@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deep Feast · Refined 3D fish animation</title>
+<style>
+:root{color-scheme:dark;font:15px/1.5 system-ui,sans-serif;background:#071a27;color:#edf5f6}body{max-width:1280px;margin:auto;padding:24px}h1{font-size:28px;margin:0 0 8px}p{color:#a6bbc9;margin:8px 0 16px}video,img{display:block;width:100%;height:auto;border:1px solid #315163;border-radius:8px;box-sizing:border-box}a{color:#83e1cd}button{font:inherit;color:#edf5f6;background:#163a4a;border:1px solid #315163;border-radius:6px;padding:7px 12px;cursor:pointer}nav{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}button[aria-pressed=true]{background:#225d67;border-color:#80d4c8}details{margin-top:24px}summary{cursor:pointer;color:#83e1cd}figure{margin:12px 0}figcaption{color:#91b6c7;margin:8px 0}.gallery{display:grid;grid-template-columns:1fr 1fr;gap:16px}footer{margin-top:20px;font-size:13px;color:#88a8bb}@media(max-width:650px){body{padding:14px}.gallery{grid-template-columns:1fr}button{padding:6px 9px}h1{font-size:24px}}
+</style>
+<h1>Another pass on both 3D fish styles</h1>
+<p>Rounder heads, curved fins, fitted smiles and smoother turns. Feeding now shows a jaw opening, tongue and small predator teeth. <strong>A</strong> keeps the painted artwork; <strong>B</strong> uses sculpted skin and clearer light.</p>
+<nav aria-label="Animation comparisons">
+<button data-clip="both-improved-options" aria-pressed="true">Both improved styles</button>
+<button data-clip="painted-before-after" aria-pressed="false">A · turn before / after</button>
+<button data-clip="sculpted-before-after" aria-pressed="false">B · turn before / after</button>
+<button data-clip="painted-feeding-before-after" aria-pressed="false">A · feeding before / after</button>
+<button data-clip="sculpted-feeding-before-after" aria-pressed="false">B · feeding before / after</button>
+</nav>
+<nav aria-label="Playback controls"><button id="toggle">Pause</button><button data-speed="0.5" aria-pressed="false">Half speed</button><button data-speed="1" aria-pressed="true">Normal speed</button><button id="restart">Replay</button><a id="download" href="both-improved-options.mp4">Download this animation</a><a href="README.md">Handover notes</a></nav>
+<video id="review" src="both-improved-options.mp4" poster="both-improved-options-still.png" autoplay loop muted playsinline controls aria-label="Both improved 3D fish styles"></video>
+<p id="caption">Left: improved painted 3D. Right: improved sculpted 3D. The same four-second turning sequence.</p>
+<details><summary>All twelve species and feeding poses</summary><div class="gallery">
+<figure><img loading="lazy" src="gallery-painted/gallery.png" alt="All twelve painted 3D species in Unity"><figcaption>A · Painted 3D</figcaption></figure>
+<figure><img loading="lazy" src="gallery-sculpted/gallery.png" alt="All twelve sculpted 3D species in Unity"><figcaption>B · Sculpted 3D</figcaption></figure>
+<figure><img loading="lazy" src="gallery-painted/gallery_bite.png" alt="Painted 3D fish feeding poses"><figcaption>A · Feeding poses</figcaption></figure>
+<figure><img loading="lazy" src="gallery-sculpted/gallery_bite.png" alt="Sculpted 3D fish feeding poses"><figcaption>B · Feeding poses</figcaption></figure>
+</div></details>
+<details><summary>Compare with the installed sprite animation</summary><figure><img loading="lazy" src="../v5/current-and-both-options.gif" alt="Installed sprite animation beside the previous painted and sculpted 3D drafts"><figcaption>Historical comparison: installed 8dbd365 on the left, previous 3D drafts in the middle and right. The buttons above compare those drafts with this new pass.</figcaption></figure></details>
+<footer>Actual native Unity captures. This pass is a committed review draft; the installed app remains at 8dbd365. <a href="../v5/README.md">Previous draft</a></footer>
+<script>
+const video=document.querySelector('#review'),toggle=document.querySelector('#toggle');
+const play=()=>video.play().catch(()=>{toggle.textContent='Play'});
+toggle.onclick=()=>video.paused?play():video.pause();
+video.onplay=()=>toggle.textContent='Pause';video.onpause=()=>toggle.textContent='Play';
+document.querySelector('#restart').onclick=()=>{video.currentTime=0;play()};
+document.querySelectorAll('[data-speed]').forEach(button=>button.onclick=()=>{video.playbackRate=+button.dataset.speed;document.querySelectorAll('[data-speed]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)))});
+document.querySelectorAll('[data-clip]').forEach(button=>button.onclick=()=>{
+const name=button.dataset.clip, feeding=name.includes('feeding'), both=name==='both-improved-options';
+video.src=name+'.mp4';video.poster=name+'-still.png';video.setAttribute('aria-label',button.textContent);
+document.querySelector('#download').href=name+'.mp4';
+document.querySelector('#caption').textContent=both?'Left: improved painted 3D. Right: improved sculpted 3D. The same four-second turning sequence.':'Left: previous draft. Right: improved draft. Identical '+(feeding?'feeding and blink':'turning')+' inputs.';
+document.querySelectorAll('[data-clip]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));play();
+});
+</script>
+</html>

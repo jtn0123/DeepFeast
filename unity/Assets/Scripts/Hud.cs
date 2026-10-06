@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 namespace DeepFeast
@@ -10,6 +11,8 @@ namespace DeepFeast
     public sealed class VertexGradient : BaseMeshEffect
     {
         public Color a = Color.white, b = Color.white, c = Color.white;
+        public Color tint = Color.white;
+        public bool multiplyGraphicColor;
         public float mid = 0.5f;
         public bool horizontal;
         readonly List<UIVertex> verts = new List<UIVertex>();
@@ -28,7 +31,9 @@ namespace DeepFeast
                 float t = ((horizontal ? v.position.x : v.position.y) - min) / span;
                 if (!horizontal) t = 1 - t; // a = top
                 Color col = t < mid ? Color.Lerp(a, b, t / mid) : Color.Lerp(b, c, (t - mid) / (1 - mid));
+                col *= tint;
                 Color orig = v.color;
+                if (multiplyGraphicColor) { col.r *= orig.r; col.g *= orig.g; col.b *= orig.b; }
                 col.a *= orig.a;
                 v.color = col;
                 verts[i] = v;
@@ -47,35 +52,87 @@ namespace DeepFeast
         public void OnPointerExit(PointerEventData e) => held = false;
     }
 
-    public struct Alert { public Vector2 screen; public bool onScreen; public float bounce, angle, pulse; }
+    // Reports keyboard/gamepad selection and mouse hover, so a detail panel can follow either.
+    public sealed class FocusRelay : MonoBehaviour, ISelectHandler, IPointerEnterHandler
+    {
+        public Action onFocus;
+        public bool hover = true;
+        public void OnSelect(BaseEventData e) => onFocus?.Invoke();
+        public void OnPointerEnter(PointerEventData e) { if (hover) onFocus?.Invoke(); }
+    }
+
+    public struct Alert { public Vector2 screen; public bool onScreen, quarry; public float bounce, angle, pulse; }
 
     /// <summary>All UI: HUD, banners, menus and screen-space world labels — built from code.</summary>
-    public sealed class Hud
+    public sealed partial class Hud
     {
-        public Action OnPlay, OnResume, OnMute;
+        public Action OnPlay, OnResume, OnMute, OnContinue;
         public bool DashHeld => dashHold != null && dashHold.held;
 
         readonly Canvas canvas;
         readonly CanvasScaler scaler;
-        readonly Font font;
-        readonly RectTransform rootRT, worldLayer;
+        readonly Font font, display;
+        readonly RectTransform rootRT, worldLayer, hudRT;
         readonly CanvasGroup hudGroup, bannerGroup;
-        readonly Text score, combo, tierName, tierNext, depth, bannerTitle, bannerSub;
-        readonly Image growth, dash, bannerGlow;
-        readonly RectTransform growthRT, dashRT, bannerRT, livesRT;
+        readonly Text score, scoreCaption, combo, tierName, tierNext, depth, bannerTitle, bannerSub, dashLabel, habitatName;
+        readonly Image growth, dash, bannerGlow, comboPill, livesBg;
+        readonly RectTransform growthRT, dashRT, bannerRT, livesRT, comboRT;
+        readonly VertexGradient bannerGrad, growthGrad;
         readonly List<Image> lifeIcons = new List<Image>();
-        readonly GameObject menu, pause, over, dashBtn;
-        readonly Text bestMenu, bestOver, overTitle, newBest, sScore, sTier, sEaten, sTime;
+        readonly GameObject menu, pause, over, victory, dex, dashBtn;
+        readonly Text bestMenu, bestOver, overTitle, newBest, overNote, sScore, sTier, sEaten, sTime, vScore, vEaten, vTime, vBest;
+        readonly Text menuDex, dexCount, dexName, dexLatin, dexWhere;
         readonly RectTransform titleRT;
+        readonly RectTransform menuCard, pauseCard, overCard, victoryCard, dexCard;
+        sealed class DexTile { public Species sp; public RawImage art; public Text name; }
+        readonly List<DexTile> dexTiles = new List<DexTile>();
+        static readonly Color Silhouette = new Color(0.01f, 0.05f, 0.08f, 0.92f);
+        GameObject dexReturn;
+        RectTransform dexCursor;
+        readonly List<RectTransform> menuFish = new List<RectTransform>();
+        readonly Vector2 titleOrigin = new Vector2(52, -67);
         readonly Image muteIcon;
         readonly Sprite noteSprite, mutedSprite;
         readonly HoldButton dashHold;
-        float bannerT = 99;
+        // Big moments take the centre banner and small news a toast under the score. Each channel
+        // shows one notice at a time, the rest wait their turn behind a short gap.
+        struct Notice { public string title, sub; public Color glow; }
+        readonly Queue<Notice> banners = new Queue<Notice>(), toasts = new Queue<Notice>();
+        readonly CanvasGroup toastGroup;
+        readonly RectTransform toastRT;
+        readonly Text toastTitle, toastSub;
+        readonly Image toastAccent;
+        float bannerT = 99, toastT = 99, bannerFit = 1;
+        // The interface's scale for the player's text size, and the canvas width in its units.
+        float uiScale = 1, canvasW = 1400;
+        // How far below the top of the screen the banner sits.
+        float bannerY = 180;
+        const float BANNER_LEN = 2.6f, TOAST_LEN = 1.6f, NOTICE_GAP = 0.3f;
         float hudAlpha, hudTarget;
-        const float BAR_W = 440;
+        float targetGrowth, shownGrowth, growthPulse, scorePulse;
+        bool growthInitialized;
+        const float BAR_W = 440, DASH_W = 178, LIFE_STEP = 38;
+        // Control hints for keyboard and mouse, an Xbox-style pad or a PlayStation pad.
+        public enum Controls { KeyboardMouse, Xbox, PlayStation }
+        Controls shownControls;
+        Text guideSteer, guideDash, guideBreak, pauseHint;
+        // A gold frame behind the selected button while steering by pad or keyboard.
+        RectTransform focusRing;
+        public bool ShowFocus;
+        float focusDelay;
+        readonly List<RaycastResult> uiHits = new List<RaycastResult>();
+        PointerEventData uiProbe;
+        sealed class PowerChip { public GameObject go; public RectTransform rt, fill; public Image bar; }
+        readonly List<PowerChip> powerChips = new List<PowerChip>();
+
+        static readonly Color PanelCol = new Color(0.02f, 0.11f, 0.2f, 0.6f);
+        static readonly Color EdgeCol = new Color(0.63f, 0.94f, 1, 0.22f);
+        static readonly Color TrackCol = new Color(0, 0.05f, 0.12f, 0.75f);
 
         sealed class FloatText { public float x, y, life, max, size; public Text t; public Color col; }
         readonly List<FloatText> texts = new List<FloatText>();
+        // Score pops stay below the top HUD row (ref px from the top), so none hide under the tier panel.
+        float textTop = 88;
         readonly Stack<Text> textPool = new Stack<Text>();
         readonly List<Text> alertPool = new List<Text>();
         readonly List<Image> arrowPool = new List<Image>();
@@ -83,7 +140,10 @@ namespace DeepFeast
         public Hud()
         {
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            var lilita = Resources.Load<Font>("Fonts/LilitaOne-Regular");
+            display = lilita != null ? lilita : font;
             var cgo = new GameObject("UI");
+            cgo.layer = Presenter.UiLayer;
             canvas = cgo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 10;
@@ -96,185 +156,522 @@ namespace DeepFeast
             {
                 var es = new GameObject("EventSystem");
                 es.AddComponent<EventSystem>();
-                es.AddComponent<StandaloneInputModule>();
+                // The Input System module drives mouse, touch, keyboard and gamepad navigation alike.
+                es.AddComponent<InputSystemUIInputModule>();
             }
 
             worldLayer = Node("WorldLabels", rootRT);
             Stretch(worldLayer);
+            // Scaled about its top-left corner, so labels placed in the game's units stay on their fish.
+            worldLayer.pivot = new Vector2(0, 1);
 
             // ---------------------------------------------------------- HUD
-            var hud = Node("Hud", rootRT); Stretch(hud);
+            var hud = hudRT = Node("Hud", rootRT); Stretch(hud);
             hudGroup = hud.gameObject.AddComponent<CanvasGroup>();
             hudGroup.alpha = 0; hudGroup.blocksRaycasts = false;
 
-            score = Label(hud, "0", 36, Color.white, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(22, -12));
-            AddShadow(score, new Color(0, 30 / 255f, 60 / 255f, 0.7f), new Vector2(0, -2));
-            combo = Label(hud, "", 16, U.Hex("#ffd447"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(23, -56));
-            AddOutline(combo, new Color(0.4f, 0.2f, 0, 0.6f), 1);
+            // score + combo pill (top left)
+            scoreCaption = Label(hud, "SCORE", 13, U.Hex("#9bbdcb"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(24, -11));
+            score = Label(hud, "0", 36, Color.white, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(23, -25), display);
+            Gradient(score, Color.white, Color.white, U.Hex("#bff6ff"));
+            AddOutline(score, new Color(0, 0.14f, 0.26f, 0.6f), 2f);
+            AddShadow(score, new Color(0, 0.08f, 0.18f, 0.45f), new Vector2(0, -4));
+            comboPill = Panel(hud, Color.white, 15);
+            comboRT = comboPill.rectTransform;
+            Place(comboRT, new Vector2(0, 1), new Vector2(0, 1), new Vector2(22, -66), new Vector2(120, 30), new Vector2(0, 1));
+            Gradient(comboPill, U.Hex("#ffe066"), U.Hex("#ffb52e"), U.Hex("#ff8a1c"));
+            AddShadow(comboPill, new Color(0.45f, 0.18f, 0, 0.5f), new Vector2(0, -3));
+            combo = Label(comboRT, "", 19, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0, 1), display);
+            AddOutline(combo, new Color(0.55f, 0.22f, 0, 0.75f), 1.5f);
+            comboPill.gameObject.SetActive(false);
 
-            tierName = Label(hud, "FRY", 13, U.Hex("#c4f7ff"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -12));
-            AddShadow(tierName, new Color(0, 0.1f, 0.2f, 0.6f), new Vector2(0, -1));
-            var bar = Panel(hud, new Color(0, 18 / 255f, 36 / 255f, 0.5f), 6);
-            Place(bar.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -34), new Vector2(BAR_W, 12));
-            var barBorder = bar.gameObject.AddComponent<Outline>();
-            barBorder.effectColor = new Color(180 / 255f, 240 / 255f, 1, 0.28f); barBorder.effectDistance = new Vector2(1, -1);
-            growth = Panel(bar.rectTransform, Color.white, 6);
+            // toast: combos, pearls and first-time tips, under the score and out of the hero's way
+            toastRT = Node("Toast", hud);
+            Place(toastRT, new Vector2(0, 1), new Vector2(0, 1), new Vector2(14, -104), new Vector2(300, 56), new Vector2(0, 1));
+            toastGroup = toastRT.gameObject.AddComponent<CanvasGroup>();
+            toastGroup.alpha = 0; toastGroup.blocksRaycasts = false;
+            var toastPlate = Panel(toastRT, PanelCol, 14);
+            Stretch(toastPlate.rectTransform);
+            AddOutline(toastPlate, EdgeCol, 1.5f);
+            toastAccent = Panel(toastRT, Color.white, 3);
+            Place(toastAccent.rectTransform, new Vector2(0, 0), new Vector2(0, 1), new Vector2(7, 0), new Vector2(5, -16), new Vector2(0, 0.5f));
+            toastTitle = Label(toastRT, "", 21, Color.white, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(22, -6), display);
+            AddShadow(toastTitle, new Color(0, 0.08f, 0.16f, 0.55f), new Vector2(0, -2));
+            toastSub = Label(toastRT, "", 14, new Color(1, 1, 1, 0.82f), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(22, -32));
+
+            // tier + growth (top centre)
+            var tp = Panel(hud, PanelCol, 18);
+            Place(tp.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -10), new Vector2(BAR_W + 40, 66), new Vector2(0.5f, 1));
+            AddOutline(tp, EdgeCol, 1.5f);
+            tierName = Label(tp.rectTransform, "FRY", 25, Color.white, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(20, -6), display);
+            Gradient(tierName, Color.white, U.Hex("#c4f7ff"), U.Hex("#7fe8ff"));
+            AddShadow(tierName, new Color(0, 0.1f, 0.2f, 0.6f), new Vector2(0, -2));
+            tierNext = Label(tp.rectTransform, "", 15, new Color(1, 1, 1, 0.72f), TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-20, -13), display);
+            var bar = Panel(tp.rectTransform, TrackCol, 8);
+            Place(bar.rectTransform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 11), new Vector2(BAR_W, 16), new Vector2(0.5f, 0));
+            growth = Panel(bar.rectTransform, Color.white, 8);
             growthRT = growth.rectTransform;
-            Place(growthRT, new Vector2(0, 0.5f), new Vector2(0, 0.5f), Vector2.zero, new Vector2(0, 12), new Vector2(0, 0.5f));
-            var gg = growth.gameObject.AddComponent<VertexGradient>();
+            Place(growthRT, new Vector2(0, 0.5f), new Vector2(0, 0.5f), Vector2.zero, new Vector2(0, 16), new Vector2(0, 0.5f));
+            var gg = growthGrad = growth.gameObject.AddComponent<VertexGradient>();
             gg.horizontal = true; gg.a = U.Hex("#2ef2c8"); gg.b = U.Hex("#4fd1ff"); gg.c = U.Hex("#ffd447"); gg.mid = 0.6f;
-            tierNext = Label(hud, "", 11, new Color(1, 1, 1, 0.7f), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -52));
+            Shine(growthRT, 8);
 
+            // lives (top right)
             livesRT = Node("Lives", hud);
-            Place(livesRT, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-22, -18), new Vector2(200, 20), new Vector2(1, 1));
+            Place(livesRT, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-16, -12), new Vector2(220, 42), new Vector2(1, 1));
+            livesBg = Panel(livesRT, PanelCol, 18);
+            Place(livesBg.rectTransform, new Vector2(1, 1), new Vector2(1, 1), Vector2.zero, new Vector2(60, 42), new Vector2(1, 1));
+            AddOutline(livesBg, EdgeCol, 1.5f);
             var lifeSprite = FishArt.LifeIcon();
             for (int i = 0; i < 5; i++)
             {
                 var img = Img(livesRT, lifeSprite, Color.white);
-                Place(img.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-i * 38, 0), new Vector2(32, 20), new Vector2(1, 1));
+                Place(img.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-12 - i * LIFE_STEP, -11), new Vector2(32, 20), new Vector2(1, 1));
                 AddShadow(img, new Color(0, 0, 0, 0.35f), new Vector2(0, -2));
                 lifeIcons.Add(img);
             }
 
-            depth = Label(hud, "DEPTH 0 m", 12, new Color(1, 1, 1, 0.8f), TextAnchor.LowerLeft, new Vector2(0, 0), new Vector2(22, 46));
-            Label(hud, "DASH", 10, new Color(1, 1, 1, 0.75f), TextAnchor.LowerLeft, new Vector2(0, 0), new Vector2(22, 30));
-            var dbar = Panel(hud, new Color(0, 18 / 255f, 36 / 255f, 0.5f), 4);
-            Place(dbar.rectTransform, Vector2.zero, Vector2.zero, new Vector2(22, 18), new Vector2(170, 8), Vector2.zero);
-            dash = Panel(dbar.rectTransform, Color.white, 4);
+            // depth + dash (bottom left)
+            var dp = Panel(hud, PanelCol, 16);
+            Place(dp.rectTransform, Vector2.zero, Vector2.zero, new Vector2(14, 14), new Vector2(DASH_W + 40, 88), Vector2.zero);
+            AddOutline(dp, EdgeCol, 1.5f);
+            habitatName = Label(dp.rectTransform, "CORAL REEF", 16, U.Hex("#80ead9"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(14, -9), display);
+            depth = Label(dp.rectTransform, "DEPTH 0 m", 14, new Color(1, 1, 1, 0.8f), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(14, -37));
+            dashLabel = Label(dp.rectTransform, "DASH", 13, new Color(1, 0.86f, 0.5f, 0.85f), TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-14, -39), display);
+            var dbar = Panel(dp.rectTransform, TrackCol, 6);
+            Place(dbar.rectTransform, Vector2.zero, Vector2.zero, new Vector2(14, 12), new Vector2(DASH_W, 12), Vector2.zero);
+            dash = Panel(dbar.rectTransform, Color.white, 6);
             dashRT = dash.rectTransform;
-            Place(dashRT, new Vector2(0, 0.5f), new Vector2(0, 0.5f), Vector2.zero, new Vector2(170, 8), new Vector2(0, 0.5f));
+            Place(dashRT, new Vector2(0, 0.5f), new Vector2(0, 0.5f), Vector2.zero, new Vector2(DASH_W, 12), new Vector2(0, 0.5f));
             var dg = dash.gameObject.AddComponent<VertexGradient>();
-            dg.horizontal = true; dg.a = U.Hex("#ff9f43"); dg.b = U.Hex("#ffc145"); dg.c = U.Hex("#ffd447");
+            dg.horizontal = true; dg.a = U.Hex("#ff9f43"); dg.b = U.Hex("#ffc145"); dg.c = U.Hex("#ffe066");
+            Shine(dashRT, 6);
+
+            // active pearl powers stack above the dash panel, each with its time running down
+            for (int i = 0; i < Powers.Count; i++)
+            {
+                var chip = Panel(hud, PanelCol, 13);
+                Place(chip.rectTransform, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(DASH_W + 40, 30), Vector2.zero);
+                AddOutline(chip, U.WithA(Powers.Colors[i], 0.45f), 1.5f);
+                Label(chip.rectTransform, Powers.Names[i], 13, Powers.Colors[i], TextAnchor.MiddleLeft, new Vector2(0, 0.5f), new Vector2(14, 1), display);
+                var track = Panel(chip.rectTransform, TrackCol, 4);
+                Place(track.rectTransform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-12, 0), new Vector2(104, 8), new Vector2(1, 0.5f));
+                var timeBar = Panel(track.rectTransform, Powers.Colors[i], 4);
+                Place(timeBar.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), Vector2.zero, new Vector2(104, 8), new Vector2(0, 0.5f));
+                chip.gameObject.SetActive(false);
+                powerChips.Add(new PowerChip { go = chip.gameObject, rt = chip.rectTransform, fill = timeBar.rectTransform, bar = timeBar });
+            }
 
             // ---------------------------------------------------------- banner
             bannerRT = Node("Banner", rootRT);
-            Place(bannerRT, new Vector2(0.5f, 0.78f), new Vector2(0.5f, 0.78f), Vector2.zero, new Vector2(900, 120));
+            Place(bannerRT, new Vector2(0.5f, 1), new Vector2(0.5f, 1), Vector2.zero, new Vector2(900, 120));
             bannerGroup = bannerRT.gameObject.AddComponent<CanvasGroup>();
             bannerGroup.alpha = 0; bannerGroup.blocksRaycasts = false;
+            // A soft dark plate under a thin colored glow keeps the pale lettering legible over sunlit water.
+            var bannerShade = Img(bannerRT, Gfx.Glow, new Color(0, 0.07f, 0.13f, 0.5f));
+            Place(bannerShade.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 0), new Vector2(980, 230));
             bannerGlow = Img(bannerRT, Gfx.Glow, Color.white);
-            Place(bannerGlow.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 14), new Vector2(760, 150));
-            bannerTitle = Label(bannerRT, "", 60, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0, 16));
-            AddOutline(bannerTitle, new Color(0, 30 / 255f, 50 / 255f, 0.5f), 1.5f);
-            AddShadow(bannerTitle, new Color(0, 30 / 255f, 50 / 255f, 0.6f), new Vector2(0, -4));
-            bannerSub = Label(bannerRT, "", 18, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0, -34));
+            Place(bannerGlow.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 10), new Vector2(820, 170));
+            bannerTitle = Label(bannerRT, "", 68, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0, 18), display);
+            bannerGrad = Gradient(bannerTitle, Color.white, Color.white, Color.white);
+            AddOutline(bannerTitle, new Color(0, 0.1f, 0.2f, 0.7f), 2.5f);
+            AddShadow(bannerTitle, new Color(0, 0.08f, 0.16f, 0.55f), new Vector2(0, -5));
+            bannerSub = Label(bannerRT, "", 19, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0, -36));
             AddOutline(bannerSub, new Color(0, 20 / 255f, 40 / 255f, 0.8f), 1.2f);
 
             // ---------------------------------------------------------- menu
-            menu = Overlay("Menu", out var mp, new Vector2(560, 470));
+            menu = Overlay("Menu", out var mp, new Vector2(940, 600));
+            menuCard = mp;
+            Label(mp, "A LITTLE FISH. A VERY BIG OCEAN.", 15, U.Hex("#95d9cd"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(52, -30));
             titleRT = Node("Title", mp);
-            Place(titleRT, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -24), new Vector2(500, 200), new Vector2(0.5f, 1));
-            var t1 = Label(titleRT, "DEEP", 104, Color.white, TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, 0));
-            Gradient(t1, Color.white, U.Hex("#a6f4ff"), U.Hex("#31d4c8"));
-            AddShadow(t1, new Color(0, 0.45f, 0.5f, 0.45f), new Vector2(0, -5));
-            var t2 = Label(titleRT, "FEAST", 104, Color.white, TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -88));
-            Gradient(t2, U.Hex("#fff1a8"), U.Hex("#ffc04d"), U.Hex("#ff7a3d"));
-            AddShadow(t2, new Color(0.6f, 0.25f, 0, 0.45f), new Vector2(0, -5));
-            Label(mp, "Eat smaller fish. Dodge bigger ones. Grow into a legend.", 17, new Color(1, 1, 1, 0.9f), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -232));
-            Button(mp, "PLAY", new Vector2(0, -278), () => OnPlay?.Invoke());
-            Label(mp, "Mouse / Touch / WASD steer  ·  hold Click / Space to dash\nP pause  ·  M mute", 13, new Color(1, 1, 1, 0.8f), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -372)).lineSpacing = 1.3f;
-            bestMenu = Label(mp, "BEST  0", 13, new Color(1, 1, 1, 0.7f), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -422));
+            Place(titleRT, new Vector2(0, 1), new Vector2(0, 1), titleOrigin, new Vector2(390, 196), new Vector2(0, 1));
+            var t1 = Label(titleRT, "DEEP", 92, Color.white, TextAnchor.UpperLeft, new Vector2(0, 1), Vector2.zero, display);
+            Gradient(t1, U.Hex("#eefcf8"), U.Hex("#c0eddf"), U.Hex("#7dd9c7"));
+            AddShadow(t1, new Color(0, 0.09f, 0.14f, 0.7f), new Vector2(0, -4));
+            var t2 = Label(titleRT, "FEAST", 92, Color.white, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(0, -80), display);
+            Gradient(t2, U.Hex("#fff1bf"), U.Hex("#f9cf7e"), U.Hex("#efa858"));
+            AddShadow(t2, new Color(0, 0.09f, 0.14f, 0.7f), new Vector2(0, -4));
+            Label(mp, "Small fish. Big appetite.", 23, U.Hex("#edf1df"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(54, -265), display);
+            Label(mp, "Eat your way from fry to legend.", 17, U.Hex("#a9c5cc"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(54, -302));
+            Button(mp, "LET'S SWIM", new Vector2(-230, -352), () => OnPlay?.Invoke(), 330);
+            bestMenu = Label(mp, "PERSONAL BEST  0", 15, U.Hex("#f4d397"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(55, -438), display);
+            var glow = Img(mp, Gfx.Glow, new Color(0.25f, 0.76f, 0.63f, 0.16f));
+            Place(glow.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-239, -264), new Vector2(420, 330));
+            MenuFish(mp, Data.Player, new Vector2(-230, -257), new Vector2(342, 208), 0);
+            MenuFish(mp, Data.SpeciesMap["clown"], new Vector2(-355, -150), new Vector2(102, 72), -9);
+            MenuFish(mp, Data.SpeciesMap["tang"], new Vector2(-103, -363), new Vector2(96, 72), 7);
+            Button(mp, "FISHDEX", new Vector2(126, -400), OpenDex, 200, true);
+            Button(mp, "SETTINGS", new Vector2(338, -400), OpenSettings, 200, true);
+            menuDex = Label(mp, "", 15, U.Hex("#9dd6c6"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(126, -473), display);
+            guideSteer = Guide(mp, "STEER", "", -290);
+            guideDash = Guide(mp, "DASH", "", 0);
+            guideBreak = Guide(mp, "TAKE A BREAK", "", 290);
 
             // ---------------------------------------------------------- pause
-            pause = Overlay("Pause", out var pp, new Vector2(480, 230));
-            Label(pp, "Paused", 54, Color.white, TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -28));
-            Label(pp, "Take a breath. The sharks will wait.", 17, new Color(1, 1, 1, 0.9f), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -98));
-            Button(pp, "RESUME", new Vector2(0, -136), () => OnResume?.Invoke());
+            pause = Overlay("Pause", out var pp, new Vector2(600, 420));
+            pauseCard = pp;
+            Label(pp, "YOUR SWIM IS ON HOLD", 15, U.Hex("#a7dacc"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -28));
+            Label(pp, "PAUSED", 62, U.Hex("#eff7e8"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -66), display);
+            Label(pp, "Take a breath. The sharks will wait.", 18, U.Hex("#b8ced2"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -156));
+            Button(pp, "KEEP SWIMMING", new Vector2(0, -221), () => OnResume?.Invoke(), 350);
+            Button(pp, "SETTINGS", new Vector2(0, -299), OpenSettings, 350, true);
+            pauseHint = Label(pp, "", 15, U.Hex("#8baebc"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -385));
             pause.SetActive(false);
 
             // ---------------------------------------------------------- game over
-            over = Overlay("Over", out var op, new Vector2(500, 450));
-            overTitle = Label(op, "Gobbled!", 56, Color.white, TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -26));
-            AddShadow(overTitle, new Color(0, 0.1f, 0.2f, 0.6f), new Vector2(0, -3));
-            newBest = Label(op, "", 16, U.Hex("#ffd447"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -92));
-            sScore = Stat(op, "SCORE", new Vector2(-104, -120));
-            sTier = Stat(op, "TOP TIER", new Vector2(104, -120));
-            sEaten = Stat(op, "FISH EATEN", new Vector2(-104, -194));
-            sTime = Stat(op, "SURVIVED", new Vector2(104, -194));
-            Button(op, "SWIM AGAIN", new Vector2(0, -290), () => OnPlay?.Invoke());
-            bestOver = Label(op, "BEST  0", 13, new Color(1, 1, 1, 0.7f), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -400));
+            over = Overlay("Over", out var op, new Vector2(740, 560));
+            overCard = op;
+            Label(op, "END OF THIS SWIM", 15, U.Hex("#a6d2cb"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -24));
+            overTitle = Label(op, "GOBBLED!", 56, U.Hex("#f2ecd9"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -53), display);
+            AddShadow(overTitle, new Color(0, 0.09f, 0.14f, 0.7f), new Vector2(0, -3));
+            newBest = Label(op, "", 15, U.Hex("#f4d397"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -127), display);
+            sScore = Stat(op, "SCORE", new Vector2(-164, -174));
+            sTier = Stat(op, "TOP TIER", new Vector2(164, -174));
+            sEaten = Stat(op, "FISH EATEN", new Vector2(-164, -268));
+            sTime = Stat(op, "SURVIVED", new Vector2(164, -268));
+            Button(op, "ONE MORE SWIM", new Vector2(-174, -382), () => OnPlay?.Invoke(), 320);
+            Button(op, "FISHDEX", new Vector2(174, -382), OpenDex, 320, true);
+            bestOver = Label(op, "PERSONAL BEST  0", 15, U.Hex("#f4d397"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -473), display);
+            overNote = Label(op, "", 15, U.Hex("#91b6bf"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -517));
             over.SetActive(false);
+
+            // ---------------------------------------------------------- victory
+            victory = Overlay("Victory", out var vp, new Vector2(740, 560));
+            victoryCard = vp;
+            Label(vp, "THE WHALE SHARK IS YOURS", 15, U.Hex("#f4d397"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -24));
+            var victoryTitle = Label(vp, "LEGEND OF THE DEEP", 50, U.Hex("#ffe6a3"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -56), display);
+            AddShadow(victoryTitle, new Color(0, 0.09f, 0.14f, 0.7f), new Vector2(0, -3));
+            Label(vp, "From fry to the ocean's largest fish.", 16, U.Hex("#b8ced2"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -127));
+            vScore = Stat(vp, "SCORE", new Vector2(-164, -174));
+            vEaten = Stat(vp, "FISH EATEN", new Vector2(164, -174));
+            vTime = Stat(vp, "SWIM TIME", new Vector2(-164, -268));
+            vBest = Stat(vp, "PERSONAL BEST", new Vector2(164, -268));
+            Button(vp, "KEEP SWIMMING", new Vector2(-174, -382), () => OnContinue?.Invoke(), 320);
+            Button(vp, "NEW SWIM", new Vector2(174, -382), () => OnPlay?.Invoke(), 320);
+            Label(vp, "The deep goes on without end. The giants still roam.", 15, U.Hex("#91b6bf"), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -490));
+            victory.SetActive(false);
+
+            // ---------------------------------------------------------- fishdex
+            dex = Overlay("Fishdex", out var dexPanel, new Vector2(1200, 760));
+            dexCard = dexPanel;
+            var dexTitle = Label(dexPanel, "FISHDEX", 46, U.Hex("#f2ecd9"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(44, -24), display);
+            AddShadow(dexTitle, new Color(0, 0.09f, 0.14f, 0.7f), new Vector2(0, -3));
+            Label(dexPanel, "EVERY SPECIES YOU HAVE EATEN", 15, U.Hex("#a6d2cb"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(46, -80));
+            dexCount = Label(dexPanel, "", 18, U.Hex("#f4d397"), TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-44, -50), display);
+            const int columns = 6;
+            int rows = (Fishdex.Entries.Count + columns - 1) / columns;
+            float tileW = 178, gapX = 10, gapY = 8, tileH = Mathf.Min(84, (548 - (rows - 1) * gapY) / rows);
+            float gridW = columns * tileW + (columns - 1) * gapX;
+            // A gold frame sits behind the focused tile, so it shows the same for mouse, keyboard and gamepad.
+            dexCursor = Panel(dexPanel, U.Hex("#ffd447"), 17).rectTransform;
+            for (int i = 0; i < Fishdex.Entries.Count; i++)
+                AddDexTile(dexPanel, Fishdex.Entries[i], new Vector2(-gridW / 2 + tileW / 2 + i % columns * (tileW + gapX), -104 - i / columns * (tileH + gapY)), new Vector2(tileW, tileH));
+            dexName = Label(dexPanel, "", 24, U.Hex("#f2ecd9"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(46, -666), display);
+            dexLatin = Label(dexPanel, "", 15, U.Hex("#a6d2cb"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(47, -700));
+            dexLatin.fontStyle = FontStyle.Italic;
+            dexWhere = Label(dexPanel, "", 15, U.Hex("#8baebc"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(47, -726));
+            Button(dexPanel, "BACK", new Vector2(440, -672), CloseDex, 240, true);
+            dex.SetActive(false);
+
+            // ---------------------------------------------------------- settings
+            BuildFpsCounter();
+            BuildSettings();
+            ApplyControls();
+
+            focusRing = Panel(rootRT, U.Hex("#ffd447"), 35).rectTransform;
+            focusRing.gameObject.name = "FocusRing";
+            focusRing.gameObject.SetActive(false);
 
             // ---------------------------------------------------------- corner buttons
             noteSprite = Icon(false); mutedSprite = Icon(true);
-            var mb = Panel(rootRT, new Color(6 / 255f, 40 / 255f, 66 / 255f, 0.55f), 22);
-            Place(mb.rectTransform, Vector2.zero + Vector2.right, Vector2.right, new Vector2(-16, 16), new Vector2(44, 44), new Vector2(1, 0));
-            var mbo = mb.gameObject.AddComponent<Outline>();
-            mbo.effectColor = new Color(160 / 255f, 240 / 255f, 1, 0.3f);
-            var btn = mb.gameObject.AddComponent<Button>();
+            var mb = Panel(rootRT, new Color(0.02f, 0.13f, 0.22f, 0.65f), 22);
+            Place(mb.rectTransform, Vector2.right, Vector2.right, new Vector2(-16, 16), new Vector2(46, 46), new Vector2(1, 0));
+            AddOutline(mb, new Color(0.63f, 0.94f, 1, 0.3f), 1.5f);
+            mb.raycastTarget = true;
+            var btn = mb.gameObject.AddComponent<UnityEngine.UI.Button>();
             btn.onClick.AddListener(() => OnMute?.Invoke());
+            // Pads mute with their select button; menu navigation stays on the cards.
+            btn.navigation = new Navigation { mode = Navigation.Mode.None };
             muteIcon = Img(mb.rectTransform, noteSprite, new Color(0.87f, 1, 1));
-            muteIcon.raycastTarget = false;
-            Place(muteIcon.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(24, 24));
+            Place(muteIcon.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(26, 26));
 
             var db = Panel(rootRT, new Color(1, 0.62f, 0.25f, 0.45f), 46);
             Place(db.rectTransform, Vector2.right, Vector2.right, new Vector2(-26, 80), new Vector2(92, 92), new Vector2(1, 0));
             var dbo = db.gameObject.AddComponent<Outline>();
             dbo.effectColor = new Color(1, 0.86f, 0.55f, 0.6f); dbo.effectDistance = new Vector2(2, -2);
-            Label(db.rectTransform, "DASH", 14, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), Vector2.zero).raycastTarget = false;
+            db.raycastTarget = true;
+            Label(db.rectTransform, "DASH", 18, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), Vector2.zero, display);
             dashHold = db.gameObject.AddComponent<HoldButton>();
             dashBtn = db.gameObject;
             dashBtn.SetActive(false);
         }
 
         // ------------------------------------------------------------------ public API
-        public void Resize(float pxPerRef) => scaler.scaleFactor = pxPerRef;
+        /// insets: the screen's unsafe margins (a notch, rounded corners) in reference units, as
+        /// left, bottom, right, top. The playing HUD stays inside them.
+        public void Resize(float pxPerRef, float refW, float refH, Vector4 insets)
+        {
+            // Text size enlarges the whole interface by working the canvas in larger units, as far as
+            // the top row of the HUD still fits across the screen. Labels that follow fish keep the
+            // game's own units (the world layer scales back), so they stay on their fish.
+            float s = Mathf.Max(1, Mathf.Min(GameSettings.Data.textSize / 100f, refW / 900));
+            uiScale = s;
+            scaler.scaleFactor = pxPerRef * s;
+            worldLayer.localScale = Vector3.one / s;
+            float w = refW / s, h = refH / s;
+            canvasW = w;
+            hudRT.offsetMin = new Vector2(insets.x, insets.y) / s;
+            hudRT.offsetMax = new Vector2(-insets.z, -insets.w) / s;
+            textTop = insets.w + (w < 960 ? 136 : 88) * s;
+            // Banners sit a little over a fifth of the way down, and always clear of the top row of the HUD.
+            bannerY = Mathf.Max(0.22f * h, textTop / s + 92);
+            // narrow screens: drop the lives below the tier panel so they don't collide
+            livesRT.anchoredPosition = w < 960 ? new Vector2(-16, -86) : new Vector2(-16, -12);
+            Fit(menuCard, w, h, 940, 600);
+            Fit(pauseCard, w, h, 600, 420);
+            Fit(overCard, w, h, 740, 560);
+            Fit(victoryCard, w, h, 740, 560);
+            Fit(dexCard, w, h, 1200, 760);
+            Fit(settingsCard, w, h, 1040, 720);
+        }
+
+        // A card shrinks to fit the screen, never grows past its size at the chosen text size.
+        static void Fit(RectTransform card, float w, float h, float cw, float ch) =>
+            card.parent.localScale = Vector3.one * Mathf.Min(1, (w - 40) / cw, (h - 20) / ch);
+        public void UseCaptureCamera(Camera camera)
+        {
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.worldCamera = camera;
+            canvas.planeDistance = 1;
+            canvas.sortingOrder = 30000;
+        }
         public Vector2 RefSize => rootRT.rect.size;
 
         public void ShowTouch(bool on) { if (dashBtn.activeSelf != on) dashBtn.SetActive(on); }
 
         public void SetMuted(bool m) => muteIcon.sprite = m ? mutedSprite : noteSprite;
+        public void SetHabitat(string name, Color accent)
+        {
+            SetText(habitatName, name);
+            habitatName.color = accent;
+        }
 
         public void ShowMenu(int best)
         {
-            bestMenu.text = "BEST  " + best.ToString("N0");
-            menu.SetActive(true); over.SetActive(false); pause.SetActive(false);
+            bestMenu.text = "PERSONAL BEST  " + best.ToString("N0");
+            menuDex.text = $"{Fishdex.FoundCount} / {Fishdex.Entries.Count} SPECIES FOUND";
+            menu.SetActive(true); over.SetActive(false); pause.SetActive(false); victory.SetActive(false); dex.SetActive(false); settings.SetActive(false);
             hudTarget = 0;
+            FocusPrimary();
         }
 
         public void StartPlay()
         {
-            menu.SetActive(false); over.SetActive(false); pause.SetActive(false);
+            menu.SetActive(false); over.SetActive(false); pause.SetActive(false); victory.SetActive(false); dex.SetActive(false); settings.SetActive(false);
             hudTarget = 1;
+            // Nothing stays selected in play, so the dash button can't also press a hidden card.
+            focusDelay = 0;
+            EventSystem.current?.SetSelectedGameObject(null);
+            growthInitialized = false;
+            growthPulse = scorePulse = 0;
+            ClearNotices();
         }
 
-        public void ShowPause(bool on) => pause.SetActive(on);
-
-        public void ShowOver(int scoreV, string tier, int eaten, float time, bool isBest, int best)
+        public void ShowPause(bool on)
         {
-            overTitle.text = U.Pick(new[] { "Gobbled!", "Chomped!", "Fish Food!", "Swallowed!" });
-            newBest.text = isBest && scoreV > 0 ? "NEW BEST!" : "";
+            pause.SetActive(on);
+            if (on) FocusPrimary();
+            else EventSystem.current?.SetSelectedGameObject(null);
+        }
+
+        // deep is the fish eaten in the endless deep after a victory, or -1 for a run that never won.
+        public void ShowOver(int scoreV, string tier, int eaten, float time, bool isBest, int best, int newSpecies, int deep = -1, bool deepRecord = false, int deepBest = 0)
+        {
+            overNote.text = deep >= 0 ? $"{deep:N0} fish eaten in the endless deep  ·  record {deepBest:N0}"
+                : newSpecies > 0 ? $"{newSpecies} new species in your Fishdex  ·  {Fishdex.FoundCount} / {Fishdex.Entries.Count}" : "Every legend starts as a fry.";
+            overTitle.text = isBest && scoreV > 0 ? "A NEW LEGEND!" : "GOBBLED!";
+            newBest.text = isBest && scoreV > 0 ? "NEW BEST!" : deepRecord ? "NEW ENDLESS RECORD!" : "";
             sScore.text = scoreV.ToString("N0");
             sTier.text = tier;
             sEaten.text = eaten.ToString();
             int s = Mathf.FloorToInt(time);
             sTime.text = $"{s / 60}:{s % 60:00}";
-            bestOver.text = bestMenu.text = "BEST  " + best.ToString("N0");
+            bestOver.text = bestMenu.text = "PERSONAL BEST  " + best.ToString("N0");
             over.SetActive(true);
             hudTarget = 0;
+            FocusSoon();
         }
 
-        public void UpdateHud(int scoreV, int comboV, bool comboOn, string tier, float prog, string next, int lives, float stamina, bool tired, int depthM)
+        public void ShowVictory(int scoreV, int eaten, float time, int best)
         {
+            vScore.text = scoreV.ToString("N0");
+            vEaten.text = eaten.ToString();
+            int s = Mathf.FloorToInt(time);
+            vTime.text = $"{s / 60}:{s % 60:00}";
+            vBest.text = best.ToString("N0");
+            bestOver.text = bestMenu.text = "PERSONAL BEST  " + best.ToString("N0");
+            victory.SetActive(true);
+            hudTarget = 0;
+            FocusSoon();
+        }
+
+        public void HideVictory()
+        {
+            victory.SetActive(false);
+            hudTarget = 1;
+        }
+
+        public bool DexOpen => dex.activeSelf;
+
+        // The Fishdex covers the menu or game-over card and returns to it.
+        public void OpenDex()
+        {
+            Fishdex.EnsurePortraits();
+            dexReturn = menu.activeSelf ? menu : over.activeSelf ? over : null;
+            if (dexReturn != null) dexReturn.SetActive(false);
+            foreach (var tile in dexTiles)
+            {
+                bool known = Fishdex.Has(tile.sp);
+                tile.art.texture = known ? Fishdex.Portrait(tile.sp) : Fishdex.Silhouette(tile.sp);
+                tile.art.color = known ? Color.white : Silhouette;
+                tile.name.text = known ? tile.sp.displayName : "???";
+            }
+            dexCount.text = $"{Fishdex.FoundCount} / {Fishdex.Entries.Count} DISCOVERED";
+            dex.SetActive(true);
+            ShowDexEntry(dexTiles[0]);
+            FocusPrimary();
+        }
+
+        public void CloseDex()
+        {
+            if (!dex.activeSelf) return;
+            dex.SetActive(false);
+            if (dexReturn != null) dexReturn.SetActive(true);
+            dexReturn = null;
+            FocusPrimary();
+        }
+
+        void ShowDexEntry(DexTile tile)
+        {
+            var sp = tile.sp;
+            var rt = tile.art.rectTransform.parent as RectTransform;
+            Place(dexCursor, rt.anchorMin, rt.anchorMax, rt.anchoredPosition + new Vector2(0, 4), rt.sizeDelta + new Vector2(8, 8), rt.pivot);
+            bool known = Fishdex.Has(sp);
+            dexName.text = known ? sp.displayName : "???";
+            dexLatin.text = known ? sp.scientificName : "Not yet eaten";
+            dexWhere.text = (known ? "" : "Look in:  ") + Fishdex.Where(sp);
+        }
+
+        void AddDexTile(Transform parent, Species sp, Vector2 pos, Vector2 size)
+        {
+            var bg = Panel(parent, Fishdex.Window, 14);
+            bg.raycastTarget = true;
+            bg.gameObject.name = "Dex_" + sp.key;
+            Place(bg.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), pos, size, new Vector2(0.5f, 1));
+            bg.gameObject.AddComponent<UnityEngine.UI.Button>().transition = Selectable.Transition.None;
+            var frame = Node("Portrait", bg.rectTransform);
+            Stretch(frame);
+            frame.offsetMin = new Vector2(8, 3); frame.offsetMax = new Vector2(-8, -3);
+            var art = frame.gameObject.AddComponent<RawImage>();
+            art.raycastTarget = false;
+            var name = Label(bg.rectTransform, "", 12, new Color(0.88f, 0.96f, 0.94f, 0.9f), TextAnchor.LowerLeft, Vector2.zero, new Vector2(9, 5));
+            AddShadow(name, new Color(0, 0.06f, 0.1f, 0.9f), new Vector2(1, -1));
+            var tile = new DexTile { sp = sp, art = art, name = name };
+            bg.gameObject.AddComponent<FocusRelay>().onFocus = () => ShowDexEntry(tile);
+            dexTiles.Add(tile);
+        }
+
+        // In the endless deep the score is banked and the counter shows the fish eaten since the victory.
+        public void UpdateHud(int scoreV, bool deep, int comboV, bool comboOn, string tier, float prog, string next, int lives, float stamina, bool tired, int depthM)
+        {
+            SetText(scoreCaption, deep ? "FISH IN THE DEEP" : "SCORE");
             SetText(score, scoreV.ToString("N0"));
-            SetText(combo, comboOn && comboV > 1 ? $"COMBO ×{comboV}" : "");
-            SetText(tierName, Spaced(tier.ToUpperInvariant()));
-            growthRT.sizeDelta = new Vector2(Mathf.Max(0, prog) * BAR_W, 12);
-            growth.enabled = prog > 0.005f;
+            bool showCombo = comboOn && comboV > 1;
+            if (comboPill.gameObject.activeSelf != showCombo) comboPill.gameObject.SetActive(showCombo);
+            if (showCombo && SetText(combo, $"COMBO x{comboV}")) comboRT.sizeDelta = new Vector2(combo.preferredWidth + 30, 30);
+            SetText(tierName, tier.ToUpperInvariant());
+            SetActive(growth.gameObject, prog > 0.005f);
+            targetGrowth = prog;
+            if (!growthInitialized) { growthInitialized = true; shownGrowth = prog; }
+            growthRT.sizeDelta = new Vector2(Mathf.Max(16, shownGrowth * BAR_W), 16);
             SetText(tierNext, next);
-            for (int i = 0; i < lifeIcons.Count; i++) lifeIcons[i].enabled = i < lives;
-            dashRT.sizeDelta = new Vector2(Mathf.Max(0, stamina) * 170, 8);
-            dash.enabled = stamina > 0.01f;
+            int shown = Mathf.Min(lives, lifeIcons.Count);
+            for (int i = 0; i < lifeIcons.Count; i++) lifeIcons[i].enabled = i < shown;
+            livesBg.enabled = shown > 0;
+            livesBg.rectTransform.sizeDelta = new Vector2(shown * LIFE_STEP + 18, 42);
+            SetActive(dash.gameObject, stamina > 0.01f);
+            dashRT.sizeDelta = new Vector2(Mathf.Max(12, stamina * DASH_W), 12);
             dash.color = tired ? new Color(0.42f, 0.49f, 0.53f) : Color.white;
             dash.GetComponent<VertexGradient>().enabled = !tired;
+            SetText(dashLabel, tired ? "RECOVER" : "DASH");
             SetText(depth, $"DEPTH {depthM} m");
         }
 
-        public void Banner(string title, string sub, Color glow)
+        public void UpdatePowers(float[] left)
         {
-            bannerTitle.text = title;
-            bannerSub.text = sub ?? "";
-            bannerGlow.color = U.WithA(glow, 0.32f);
+            int row = 0;
+            for (int i = 0; i < powerChips.Count; i++)
+            {
+                var chip = powerChips[i];
+                bool on = left[i] > 0;
+                SetActive(chip.go, on);
+                if (!on) continue;
+                chip.rt.anchoredPosition = new Vector2(14, 110 + row++ * 36);
+                chip.fill.sizeDelta = new Vector2(Mathf.Max(8, left[i] / Powers.Durations[i] * 104), 8);
+                // The bar flickers through its last two seconds.
+                chip.bar.color = U.WithA(Powers.Colors[i], left[i] < 2 && GameSettings.BlinkOff(left[i], 4) ? 0.35f : 1);
+            }
+        }
+
+        public void PulseGrowth(bool tierUp)
+        {
+            scorePulse = 0.18f;
+            growthPulse = tierUp ? 0.75f : 0.22f;
+        }
+
+        // An urgent banner (a shark, the whale shark's last bite) cuts in at once; others queue.
+        public void Banner(string title, string sub, Color glow, bool urgent = false)
+        {
+            var n = new Notice { title = title, sub = sub ?? "", glow = glow };
+            if (urgent) ShowBanner(n);
+            else banners.Enqueue(n);
+        }
+
+        // A toast already waiting its turn (a second frenzy) isn't queued twice.
+        public void Toast(string title, string sub, Color glow)
+        {
+            foreach (var t in toasts) if (t.title == title) return;
+            toasts.Enqueue(new Notice { title = title, sub = sub ?? "", glow = glow });
+        }
+
+        // A new swim starts with no notices left over from the last one.
+        void ClearNotices()
+        {
+            banners.Clear(); toasts.Clear();
+            bannerT = toastT = 99;
+        }
+
+        void ShowBanner(Notice n)
+        {
+            bannerTitle.text = n.title;
+            bannerSub.text = n.sub;
+            bannerGlow.color = U.WithA(n.glow, 0.18f);
+            bannerGrad.b = Color.Lerp(Color.white, n.glow, 0.2f);
+            bannerGrad.c = Color.Lerp(Color.white, n.glow, 0.65f);
+            bannerTitle.SetVerticesDirty();
+            // A long title on a narrow or enlarged screen shrinks to fit across it.
+            bannerFit = Mathf.Min(1, (canvasW - 40) / Mathf.Max(1, Mathf.Max(bannerTitle.preferredWidth, bannerSub.preferredWidth)));
             bannerT = 0;
+        }
+
+        void ShowToast(Notice n)
+        {
+            toastTitle.text = n.title;
+            toastTitle.color = Color.Lerp(Color.white, n.glow, 0.45f);
+            toastSub.text = n.sub;
+            toastAccent.color = n.glow;
+            toastRT.sizeDelta = new Vector2(Mathf.Max(toastTitle.preferredWidth, toastSub.preferredWidth) + 40, 56);
+            toastT = 0;
         }
 
         public void AddText(float x, float y, string text, Color col, float size)
@@ -291,37 +688,115 @@ namespace DeepFeast
             texts.Clear();
         }
 
-        public bool PointerOverUI(int pointerId = -1)
+        /// Whether a screen position (pixels, origin bottom left) is over an interactive part of the UI.
+        public bool PointerOverUI(Vector2 screenPosition)
         {
             var es = EventSystem.current;
-            return es != null && es.IsPointerOverGameObject(pointerId);
+            if (es == null) return false;
+            uiProbe ??= new PointerEventData(es);
+            uiProbe.position = screenPosition;
+            es.RaycastAll(uiProbe, uiHits);
+            return uiHits.Count > 0;
+        }
+
+        public void ShowControls(Controls controls)
+        {
+            if (controls == shownControls) return;
+            shownControls = controls;
+            ApplyControls();
+        }
+
+        // Also called when settings change, so the dash guide follows hold or toggle.
+        public void ApplyControls()
+        {
+            bool pad = shownControls != Controls.KeyboardMouse, ps = shownControls == Controls.PlayStation, toggle = GameSettings.Data.dashToggle;
+            string press = toggle ? "Press" : "Hold";
+            guideSteer.text = pad ? "Left stick / d-pad" : "Mouse / touch / WASD";
+            guideDash.text = pad ? (ps ? press + " Cross or R2" : press + " A or RT") : toggle ? "Click / Space" : "Hold click / Space";
+            guideBreak.text = pad ? (ps ? "Options pauses  ·  Share mutes" : "Start pauses  ·  View mutes") : "P pauses  ·  M mutes";
+            pauseHint.text = pad ? (ps ? "OPTIONS / CIRCLE to resume" : "START / B to resume") : "P / ESC to resume";
+            settingsTabsHint.text = pad ? (ps ? "L1 / R1  CHANGE PAGE" : "LB / RB  CHANGE PAGE") : "TAB  CHANGE PAGE";
+        }
+
+        public string Selected => EventSystem.current?.currentSelectedGameObject?.name;
+        public bool HasFocus => EventSystem.current?.currentSelectedGameObject is GameObject g && g.activeInHierarchy;
+
+        /// Presses whichever button has focus, as a Start press on a card does.
+        public void SubmitFocused()
+        {
+            if (!HasFocus) return;
+            var es = EventSystem.current;
+            ExecuteEvents.Execute(es.currentSelectedGameObject, new BaseEventData(es), ExecuteEvents.submitHandler);
+        }
+
+        // The results cards take focus after a beat, so a dash held or mashed through the final
+        // moments of a swim can't skip straight past them.
+        void FocusSoon()
+        {
+            EventSystem.current?.SetSelectedGameObject(null);
+            focusDelay = 0.6f;
+        }
+
+        void UpdateFocusRing()
+        {
+            var selected = EventSystem.current?.currentSelectedGameObject;
+            bool show = ShowFocus && selected != null && selected.activeInHierarchy && selected.name.StartsWith("Button_", StringComparison.Ordinal);
+            SetActive(focusRing.gameObject, show);
+            if (!show) return;
+            var target = (RectTransform)selected.transform;
+            if (focusRing.parent != target.parent) focusRing.SetParent(target.parent, false);
+            int ti = target.GetSiblingIndex(), ri = focusRing.GetSiblingIndex();
+            if (ri != ti - 1) focusRing.SetSiblingIndex(ri < ti ? ti - 1 : ti);
+            float pulse = 1 + Mathf.Sin(Recorder.UnscaledTime * 5) * 1.5f;
+            Place(focusRing, target.anchorMin, target.anchorMax, target.anchoredPosition + new Vector2(0, 5 + pulse),
+                target.sizeDelta + Vector2.one * (10 + pulse * 2), target.pivot);
         }
 
         /// toScreen maps world (y-down) to ref px (y-down from top-left).
         public void Tick(float dt, float rdt, Func<float, float, Vector2> toScreen, List<Alert> alerts, float time)
         {
+            if (focusDelay > 0 && (focusDelay -= rdt) <= 0) FocusPrimary();
+            UpdateFocusRing();
+            TickSettings(rdt);
             hudAlpha = Mathf.MoveTowards(hudAlpha, hudTarget, rdt * 2);
             hudGroup.alpha = hudAlpha;
+            shownGrowth = Mathf.Lerp(shownGrowth, targetGrowth, 1 - Mathf.Exp(-rdt * 10));
+            growthRT.sizeDelta = new Vector2(Mathf.Max(16, shownGrowth * BAR_W), 16);
+            growthPulse = Mathf.Max(0, growthPulse - rdt);
+            scorePulse = Mathf.Max(0, scorePulse - rdt);
+            var tint = Color.Lerp(Color.white, U.Hex("#fff3be"), Mathf.Clamp01(growthPulse * 1.4f));
+            if (growthGrad.tint != tint) { growthGrad.tint = tint; growth.SetVerticesDirty(); }
+            score.rectTransform.localScale = Vector3.one * (1 + Mathf.Sin(scorePulse / 0.18f * Mathf.PI) * 0.07f);
 
             // title bob
             if (menu.activeSelf)
             {
                 float b = Mathf.Sin(time * U.TAU / 3.2f);
-                titleRT.anchoredPosition = new Vector2(0, -24 + Mathf.Max(0, b) * 7);
-                titleRT.localRotation = Quaternion.Euler(0, 0, Mathf.Max(0, b) * 1);
+                titleRT.anchoredPosition = titleOrigin + new Vector2(0, b * 3);
+                titleRT.localRotation = Quaternion.Euler(0, 0, b * 0.3f);
+                for (int i = 0; i < menuFish.Count; i++)
+                {
+                    var fish = menuFish[i];
+                    fish.localRotation = Quaternion.Euler(0, 0, (i == 1 ? -9 : i == 2 ? 7 : 0) + Mathf.Sin(time * 1.2f + i) * 2);
+                }
             }
 
-            // banner animation (2.6 s)
-            bannerT += rdt;
-            float T = bannerT / 2.6f, alpha, sc, dy;
+            // banner (2.6 s) and toast (1.6 s) animations; they wait behind the pause card and never cover an overlay
+            if (!pause.activeSelf && !settings.activeSelf) { bannerT += rdt; toastT += rdt; }
+            if (bannerT >= BANNER_LEN + NOTICE_GAP && banners.Count > 0) ShowBanner(banners.Dequeue());
+            if (toastT >= TOAST_LEN + NOTICE_GAP && toasts.Count > 0) ShowToast(toasts.Dequeue());
+            float tt = toastT / TOAST_LEN, ta = tt >= 1 ? 0 : tt < 0.12f ? U.Smooth(tt / 0.12f) : tt < 0.82f ? 1 : 1 - U.Smooth((tt - 0.82f) / 0.18f);
+            toastGroup.alpha = ActiveOverlay == "none" ? ta : 0;
+            toastRT.anchoredPosition = new Vector2(14 - 24 * (1 - Mathf.Min(1, tt / 0.12f)), -104);
+            float T = bannerT / BANNER_LEN, alpha, sc, dy;
             if (T >= 1) { alpha = 0; sc = 1; dy = 0; }
             else if (T < 0.1f) { float k = U.Smooth(T / 0.1f); alpha = k; sc = Mathf.Lerp(0.7f, 1.06f, k); dy = Mathf.Lerp(-18, 0, k); }
             else if (T < 0.18f) { float k = U.Smooth((T - 0.1f) / 0.08f); alpha = 1; sc = Mathf.Lerp(1.06f, 1, k); dy = 0; }
             else if (T < 0.8f) { alpha = 1; sc = 1; dy = 0; }
             else { float k = U.Smooth((T - 0.8f) / 0.2f); alpha = 1 - k; sc = Mathf.Lerp(1, 0.98f, k); dy = 14 * k; }
-            bannerGroup.alpha = alpha;
-            bannerRT.localScale = new Vector3(sc, sc, 1);
-            bannerRT.anchoredPosition = new Vector2(0, dy);
+            bannerGroup.alpha = ActiveOverlay == "none" ? alpha : 0;
+            bannerRT.localScale = new Vector3(sc * bannerFit, sc * bannerFit, 1);
+            bannerRT.anchoredPosition = new Vector2(0, dy - bannerY);
 
             // floating score texts
             for (int i = texts.Count - 1; i >= 0; i--)
@@ -333,9 +808,9 @@ namespace DeepFeast
                 var s = toScreen(f.x, f.y);
                 float rise = (1 - a) * 46;
                 float k = a > 0.85f ? 1 + (a - 0.85f) * 3 : 1;
-                f.t.fontSize = Mathf.RoundToInt(f.size * k);
+                f.t.fontSize = Mathf.RoundToInt(f.size * k * uiScale);
                 f.t.color = U.WithA(f.col, Mathf.Min(1, a * 1.6f));
-                f.t.rectTransform.anchoredPosition = new Vector2(s.x, -(s.y - rise));
+                f.t.rectTransform.anchoredPosition = new Vector2(s.x, -Mathf.Max(s.y - rise, textTop + f.t.fontSize * 0.6f));
             }
 
             // "!" alerts + off-screen arrows
@@ -356,7 +831,7 @@ namespace DeepFeast
                     img.enabled = true;
                     img.rectTransform.anchoredPosition = new Vector2(al.screen.x, -al.screen.y);
                     img.rectTransform.localRotation = Quaternion.Euler(0, 0, -al.angle * Mathf.Rad2Deg);
-                    img.color = new Color(1, 45 / 255f, 74 / 255f, al.pulse);
+                    img.color = al.quarry ? new Color(1, 212 / 255f, 71 / 255f, al.pulse) : new Color(1, 45 / 255f, 74 / 255f, al.pulse);
                 }
             }
             for (; ai < alertPool.Count; ai++) alertPool[ai].enabled = false;
@@ -364,14 +839,8 @@ namespace DeepFeast
         }
 
         // ------------------------------------------------------------------ builders
-        static string Spaced(string s)
-        {
-            var sb = new System.Text.StringBuilder(s.Length * 2);
-            for (int i = 0; i < s.Length; i++) { if (i > 0) sb.Append(' '); sb.Append(s[i]); }
-            return sb.ToString();
-        }
-
-        static void SetText(Text t, string v) { if (t.text != v) t.text = v; }
+        static bool SetText(Text t, string v) { if (t.text == v) return false; t.text = v; return true; }
+        static void SetActive(GameObject go, bool on) { if (go.activeSelf != on) go.SetActive(on); }
 
         static RectTransform Node(string name, Transform parent)
         {
@@ -391,11 +860,13 @@ namespace DeepFeast
             rt.anchoredPosition = pos; rt.sizeDelta = size;
         }
 
-        Text Label(Transform parent, string text, int size, Color col, TextAnchor align, Vector2 anchor, Vector2 pos)
+        /// Text label; pass the display font for headings (it has no bold face, so it's used as-is).
+        Text Label(Transform parent, string text, int size, Color col, TextAnchor align, Vector2 anchor, Vector2 pos, Font f = null)
         {
             var rt = Node("Text", parent);
             var t = rt.gameObject.AddComponent<Text>();
-            t.font = font; t.fontSize = size; t.fontStyle = FontStyle.Bold; t.color = col; t.text = text;
+            f ??= font;
+            t.font = f; t.fontSize = size; t.fontStyle = f == font ? FontStyle.Bold : FontStyle.Normal; t.color = col; t.text = text;
             t.alignment = align; t.horizontalOverflow = HorizontalWrapMode.Overflow; t.verticalOverflow = VerticalWrapMode.Overflow;
             t.raycastTarget = false;
             Vector2 pivot = align switch
@@ -403,6 +874,7 @@ namespace DeepFeast
                 TextAnchor.UpperLeft => new Vector2(0, 1),
                 TextAnchor.LowerLeft => new Vector2(0, 0),
                 TextAnchor.UpperCenter => new Vector2(0.5f, 1),
+                TextAnchor.UpperRight => new Vector2(1, 1),
                 _ => new Vector2(0.5f, 0.5f),
             };
             Place(rt, anchor, anchor, pos, new Vector2(10, size * 1.2f), pivot);
@@ -428,7 +900,15 @@ namespace DeepFeast
 
         static void AddShadow(Graphic g, Color c, Vector2 d) { var s = g.gameObject.AddComponent<Shadow>(); s.effectColor = c; s.effectDistance = d; }
         static void AddOutline(Graphic g, Color c, float d) { var s = g.gameObject.AddComponent<Outline>(); s.effectColor = c; s.effectDistance = new Vector2(d, -d); }
-        static void Gradient(Graphic g, Color a, Color b, Color c) { var v = g.gameObject.AddComponent<VertexGradient>(); v.a = a; v.b = b; v.c = c; }
+        static VertexGradient Gradient(Graphic g, Color a, Color b, Color c) { var v = g.gameObject.AddComponent<VertexGradient>(); v.a = a; v.b = b; v.c = c; return v; }
+
+        /// Glossy highlight across the top half of a bar or button.
+        static void Shine(RectTransform parent, float radius, float alpha = 0.32f)
+        {
+            var rt = Panel(parent, new Color(1, 1, 1, alpha), radius * 0.6f).rectTransform;
+            rt.anchorMin = new Vector2(0, 0.5f); rt.anchorMax = Vector2.one;
+            rt.offsetMin = new Vector2(Mathf.Min(4, radius * 0.5f), 0); rt.offsetMax = new Vector2(-Mathf.Min(4, radius * 0.5f), -2);
+        }
 
         GameObject Overlay(string name, out RectTransform panel, Vector2 size)
         {
@@ -436,52 +916,107 @@ namespace DeepFeast
             var dim = root.gameObject.AddComponent<Image>();
             dim.sprite = Gfx.Vignette; dim.color = new Color(0, 0.05f, 0.12f, 1);
             dim.raycastTarget = true;
-            var border = Panel(root, new Color(160 / 255f, 240 / 255f, 1, 0.26f), 30);
+            var border = Panel(root, new Color(0.51f, 0.78f, 0.76f, 0.26f), 24);
             Place(border.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, size + new Vector2(3, 3));
             AddShadow(border, new Color(0, 0, 0, 0.25f), new Vector2(0, -10));
-            var inner = Panel(border.rectTransform, new Color(6 / 255f, 40 / 255f, 66 / 255f, 0.82f), 29);
+            var inner = Panel(border.rectTransform, new Color(0.03f, 0.12f, 0.19f, 0.97f), 23);
             Place(inner.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, size);
             var g = inner.gameObject.AddComponent<VertexGradient>();
-            g.a = new Color(0.16f, 0.36f, 0.5f, 1); g.b = new Color(0.06f, 0.2f, 0.32f, 1); g.c = new Color(0.03f, 0.13f, 0.23f, 1); g.mid = 0.4f;
+            g.a = U.Hex("#153c43"); g.b = U.Hex("#102d37"); g.c = U.Hex("#0b2331"); g.mid = 0.4f;
+            var accent = Panel(inner.rectTransform, U.Hex("#84d8c4", 0.55f), 2);
+            Place(accent.rectTransform, new Vector2(0, 1), Vector2.one, new Vector2(0, -5), new Vector2(-54, 2));
             panel = inner.rectTransform;
             return root.gameObject;
         }
 
-        void Button(Transform parent, string label, Vector2 pos, Action onClick)
+        void Button(Transform parent, string label, Vector2 pos, Action onClick, float width = 0, bool secondary = false)
         {
             var img = Panel(parent, Color.white, 30);
             img.raycastTarget = true;
-            float w = Mathf.Max(220, label.Length * 22 + 100);
-            Place(img.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), pos, new Vector2(w, 58), new Vector2(0.5f, 1));
-            Gradient(img, U.Hex("#8dfde6"), U.Hex("#52e0cf"), U.Hex("#21c6b6"));
-            AddShadow(img, U.Hex("#0f7f7a"), new Vector2(0, -6));
+            img.gameObject.name = "Button_" + label;
+            float w = width > 0 ? width : Mathf.Max(220, label.Length * 22 + 100);
+            Place(img.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), pos, new Vector2(w, 64), new Vector2(0.5f, 1));
+            if (secondary) Gradient(img, U.Hex("#3d808a"), U.Hex("#2a6670"), U.Hex("#1d515b")).multiplyGraphicColor = true;
+            else Gradient(img, U.Hex("#d0f3df"), U.Hex("#91ddc5"), U.Hex("#68c6b2")).multiplyGraphicColor = true;
+            AddShadow(img, U.Hex("#163d41"), new Vector2(0, -4));
             var b = img.gameObject.AddComponent<UnityEngine.UI.Button>();
-            var cb = b.colors; cb.highlightedColor = new Color(1, 1, 1, 1); cb.normalColor = new Color(0.94f, 0.94f, 0.94f, 1); cb.pressedColor = new Color(0.78f, 0.78f, 0.78f, 1); cb.selectedColor = cb.normalColor;
+            var cb = b.colors; cb.highlightedColor = Color.white; cb.normalColor = new Color(0.84f, 0.94f, 0.95f, 1); cb.pressedColor = new Color(0.65f, 0.82f, 0.85f, 1); cb.selectedColor = new Color(1, 0.94f, 0.75f, 1);
             b.colors = cb;
             b.onClick.AddListener(() => onClick());
-            var t = Label(img.rectTransform, label, 24, U.Hex("#053040"), TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0, 1));
-            t.raycastTarget = false;
+            Shine(img.rectTransform, 30, 0.1f);
+            Label(img.rectTransform, label, 28, secondary ? U.Hex("#e6fbf4") : U.Hex("#053040"), TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0, 0), display);
         }
 
         Text Stat(Transform parent, string label, Vector2 pos)
         {
             var box = Panel(parent, new Color(0, 20 / 255f, 40 / 255f, 0.4f), 14);
-            Place(box.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), pos, new Vector2(196, 64), new Vector2(0.5f, 1));
-            var v = Label(box.rectTransform, "0", 26, Color.white, TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -8));
-            Label(box.rectTransform, label, 11, new Color(1, 1, 1, 0.7f), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -42));
+            Place(box.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), pos, new Vector2(300, 78), new Vector2(0.5f, 1));
+            var v = Label(box.rectTransform, "0", 30, Color.white, TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -6), display);
+            Label(box.rectTransform, label, 14, new Color(1, 1, 1, 0.72f), TextAnchor.UpperCenter, new Vector2(0.5f, 1), new Vector2(0, -50));
             return v;
+        }
+
+        void MenuFish(Transform parent, Species species, Vector2 pos, Vector2 size, float angle)
+        {
+            var fish = Img(parent, FishArt.Get(species).body, new Color(0.96f, 1, 0.95f));
+            fish.preserveAspect = true;
+            Place(fish.rectTransform, Vector2.one, Vector2.one, pos, size);
+            fish.rectTransform.localRotation = Quaternion.Euler(0, 0, angle);
+            menuFish.Add(fish.rectTransform);
+        }
+
+        Text Guide(Transform parent, string heading, string description, float x)
+        {
+            var card = Panel(parent, new Color(0.03f, 0.1f, 0.15f, 0.6f), 12);
+            Place(card.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(x, -495), new Vector2(268, 68), new Vector2(0.5f, 1));
+            Label(card.rectTransform, heading, 15, U.Hex("#94c7bd"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(16, -11));
+            return Label(card.rectTransform, description, 15, U.Hex("#d4e4df"), TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(16, -32));
+        }
+
+        // Native harness uses Unity's Submit event to verify the same button callbacks as the player.
+        public void SubmitPrimary()
+        {
+            var button = ActiveScreen?.GetComponentInChildren<UnityEngine.UI.Button>();
+            if (button == null) throw new InvalidOperationException("No active primary menu button.");
+            EventSystem.current.SetSelectedGameObject(button.gameObject);
+            ExecuteEvents.Execute(button.gameObject, new BaseEventData(EventSystem.current), ExecuteEvents.submitHandler);
+        }
+
+        // Native harness: press a named button on the active screen through the same Submit event.
+        public void SubmitButton(string label)
+        {
+            UnityEngine.UI.Button button = null;
+            if (ActiveScreen != null)
+                foreach (var b in ActiveScreen.GetComponentsInChildren<UnityEngine.UI.Button>())
+                    if (b.name == "Button_" + label) button = b;
+            if (button == null) throw new InvalidOperationException($"No {label} button on the active screen.");
+            EventSystem.current.SetSelectedGameObject(button.gameObject);
+            ExecuteEvents.Execute(button.gameObject, new BaseEventData(EventSystem.current), ExecuteEvents.submitHandler);
+        }
+
+        public string ActiveOverlay => settings.activeSelf ? "settings" : dex.activeSelf ? "fishdex" : menu.activeSelf ? "menu" : pause.activeSelf ? "pause" : over.activeSelf ? "over" : victory.activeSelf ? "victory" : "none";
+
+        GameObject ActiveScreen => settings.activeSelf ? settings : dex.activeSelf ? dex : menu.activeSelf ? menu : pause.activeSelf ? pause : over.activeSelf ? over : victory.activeSelf ? victory : null;
+
+        void FocusPrimary()
+        {
+            focusDelay = 0;
+            if (SettingsOpen) { FocusFirstRow(); return; }
+            var button = ActiveScreen?.GetComponentInChildren<UnityEngine.UI.Button>();
+            if (button != null) EventSystem.current.SetSelectedGameObject(button.gameObject);
         }
 
         Text MakeWorldText()
         {
-            var t = Label(worldLayer, "", 22, Color.white, TextAnchor.MiddleCenter, new Vector2(0, 1), Vector2.zero);
-            AddOutline(t, new Color(0, 30 / 255f, 50 / 255f, 0.7f), 2f);
+            var t = Label(worldLayer, "", 22, Color.white, TextAnchor.MiddleCenter, new Vector2(0, 1), Vector2.zero, display);
+            AddOutline(t, new Color(0, 30 / 255f, 50 / 255f, 0.75f), 2f);
+            AddShadow(t, new Color(0, 0.08f, 0.16f, 0.4f), new Vector2(0, -2));
             return t;
         }
 
         Text MakeAlert()
         {
-            var t = Label(worldLayer, "!", 32, U.Hex("#ff2d4a"), TextAnchor.MiddleCenter, new Vector2(0, 1), Vector2.zero);
+            var t = Label(worldLayer, "!", 40, U.Hex("#ff2d4a"), TextAnchor.MiddleCenter, new Vector2(0, 1), Vector2.zero, display);
             AddOutline(t, Color.white, 2.5f);
             return t;
         }
@@ -494,23 +1029,35 @@ namespace DeepFeast
             return img;
         }
 
+        /// Speaker icon, with sound waves or (muted) a small cross.
         static Sprite Icon(bool muted)
         {
             var r = new Raster(0, 0, 24, 24, 4);
             var m = r.Mask();
+            r.Fill(new Path().Move(2.5f, 9).Line(6.5f, 9).Line(12, 4.5f).Line(12, 19.5f).Line(6.5f, 15).Line(2.5f, 15), m);
             if (!muted)
             {
-                r.Ellipse(8, 18, 4, 3.2f, -0.35f, m);
-                r.Fill(new Path().Move(10.5f, 17.5f).Line(12.2f, 17.5f).Line(12.2f, 4).Line(10.5f, 4), m);
-                r.Stroke(Raster.QuadPts(new Vector2(11.5f, 4.5f), new Vector2(17, 6), new Vector2(18, 11)), 2f, m);
+                r.Stroke(ArcPts(12, 12, 4.4f, 0.85f), 1.9f, m);
+                r.Stroke(ArcPts(12, 12, 8.2f, 0.9f), 1.9f, m);
             }
             else
             {
-                r.Stroke(new[] { new Vector2(5, 5), new Vector2(19, 19) }, 2.6f, m);
-                r.Stroke(new[] { new Vector2(19, 5), new Vector2(5, 19) }, 2.6f, m);
+                r.Stroke(new[] { new Vector2(15.2f, 8.8f), new Vector2(21.2f, 15.2f) }, 2.3f, m);
+                r.Stroke(new[] { new Vector2(21.2f, 8.8f), new Vector2(15.2f, 15.2f) }, 2.3f, m);
             }
             r.Paint(m, Color.white);
             return r.ToSprite(new Vector2(12, 12), 4);
+        }
+
+        static List<Vector2> ArcPts(float cx, float cy, float rad, float half, int n = 10)
+        {
+            var l = new List<Vector2>(n + 1);
+            for (int i = 0; i <= n; i++)
+            {
+                float a = -half + 2 * half * i / n;
+                l.Add(new Vector2(cx + Mathf.Cos(a) * rad, cy + Mathf.Sin(a) * rad));
+            }
+            return l;
         }
     }
 }

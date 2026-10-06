@@ -1,0 +1,47 @@
+diff --git a/unity/Assets/Scripts/Game.cs b/unity/Assets/Scripts/Game.cs
+index c1516da..b6bc68b 100644
+--- a/unity/Assets/Scripts/Game.cs
++++ b/unity/Assets/Scripts/Game.cs
+@@ -70 +70 @@ namespace DeepFeast
+-        string shotDir, scenery;
++        string shotDir, scenery, interfaceReview;
+@@ -73 +73 @@ namespace DeepFeast
+-        bool menuShotDone;
++        bool menuShotDone, turnReviewLogged;
+@@ -135,0 +136 @@ namespace DeepFeast
++            if (interfaceReview != null) SetupInterface();
+@@ -236,0 +238,2 @@ namespace DeepFeast
++            interfaceReview = Arg("-interface");
++            if (interfaceReview != null && scenery == null) scenery = "reef";
+@@ -400,0 +404,5 @@ namespace DeepFeast
++            if (Has("-turn-review"))
++            {
++                player.face = -1; player.faceS = ArgF("-turn", 0.01f);
++                foreach (var f in fish) { f.face = -1; f.faceS = player.faceS; }
++            }
+@@ -403 +411 @@ namespace DeepFeast
+-                Shot(animate ? $"scenery_{shotN:000}" : "scenery");
++                Shot(animate ? $"scenery_{shotN:000}" : interfaceReview != null ? "interface" : Has("-turn-review") ? "turn" : "scenery");
+@@ -408,0 +417,7 @@ namespace DeepFeast
++        void SetupInterface()
++        {
++            if (interfaceReview == "menu") { state = GState.Menu; pActive = false; hud.ShowMenu(4240); }
++            else if (interfaceReview == "pause") { state = GState.Paused; hud.ShowPause(true); }
++            else { state = GState.Over; pActive = false; hud.ShowOver(2340, "Predator", 42, 164, false, 4240); }
++        }
++
+@@ -704 +719,10 @@ namespace DeepFeast
+-            if (scenery != null) { Scenery(rdt); Render(0, rdt); return; }
++            if (scenery != null)
++            {
++                Scenery(rdt); Render(0, rdt);
++                if (Has("-turn-review") && !turnReviewLogged && realTime > 3.2f)
++                {
++                    turnReviewLogged = true;
++                    Debug.Log($"[DeepFeast] turn review: player width ratio={Mathf.Abs(playerView.root.transform.localScale.x):0.000}.");
++                }
++                return;
++            }
+@@ -1451 +1475 @@ namespace DeepFeast
+-            hud.Tick(dt, rdt, (x, y) => ToScreen(x, y), alerts, Time.unscaledTime);
++            hud.Tick(dt, rdt, (x, y) => ToScreen(x, y), alerts, interfaceReview != null ? time : Time.unscaledTime);

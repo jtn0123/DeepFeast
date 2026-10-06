@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deep Feast · Painted habitats</title>
+<style>
+:root{color-scheme:dark;font:15px/1.5 system-ui,sans-serif;background:#081d2c;color:#eef8fa}
+*{box-sizing:border-box}body{max-width:1560px;margin:auto;padding:28px}header{display:flex;justify-content:space-between;gap:24px;align-items:center}
+.eyebrow{font-size:11px;letter-spacing:2px;color:#83e1cd;font-weight:700}h1{font-size:34px;line-height:1.15;margin:9px 0}p{color:#abc1cd;margin:10px 0}nav{display:flex;gap:8px;flex-wrap:wrap;margin:24px 0}
+button,a.control{border:1px solid #38505f;background:#122e40;color:#e6f1f5;border-radius:8px;padding:9px 16px;cursor:pointer;text-decoration:none;font:inherit}
+button[aria-pressed=true]{background:#72deca;color:#072331;border-color:#72deca}a{color:#86e2d2}button:hover,a.control:hover{filter:brightness(1.12)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:16px}.frame{background:#102e40;border:1px solid #365363;border-radius:10px;overflow:hidden}
+.label{padding:10px 14px;font-size:12px;letter-spacing:.6px}.after .label{color:#88e8d3}img{display:block;width:100%;height:auto}
+.details{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin:24px 0}.details b{display:block}.details p{font-size:13px}
+.wipe{position:relative;aspect-ratio:16/9;border:1px solid #365363;overflow:hidden;border-radius:10px}.wipe img{position:absolute;inset:0;width:100%;height:100%}
+.wipe .over{clip-path:inset(0 0 0 50%)}input{width:100%;accent-color:#72deca;margin:14px 0}
+.hidden{display:none}video{width:100%;max-height:640px;border-radius:10px}footer{color:#89a6b7;font-size:12px;border-top:1px solid #294352;padding-top:16px}
+@media(max-width:760px){body{padding:18px}header{display:block}.pair,.details{grid-template-columns:1fr}h1{font-size:28px}}
+</style>
+<header><div><div class="eyebrow">DEEP FEAST / UNITY ENVIRONMENT PASS</div><h1 id="title">A painted kelp forest.</h1><p id="description"></p></div><a class="control" href="HANDOVER.md">Implementation handover ↗</a></header>
+<nav aria-label="Environment views"><button data-view="kelp">Kelp forest</button><button data-view="reef">Shallow reef</button><button data-view="abyss">Abyss</button><button data-view="surface">Near surface</button><button data-view="animation">Current animation</button><button id="mode">Use comparison slider</button></nav>
+<div class="pair" id="pair"><div class="frame"><div class="label">BEFORE · COMMITTED UNITY da45f4b</div><img id="before" alt="Previous installed Unity scenery"></div><div class="frame after"><div class="label">AFTER · IMPLEMENTED NATIVE UNITY PLAYER</div><img id="after" alt="New painted Unity scenery"></div></div>
+<div id="slider" class="hidden"><div class="wipe"><img id="wipe-before" alt="Before scenery"><img class="over" id="wipe-after" alt="After scenery"></div><label for="amount">Before ← Drag to compare → After</label><input id="amount" type="range" min="0" max="100" value="50"></div>
+<div id="motion" class="hidden"><video controls loop muted preload="metadata" src="current-animation.mp4"></video></div>
+<div class="details" id="details"></div>
+<footer>Both sides are real 1280×720 Unity camera renders with the same camera, terrain and fish placements. Ambient schools can vary. Captured offscreen with native shaders and HUD; windowed input/audio still need an active display. <a href="evidence.json">Evidence</a> · <a href="production-prompts.json">Asset prompts</a></footer>
+<script>
+const views={
+kelp:{title:'A painted kelp forest.',description:'Ribbon blades, rooted current motion, lush grass and red seaweed replace flat procedural plants.',notes:[['Botanical volume','Two kelp varieties have curled blades, shaded surfaces and soft moving crowns.'],['Grounded roots','Wide kelp footings are buried on slopes; grass and anemones sit along the seabed.'],['Fish stay readable','Scenery sits behind fish and fades into depth-colored water.']]},
+reef:{title:'A reef with depth.',description:'Painted shelves and arches form three parallax layers behind the existing bright coral.',notes:[['Painted habitats','Four authored formations replace angular mountains and twig coral silhouettes.'],['Water perspective','Each layer scrolls at its own speed with progressively softer water fog.'],['Seabed detail','Quiet broken ripples and ribbed shells add variety to the sand.']]},
+abyss:{title:'A distinct deep-sea habitat.',description:'Cool eroded rock fingers fade into the abyss, with restrained bioluminescent vegetation.',notes:[['Depth transition','Shallow reef formations dissolve into cool abyss outcrops with increasing depth.'],['Painted anemones','Soft violet tentacles and pale cyan tips replace simple radial strokes.'],['Darkness preserved','Existing darkness and local reef lights retain the feel and visibility rules of deep water.']]},
+surface:{title:'Layers beneath the surface.',description:'Soft reef silhouettes sit under the existing animated surface and shafts of light.',notes:[['Air and water','The original surface, caustics, rays and motes remain in the native scene.'],['Natural contours','Terraces, arches and reef shelves replace tall pointed backdrop shapes.'],['Open swimming space','The upper water remains spacious and the hero fish remain bright.']]},
+animation:{title:'Plants move with the current.',description:'Native camera frames show rooted deformation and soft leaf motion in the kelp forest.',notes:[['Rooted deformation','The footing stays still while a traveling bend grows toward each plant crown.'],['Shared geometry','Six plants and four formations reuse ten meshes and two atlas materials.'],['Native evidence','This video comes from the built macOS Unity player, not a scene mockup.']]}
+};
+let current='kelp', slider=false;
+async function show(view){
+current=view;const v=views[view];document.getElementById('title').textContent=v.title;document.getElementById('description').textContent=v.description;
+document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));
+document.getElementById('details').innerHTML=v.notes.map(([title,text])=>'<div><b>'+title+'</b><p>'+text+'</p></div>').join('');
+const motion=view==='animation';document.getElementById('motion').classList.toggle('hidden',!motion);document.getElementById('mode').hidden=motion;
+document.getElementById('pair').classList.toggle('hidden',motion||slider);document.getElementById('slider').classList.toggle('hidden',motion||!slider);
+if(!motion){for(const id of ['before','after','wipe-before','wipe-after'])document.getElementById(id).src=(id.endsWith('before')?'before/':'after/')+view+'/scenery.png';await Promise.all(['before','after'].map(id=>document.getElementById(id).decode()));}
+const u=new URL(location);u.searchParams.set('view',view);history.replaceState(null,'',u);
+}
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>show(b.dataset.view));
+document.getElementById('mode').onclick=()=>{slider=!slider;document.getElementById('mode').textContent=slider?'Use side-by-side view':'Use comparison slider';show(current)};
+document.getElementById('amount').oninput=e=>document.getElementById('wipe-after').style.clipPath='inset(0 0 0 '+e.target.value+'%)';
+show(views[new URL(location).searchParams.get('view')]?new URL(location).searchParams.get('view'):'kelp');
+</script>
+<script src="export-board.js"></script>
+</html>

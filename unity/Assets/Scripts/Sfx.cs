@@ -11,11 +11,20 @@ namespace DeepFeast
         readonly AudioSource[] voices = new AudioSource[14];
         int next;
         readonly AudioSource ambient;
+        readonly Music music;
         AudioClip chomp, ding, tierUp, hurt, alert, shark, zap, pearl, dash, bump;
         public bool Muted { get; private set; }
+        // The player's volume settings, 0 to 1.
+        float master = 1, effects = 1;
+        const float Listener = 0.5f, AmbientLevel = 0.22f;
+        // Test runs never save the mute switch.
+        readonly bool persist;
 
-        public Sfx(GameObject host, bool forceMute)
+        // A recording keeps its sound whatever the mute: the audio renderer takes the whole mix and the
+        // speakers get silence.
+        public Sfx(GameObject host, bool persist, bool forceMute, bool recording = false)
         {
+            this.persist = persist;
             for (int i = 0; i < voices.Length; i++)
             {
                 voices[i] = host.AddComponent<AudioSource>();
@@ -24,20 +33,28 @@ namespace DeepFeast
             ambient = host.AddComponent<AudioSource>();
             ambient.loop = true;
             ambient.playOnAwake = false;
-            ambient.volume = 0.22f;
-            Muted = forceMute || PlayerPrefs.GetInt("deepfeast.muted", 0) == 1;
-            AudioListener.volume = Muted ? 0 : 0.5f;
+            ambient.volume = AmbientLevel;
+            Muted = !recording && (forceMute || PlayerPrefs.GetInt("deepfeast.muted", 0) == 1);
+            AudioListener.volume = Muted ? 0 : Listener;
             Build();
             ambient.clip = Ambient();
             ambient.Play();
+            music = new Music(host);
         }
 
         public void SetMuted(bool m)
         {
             Muted = m;
-            PlayerPrefs.SetInt("deepfeast.muted", m ? 1 : 0);
-            PlayerPrefs.Save();
-            AudioListener.volume = m ? 0 : 0.5f;
+            if (persist) { PlayerPrefs.SetInt("deepfeast.muted", m ? 1 : 0); PlayerPrefs.Save(); }
+            AudioListener.volume = m ? 0 : Listener * master;
+        }
+
+        public void SetLevels(float masterLevel, float musicLevel, float effectsLevel, float ambienceLevel)
+        {
+            master = masterLevel; effects = effectsLevel;
+            music.SetLevel(musicLevel);
+            ambient.volume = AmbientLevel * ambienceLevel;
+            AudioListener.volume = Muted ? 0 : Listener * master;
         }
 
         void Play(AudioClip c, float pitch = 1, float vol = 1)
@@ -45,7 +62,7 @@ namespace DeepFeast
             var v = voices[next];
             next = (next + 1) % voices.Length;
             v.pitch = pitch;
-            v.volume = vol;
+            v.volume = vol * effects;
             v.clip = c;
             v.Play();
         }
@@ -56,10 +73,12 @@ namespace DeepFeast
             Play(chomp, p / 420f);
             if (combo > 1) Play(ding, Mathf.Pow(1.0595f, combo * 2));
         }
-        public void TierUp() => Play(tierUp);
-        public void Hurt() => Play(hurt);
+        public void TierUp() { Play(tierUp); music.Duck(0.35f); }
+        public void Hurt() { Play(hurt); music.Duck(0.6f); }
         public void Alert() => Play(alert);
-        public void Shark() => Play(shark);
+        public void Shark() { Play(shark); music.Duck(0.5f); }
+        public void Victory() => music.Victory();
+        public void Music(float rdt, Habitat.Look look, float growth, bool danger) => music.Update(rdt, look, growth, danger);
         public void Zap() => Play(zap);
         public void Pearl() => Play(pearl);
         public void Dash() => Play(dash);

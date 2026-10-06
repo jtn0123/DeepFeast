@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "renderer": "Unity procedural FishVolume",
+  "draftBase": "3da41f7",
+  "sharkRotation": [
+    "shark",
+    "tiger_shark",
+    "mako_shark"
+  ],
+  "species": [
+    {
+      "key": "minnow",
+      "displayName": "Minnow",
+      "scientificName": "",
+      "referenceUrl": "",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "clown",
+      "displayName": "Clownfish",
+      "scientificName": "",
+      "referenceUrl": "",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "tang",
+      "displayName": "Tang",
+      "scientificName": "",
+      "referenceUrl": "",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "angel",
+      "displayName": "Angelfish",
+      "scientificName": "",
+      "referenceUrl": "",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "puffer",
+      "displayName": "Puffer",
+      "scientificName": "",
+      "referenceUrl": "",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "parrot",
+      "displayName": "Parrotfish",
+      "scientificName": "",
+      "referenceUrl": "",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "snapper",
+      "displayName": "Snapper",
+      "scientificName": "",
+      "referenceUrl": "",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "barracuda",
+      "displayName": "Barracuda",
+      "scientificName": "",
+      "referenceUrl": "",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "grouper",
+      "displayName": "Grouper",
+      "scientificName": "",
+      "referenceUrl": "",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "tuna",
+      "displayName": "Tuna",
+      "scientificName": "",
+      "referenceUrl": "",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "almaco_jack",
+      "displayName": "Almaco jack",
+      "scientificName": "Seriola rivoliana",
+      "referenceUrl": "https://www.fisheries.noaa.gov/species/almaco-jack",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "goliath_grouper",
+      "displayName": "Atlantic goliath grouper",
+      "scientificName": "Epinephelus itajara",
+      "referenceUrl": "https://www.fisheries.noaa.gov/species/atlantic-goliath-grouper",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "atlantic_halibut",
+      "displayName": "Atlantic halibut",
+      "scientificName": "Hippoglossus hippoglossus",
+      "referenceUrl": "https://www.fisheries.noaa.gov/species/atlantic-halibut",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "atlantic_mackerel",
+      "displayName": "Atlantic mackerel",
+      "scientificName": "Scomber scombrus",
+      "referenceUrl": "https://www.fisheries.noaa.gov/species/atlantic-mackerel",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "mahi_mahi",
+      "displayName": "Atlantic mahi-mahi",
+      "scientificName": "Coryphaena hippurus",
+      "referenceUrl": "https://www.fisheries.noaa.gov/species/atlantic-mahi-mahi",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "skipjack_tuna",
+      "displayName": "Atlantic skipjack tuna",
+      "scientificName": "Katsuwonus pelamis",
+      "referenceUrl": "https://www.fisheries.noaa.gov/species/atlantic-skipjack-tuna",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "striped_bass",
+      "displayName": "Atlantic striped bass",
+      "scientificName": "Morone saxatilis",
+      "referenceUrl": "https://www.fisheries.noaa.gov/species/atlantic-striped-bass",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "yellowfin_tuna",
+      "displayName": "Atlantic yellowfin tuna",
+      "scientificName": "Thunnus albacares",
+      "referenceUrl": "https://www.fisheries.noaa.gov/species/atlantic-yellowfin-tuna",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "bluefish",
+      "displayName": "Bluefish",
+      "scientificName": "Pomatomus saltatrix",
+      "referenceUrl": "https://www.fisheries.noaa.gov/species/bluefish",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "red_drum",
+      "displayName": "Red drum",
+      "scientificName": "Sciaenops ocellatus",
+      "referenceUrl": "https://myfwc.com/wildlifehabitats/profiles/saltwater/drums/red-drum/",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "shark",
+      "displayName": "White shark",
+      "scientificName": "Carcharodon carcharias",
+      "referenceUrl": "https://www.fisheries.noaa.gov/species/white-shark",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "tiger_shark",
+      "displayName": "Tiger shark",
+      "scientificName": "Galeocerdo cuvier",
+      "referenceUrl": "https://www.fisheries.noaa.gov/feature-story/climate-change-shifting-tiger-shark-populations-northward",
+      "chaseSpeedMultiplier": 1.0
+    },
+    {
+      "key": "mako_shark",
+      "displayName": "Shortfin mako shark",
+      "scientificName": "Isurus oxyrinchus",
+      "referenceUrl": "https://www.fisheries.noaa.gov/species/shortfin-mako-shark",
+      "chaseSpeedMultiplier": 1.0800000429153442
+    },
+    {
+      "key": "player",
+      "displayName": "Hero fish",
+      "scientificName": "",
+      "referenceUrl": "",
+      "chaseSpeedMultiplier": 1.0
+    }
+  ]
+}

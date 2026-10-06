@@ -1,0 +1,254 @@
+{
+  "baseline_3d_commit": "40c193ead883e22c19b815e9e04280b277c35fea",
+  "installed_baseline": "8dbd365",
+  "unity": "6000.3.25f1",
+  "graphics": "native macOS Metal, graphics-enabled batchmode",
+  "source_sha256": {
+    "unity/Assets/Scripts/FishVolume.cs": "df03428aa1572d5a2430d45e5fb5fedb6b4ae480796fcaa1932669dfac4a5df1",
+    "unity/Assets/Resources/Shaders/FishVolume.shader": "9068b83f317f21d531040b08fabd761df444d10c947c109feff7dd126b234c75",
+    "unity/Assets/Scripts/Game.cs": "9a887ec81b473fe319a9ef04dd395558506bd4f1d59563c98b716589e667f5aa",
+    "unity/Assets/Scripts/FishTurnReview.cs": "dc6e0d2c1349c134f943452da4a3fce629d3f2a6d53e1adc3de36c1b6c626026",
+    "unity/Assets/Editor/MotionValidation.cs": "96ea28afdf2c41a3cd30acb2e5dc973b69bb3474940db07ce25c9c24668a1f5e"
+  },
+  "sequences": {
+    "before-turn": {
+      "frames": 120,
+      "fps": 30,
+      "size": [
+        960,
+        720
+      ],
+      "style": "Sculpted",
+      "edge_clipping": false,
+      "bounds_union": [
+        285,
+        74,
+        676,
+        640
+      ],
+      "exit_code": 0,
+      "finite_samples": true
+    },
+    "after-turn": {
+      "frames": 120,
+      "fps": 30,
+      "size": [
+        960,
+        720
+      ],
+      "style": "Sculpted",
+      "edge_clipping": false,
+      "bounds_union": [
+        260,
+        56,
+        693,
+        644
+      ],
+      "exit_code": 0,
+      "finite_samples": true
+    },
+    "before-feed": {
+      "frames": 120,
+      "fps": 30,
+      "size": [
+        960,
+        720
+      ],
+      "style": "Sculpted",
+      "edge_clipping": false,
+      "bounds_union": [
+        333,
+        73,
+        600,
+        640
+      ],
+      "exit_code": 0,
+      "finite_samples": true
+    },
+    "after-feed": {
+      "frames": 120,
+      "fps": 30,
+      "size": [
+        960,
+        720
+      ],
+      "style": "Sculpted",
+      "edge_clipping": false,
+      "bounds_union": [
+        309,
+        55,
+        594,
+        642
+      ],
+      "exit_code": 0,
+      "finite_samples": true
+    }
+  },
+  "matched_inputs": {
+    "turn": {
+      "samples": 120,
+      "fields": [
+        "time",
+        "facing",
+        "yaw",
+        "mouth",
+        "expression"
+      ],
+      "exact_match": true
+    },
+    "feed": {
+      "samples": 120,
+      "fields": [
+        "time",
+        "facing",
+        "yaw",
+        "mouth",
+        "expression"
+      ],
+      "exact_match": true
+    }
+  },
+  "byte_identical_baselines": {
+    "turn": true,
+    "feed": true
+  },
+  "mesh_regression": {
+    "failed_before_clamp": true,
+    "failure": "Nonfinite generated fish vertex: (NaN, NaN, -0.02)",
+    "passed_after_clamp_species": 12,
+    "root_cause": "sin(PI) rounds slightly below zero; fractional power generates NaN",
+    "bounds_only_check_caught_error": false
+  },
+  "atlas_pngs_unchanged": true,
+  "runtime_logs": {
+    "after-turn": {
+      "runtime_exceptions": false,
+      "invalid_mesh_warnings": false,
+      "exit_code": 0
+    },
+    "after-feed": {
+      "runtime_exceptions": false,
+      "invalid_mesh_warnings": false,
+      "exit_code": 0
+    },
+    "gallery": {
+      "runtime_exceptions": false,
+      "invalid_mesh_warnings": false,
+      "exit_code": 0
+    },
+    "gameplay-fry": {
+      "runtime_exceptions": false,
+      "invalid_mesh_warnings": false,
+      "exit_code": 0,
+      "observed_stats": [
+        "[DeepFeast] stat t=0 r=12.0 tier=Fry lives=3 score=0 eaten=0 fish=140 fps=60",
+        "[DeepFeast] stat t=10 r=13.3 tier=Fry lives=3 score=143 eaten=5 fish=78 fps=60"
+      ]
+    },
+    "gameplay-legend": {
+      "runtime_exceptions": false,
+      "invalid_mesh_warnings": false,
+      "exit_code": 0,
+      "observed_stats": [
+        "[DeepFeast] stat t=0 r=175.0 tier=Legend lives=3 score=0 eaten=0 fish=72 fps=60",
+        "[DeepFeast] stat t=10 r=221.5 tier=Legend lives=3 score=6247 eaten=9 fish=78 fps=60"
+      ]
+    }
+  },
+  "build": {
+    "exit_code": 0,
+    "errors": 0,
+    "validation_species": 12,
+    "signature_verified": true
+  },
+  "comparison_media": {
+    "sculpted-turn-before-after.mp4": {
+      "size": [
+        1280,
+        592
+      ],
+      "frames": 120,
+      "fps": "30/1",
+      "duration_seconds": 4.0,
+      "full_decode_passed": true,
+      "http_range_status": 206
+    },
+    "sculpted-turn-before-after.gif": {
+      "size": [
+        1280,
+        592
+      ],
+      "frames": 80,
+      "fps": "20/1",
+      "duration_seconds": 4.0,
+      "full_decode_passed": true,
+      "http_range_status": 206
+    },
+    "sculpted-swim-feeding-before-after.mp4": {
+      "size": [
+        1280,
+        592
+      ],
+      "frames": 120,
+      "fps": "30/1",
+      "duration_seconds": 4.0,
+      "full_decode_passed": true,
+      "http_range_status": 206
+    },
+    "sculpted-swim-feeding-before-after.gif": {
+      "size": [
+        1280,
+        592
+      ],
+      "frames": 80,
+      "fps": "20/1",
+      "duration_seconds": 4.0,
+      "full_decode_passed": true,
+      "http_range_status": 206
+    },
+    "fin-swim-closeup.mp4": {
+      "size": [
+        1280,
+        592
+      ],
+      "frames": 120,
+      "fps": "30/1",
+      "duration_seconds": 4.0,
+      "full_decode_passed": true,
+      "http_range_status": 206
+    },
+    "fin-swim-closeup.gif": {
+      "size": [
+        1280,
+        592
+      ],
+      "frames": 80,
+      "fps": "20/1",
+      "duration_seconds": 4.0,
+      "full_decode_passed": true,
+      "http_range_status": 206
+    }
+  },
+  "review_page": {
+    "tool": "T3 collaborative preview DOM automation",
+    "clip_media_ready": 3,
+    "duration_seconds": 4,
+    "half_speed_rate": 0.5,
+    "normal_speed_rate": 1,
+    "pause_passed": true,
+    "replay_reset_seconds": 0,
+    "clip_selection_and_download_passed": true,
+    "gallery_decoded_sizes": [
+      [
+        1280,
+        720
+      ],
+      [
+        1280,
+        720
+      ]
+    ],
+    "native_pointer_input_verified": false,
+    "background_playback_intermittent": true
+  }
+}

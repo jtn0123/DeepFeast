@@ -60,17 +60,24 @@ namespace DeepFeast
     /// </summary>
     public sealed class Raster
     {
+        /// Sprite detail: art is painted at this many times its base resolution and its sprites map
+        /// the extra pixels into the same size, so it only gets sharper. Radii given in pixels
+        /// (blur, outline, lighting) are base pixels and grow with it.
+        public static float Detail = 1;
+
         public readonly int W, H;
-        readonly float minX, minY, scale;
+        readonly float minX, minY, scale, detail;
         public readonly Color[] px;
         readonly float[] acc;
         readonly List<Vector2> xs = new List<Vector2>(64);
 
-        public Raster(float minX, float minY, float maxX, float maxY, float scale)
+        /// detail overrides the sprite detail for art the player never sees up close, or at all.
+        public Raster(float minX, float minY, float maxX, float maxY, float scale, float detail = 0)
         {
-            this.minX = minX; this.minY = minY; this.scale = scale;
-            W = Mathf.Max(2, Mathf.CeilToInt((maxX - minX) * scale));
-            H = Mathf.Max(2, Mathf.CeilToInt((maxY - minY) * scale));
+            this.detail = detail > 0 ? detail : Detail;
+            this.minX = minX; this.minY = minY; this.scale = scale * this.detail;
+            W = Mathf.Max(2, Mathf.CeilToInt((maxX - minX) * this.scale));
+            H = Mathf.Max(2, Mathf.CeilToInt((maxY - minY) * this.scale));
             px = new Color[W * H];
             acc = new float[W + 2];
         }
@@ -81,6 +88,8 @@ namespace DeepFeast
         int Idx(int i, int j) => (H - 1 - j) * W + i;
         public float ShapeX(int i) => minX + (i + 0.5f) / scale;
         public float ShapeY(int row) => minY + (H - 1 - row + 0.5f) / scale;
+        // A radius in base pixels, in this raster's pixels.
+        int Px(int rad) => rad <= 0 ? rad : Mathf.Max(1, Mathf.RoundToInt(rad * detail));
 
         /// Scanline fill with non-zero winding and 4x vertical / analytic horizontal AA.
         public float[] Fill(Path path, float[] mask = null, float alpha = 1f)
@@ -104,10 +113,10 @@ namespace DeepFeast
             if (edges.Count == 0) return mask;
             const int SS = 4;
             int j0 = Mathf.Max(0, Mathf.FloorToInt(ymin)), j1 = Mathf.Min(H - 1, Mathf.CeilToInt(ymax));
+            // acc stays zeroed between rows: each row clears just the span it touched.
             for (int j = j0; j <= j1; j++)
             {
-                Array.Clear(acc, 0, acc.Length);
-                bool any = false;
+                int left = W, right = -1;
                 for (int s = 0; s < SS; s++)
                 {
                     float sy = j + (s + 0.5f) / SS;
@@ -131,8 +140,9 @@ namespace DeepFeast
                         if (wind == 0) continue;
                         float xa = Mathf.Max(0, xs[k].x), xb = Mathf.Min(W, xs[k + 1].x);
                         if (xb <= xa) continue;
-                        any = true;
                         int ia = (int)xa, ib = Mathf.Min(W - 1, (int)xb);
+                        if (ia < left) left = ia;
+                        if (ib > right) right = ib;
                         for (int i = ia; i <= ib; i++)
                         {
                             float ov = Mathf.Min(xb, i + 1) - Mathf.Max(xa, i);
@@ -140,10 +150,10 @@ namespace DeepFeast
                         }
                     }
                 }
-                if (!any) continue;
-                for (int i = 0; i < W; i++)
+                for (int i = left; i <= right; i++)
                 {
                     float a = Mathf.Min(1f, acc[i]) * alpha;
+                    acc[i] = 0;
                     if (a <= 0) continue;
                     int id = Idx(i, j);
                     if (a > mask[id]) mask[id] = a;
@@ -211,25 +221,134 @@ namespace DeepFeast
         /// Ring just inside the mask edge (mask minus its erosion) – used for outlines.
         public float[] InnerRing(float[] m, int rad)
         {
+            var ring = Erode(m, Px(rad));
+            for (int i = 0; i < m.Length; i++) { float v = m[i] - ring[i]; ring[i] = v > 0 ? v : 0; }
+            return ring;
+        }
+
+        // The minimum over a square of side 2 rad + 1, outside counting as empty: rows, then
+        // columns, a few steps per pixel at any radius (van Herk / Gil-Werman).
+        float[] Erode(float[] m, int rad)
+        {
             var tmp = new float[m.Length];
             var ero = new float[m.Length];
+            int n = Mathf.Max(W, H);
+            float[] g = new float[n], h = new float[n];
+            for (int y = 0; y < H; y++) MinLine(m, tmp, y * W, 1, W, rad, g, h);
+            for (int x = 0; x < W; x++) MinLine(tmp, ero, x, W, H, rad, g, h);
+            return ero;
+        }
+
+        static void MinLine(float[] src, float[] dst, int start, int stride, int len, int rad, float[] g, float[] h)
+        {
+            int k = 2 * rad + 1;
+            // g: running minimum from the start of each block of k; h: from the end of it.
+            for (int i = 0, b = 0, at = start; i < len; i++, at += stride)
+            {
+                float v = src[at];
+                g[i] = b == 0 || v < g[i - 1] ? v : g[i - 1];
+                if (++b == k) b = 0;
+            }
+            for (int i = len - 1, at = start + (len - 1) * stride; i >= 0; i--, at -= stride)
+            {
+                float v = src[at];
+                h[i] = i == len - 1 || (i + 1) % k == 0 || v < h[i + 1] ? v : h[i + 1];
+            }
+            // Any window that reaches past the ends takes in empty space.
+            for (int i = 0, at = start; i < len; i++, at += stride)
+            {
+                int a = i - rad, z = i + rad;
+                if (a < 0 || z >= len) { dst[at] = 0; continue; }
+                float p = h[a], q = g[z];
+                dst[at] = p < q ? p : q;
+            }
+        }
+
+        /// Separable box blur (3 passes ≈ gaussian); radius in base pixels, outside counts as empty.
+        public float[] Blur(float[] m, int rad, int passes = 3) => BoxBlur(m, Px(rad), passes);
+
+        float[] BoxBlur(float[] m, int rad, int passes)
+        {
+            var a = (float[])m.Clone();
+            var b = new float[m.Length];
+            var col = new float[W];
+            float inv = 1f / (2 * rad + 1);
+            for (int p = 0; p < passes; p++)
+            {
+                for (int y = 0; y < H; y++)
+                {
+                    int o = y * W;
+                    float s = 0;
+                    for (int k = 0; k <= rad && k < W; k++) s += a[o + k];
+                    for (int x = 0; x < W; x++)
+                    {
+                        b[o + x] = s * inv;
+                        if (x + rad + 1 < W) s += a[o + x + rad + 1];
+                        if (x - rad >= 0) s -= a[o + x - rad];
+                    }
+                }
+                // Columns keep one running sum each and walk down the rows, in memory order.
+                Array.Clear(col, 0, W);
+                for (int k = 0; k <= rad && k < H; k++)
+                    for (int x = 0, o = k * W; x < W; x++) col[x] += b[o + x];
+                for (int y = 0; y < H; y++)
+                {
+                    int o = y * W, add = (y + rad + 1) * W, sub = (y - rad) * W;
+                    for (int x = 0; x < W; x++) a[o + x] = col[x] * inv;
+                    if (y + rad + 1 < H) for (int x = 0; x < W; x++) col[x] += b[add + x];
+                    if (y - rad >= 0) for (int x = 0; x < W; x++) col[x] -= b[sub + x];
+                }
+            }
+            return a;
+        }
+
+        /// Pseudo-3D shading: the blurred mask is treated as a height field and lit from `light`
+        /// (image space, y up). Returns n·L − L.z per pixel: 0 on flat tops, + on lit slopes, − in shade.
+        public float[] Light(float[] mask, int rad, Vector3 light, float depth = 2f)
+        {
+            var h = BoxBlur(mask, Px(Mathf.Max(1, rad)), 3);
+            var L = light.normalized;
+            var s = new float[mask.Length];
+            // The finer the pixels, the gentler each step of the blurred slope.
+            float k = rad * detail * depth;
             for (int y = 0; y < H; y++)
+            {
+                int up = (y < H - 1 ? y + 1 : y) * W, dn = (y > 0 ? y - 1 : y) * W, o = y * W;
                 for (int x = 0; x < W; x++)
                 {
-                    float mn = 1;
-                    for (int k = -rad; k <= rad; k++) { int xx = x + k; mn = Mathf.Min(mn, xx < 0 || xx >= W ? 0 : m[y * W + xx]); }
-                    tmp[y * W + x] = mn;
+                    int i = o + x;
+                    if (mask[i] <= 0) continue;
+                    float nx = -(h[o + (x < W - 1 ? x + 1 : x)] - h[o + (x > 0 ? x - 1 : x)]) * 0.5f * k;
+                    float ny = -(h[up + x] - h[dn + x]) * 0.5f * k;
+                    s[i] = (nx * L.x + ny * L.y + L.z) / Mathf.Sqrt(nx * nx + ny * ny + 1) - L.z;
                 }
-            for (int y = 0; y < H; y++)
-                for (int x = 0; x < W; x++)
+            }
+            return s;
+        }
+
+        /// Soft, rounded dilation of a mask by roughly `rad` pixels.
+        public float[] Dilate(float[] m, int rad)
+        {
+            var b = BoxBlur(m, Px(rad / 2 + 1), 2);
+            var d = new float[m.Length];
+            for (int i = 0; i < m.Length; i++) d[i] = Mathf.Max(m[i], Mathf.Clamp01((b[i] - 0.03f) / 0.1f));
+            return d;
+        }
+
+        /// Paint with a colour that depends on the pixel index and shape-space position.
+        public void Paint(float[] mask, Func<int, float, float, Color> colorAt)
+        {
+            for (int row = 0; row < H; row++)
+            {
+                float y = ShapeY(row);
+                for (int i = 0; i < W; i++)
                 {
-                    float mn = 1;
-                    for (int k = -rad; k <= rad; k++) { int yy = y + k; mn = Mathf.Min(mn, yy < 0 || yy >= H ? 0 : tmp[yy * W + x]); }
-                    ero[y * W + x] = mn;
+                    int id = row * W + i;
+                    if (mask[id] <= 0.0005f) continue;
+                    var c = colorAt(id, ShapeX(i), y);
+                    Over(id, c, mask[id] * c.a);
                 }
-            var ring = new float[m.Length];
-            for (int i = 0; i < m.Length; i++) ring[i] = Mathf.Max(0, m[i] - ero[i]);
-            return ring;
+            }
         }
 
         public void Paint(float[] mask, Color c)
@@ -267,37 +386,110 @@ namespace DeepFeast
             px[i] = new Color((c.r * a + d.r * k) / oa, (c.g * a + d.g * k) / oa, (c.b * a + d.b * k) / oa, oa);
         }
 
-        /// Copies colour into transparent neighbours so bilinear filtering has no dark fringe.
+        /// Spreads the art's edge colours a few pixels out into the transparent space around it, so
+        /// filtering never pulls in a dark fringe, and gives the rest of that space the art's
+        /// average colour so the smaller mips stay clean too.
         void Bleed()
         {
-            for (int pass = 0; pass < 3; pass++)
+            int n = px.Length;
+            var done = new bool[n];
+            float sr = 0, sg = 0, sb = 0, sa = 0;
+            for (int i = 0; i < n; i++)
             {
-                var src = (Color[])px.Clone();
-                for (int y = 0; y < H; y++)
-                    for (int x = 0; x < W; x++)
-                    {
-                        int id = y * W + x;
-                        if (src[id].a > 0.02f) continue;
-                        float r = 0, g = 0, b = 0, n = 0;
-                        for (int dy = -1; dy <= 1; dy++)
-                            for (int dx = -1; dx <= 1; dx++)
-                            {
-                                int xx = x + dx, yy = y + dy;
-                                if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
-                                var s = src[yy * W + xx];
-                                if (s.a <= 0.02f) continue;
-                                r += s.r; g += s.g; b += s.b; n++;
-                            }
-                        if (n > 0) px[id] = new Color(r / n, g / n, b / n, src[id].a);
-                    }
+                var c = px[i];
+                if (c.a <= 0.02f) continue;
+                done[i] = true;
+                sr += c.r * c.a; sg += c.g * c.a; sb += c.b * c.a; sa += c.a;
             }
+            if (sa <= 0) return;
+
+            var ring = new List<int>();
+            var queued = new bool[n];
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    int id = y * W + x;
+                    if (!done[id] && TouchesDone(done, x, y)) { ring.Add(id); queued[id] = true; }
+                }
+            var next = new List<int>();
+            var grown = new List<Color>();
+            for (int step = 0, steps = Mathf.CeilToInt(3 * detail); step < steps && ring.Count > 0; step++)
+            {
+                grown.Clear();
+                foreach (int id in ring)
+                {
+                    int x = id % W, y = id / W;
+                    float r = 0, g = 0, b = 0, k = 0;
+                    for (int dy = -1; dy <= 1; dy++)
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            int xx = x + dx, yy = y + dy;
+                            if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+                            int j = yy * W + xx;
+                            if (!done[j]) continue;
+                            var c = px[j];
+                            r += c.r; g += c.g; b += c.b; k++;
+                        }
+                    grown.Add(new Color(r / k, g / k, b / k, px[id].a));
+                }
+                next.Clear();
+                for (int i = 0; i < ring.Count; i++) { px[ring[i]] = grown[i]; done[ring[i]] = true; }
+                foreach (int id in ring)
+                {
+                    int x = id % W, y = id / W;
+                    for (int dy = -1; dy <= 1; dy++)
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            int xx = x + dx, yy = y + dy;
+                            if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+                            int j = yy * W + xx;
+                            if (done[j] || queued[j]) continue;
+                            queued[j] = true;
+                            next.Add(j);
+                        }
+                }
+                (ring, next) = (next, ring);
+            }
+            var fill = new Color(sr / sa, sg / sa, sb / sa, 0);
+            for (int i = 0; i < n; i++) if (!done[i]) px[i] = new Color(fill.r, fill.g, fill.b, px[i].a);
+        }
+
+        bool TouchesDone(bool[] done, int x, int y)
+        {
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    int xx = x + dx, yy = y + dy;
+                    if (xx >= 0 && yy >= 0 && xx < W && yy < H && done[yy * W + xx]) return true;
+                }
+            return false;
+        }
+
+        /// Generated textures and their pixels so far, for the startup report.
+        public static int Baked { get; private set; }
+        public static long BakedPixels { get; private set; }
+
+        /// When set (harness flag -dumpart), every baked texture is also written here as a PNG.
+        public static string DumpDir;
+        static int dumpN;
+
+        bool finished;
+
+        /// Readies the pixels for upload. Thread-safe, so painting threads can do it themselves.
+        public void Finish()
+        {
+            if (finished) return;
+            Bleed();
+            finished = true;
         }
 
         public Texture2D ToTexture()
         {
-            Bleed();
+            Finish();
             var t = new Texture2D(W, H, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear };
+            Baked++; BakedPixels += (long)W * H;
             t.SetPixels(px);
+            if (DumpDir != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(DumpDir, $"{dumpN++:000}_{W}x{H}.png"), t.EncodeToPNG());
             t.Apply(true, true);
             return t;
         }
@@ -307,7 +499,7 @@ namespace DeepFeast
         {
             var tex = ToTexture();
             var piv = new Vector2((pivotShape.x - minX) * scale / W, 1f - (pivotShape.y - minY) * scale / H);
-            return Sprite.Create(tex, new Rect(0, 0, W, H), piv, ppu, 0, SpriteMeshType.FullRect);
+            return Sprite.Create(tex, new Rect(0, 0, W, H), piv, ppu * detail, 0, SpriteMeshType.FullRect);
         }
     }
 }

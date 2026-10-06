@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deep Feast · Cohesion, motion and menus</title>
+<style>
+:root{color-scheme:dark;font:15px/1.5 system-ui,sans-serif;background:#081d2c;color:#eef8fa}
+*{box-sizing:border-box}body{max-width:1560px;margin:auto;padding:28px}header{display:flex;justify-content:space-between;gap:24px;align-items:center}
+.eyebrow{font-size:11px;letter-spacing:2px;color:#83e1cd;font-weight:700}h1{font-size:34px;line-height:1.15;margin:9px 0}p{color:#abc1cd;margin:10px 0}nav{display:flex;gap:8px;flex-wrap:wrap;margin:24px 0}
+button,a.control{border:1px solid #38505f;background:#122e40;color:#e6f1f5;border-radius:8px;padding:9px 16px;cursor:pointer;text-decoration:none;font:inherit}
+button[aria-pressed=true]{background:#72deca;color:#072331;border-color:#72deca}a{color:#86e2d2}button:hover,a.control:hover{filter:brightness(1.12)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:16px}.frame{background:#102e40;border:1px solid #365363;border-radius:10px;overflow:hidden}
+.label{padding:10px 14px;font-size:12px;letter-spacing:.6px}.after .label{color:#88e8d3}img{display:block;width:100%;height:auto}
+.details{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin:24px 0}.details b{display:block}.details p{font-size:13px}
+.wipe{position:relative;aspect-ratio:16/9;border:1px solid #365363;overflow:hidden;border-radius:10px}.wipe img{position:absolute;inset:0;width:100%;height:100%}
+.wipe .over{clip-path:inset(0 0 0 50%)}input{width:100%;accent-color:#72deca;margin:14px 0}
+.hidden{display:none}video{width:100%;max-height:640px;border-radius:10px}footer{color:#89a6b7;font-size:12px;border-top:1px solid #294352;padding-top:16px}
+@media(max-width:760px){body{padding:18px}header{display:block}.pair,.details{grid-template-columns:1fr}h1{font-size:28px}}
+</style>
+<header><div><div class="eyebrow">DEEP FEAST / UNITY COHESION AND INTERFACE PASS</div><h1 id="title">A painted kelp forest.</h1><p id="description"></p></div><a class="control" href="HANDOVER.md">Implementation handover ↗</a></header>
+<nav aria-label="Review views"><button data-view="kelp">Composition</button><button data-view="gallery">Fish lighting</button><button data-view="reef">Reef</button><button data-view="abyss">Abyss</button><button data-view="surface">Surface</button><button data-view="menu">Title screen</button><button data-view="pause">Pause</button><button data-view="over">Game over</button><button data-view="turn">Turning</button><button data-view="animation">Fish motion</button><button data-view="plants">Habitat motion</button><button id="mode">Use comparison slider</button></nav>
+<div class="pair" id="pair"><div class="frame"><div class="label">BEFORE · COMMITTED UNITY 542a24f</div><img id="before" alt="Previous installed Unity scenery"></div><div class="frame after"><div class="label">AFTER · IMPLEMENTED NATIVE UNITY PLAYER</div><img id="after" alt="New painted Unity scenery"></div></div>
+<div id="slider" class="hidden"><div class="wipe"><img id="wipe-before" alt="Before scenery"><img class="over" id="wipe-after" alt="After scenery"></div><label for="amount">Before ← Drag to compare → After</label><input id="amount" type="range" min="0" max="100" value="50"></div>
+<div id="motion" class="hidden"><video controls loop muted preload="metadata" src="fish-motion.mp4"></video></div>
+<div class="details" id="details"></div>
+<footer>Both sides are real 1280×720 Unity camera renders. Scenery/interface views match camera and fish placement; decor changes intentionally. Ambient schools can vary. Captured offscreen with native shaders and HUD; windowed input/audio still need an active display. <a href="evidence.json">Evidence</a></footer>
+<script>
+const views={
+kelp:{folder:'kelp',file:'scenery.png',title:'Room to swim.',description:'Varied, spaced kelp and quieter reef layers create a clearer swimming corridor.',notes:[['Composition','Close kelp stems are thinned and their heights vary, while smaller coral forms natural patches.'],['Shared atmosphere','Softer painted light, water fog and a greener forest palette bring the scenery together.'],['Habitat identity','A rock terrace, drifting algae-colored motes and a forest HUD label distinguish this biome.']]},
+gallery:{folder:'gallery',file:'gallery.png',title:'One underwater art direction.',description:'The same twelve fish retain their identities with shared soft lighting and restrained saturation.',notes:[['Shared light','Fish, painted rocks, coral and plants use one upper-light response.'],['Distinct silhouettes','All original painted atlas pixels, species and jaw keys remain intact.'],['Different swimming styles','Hovering puffers and angelfish move differently from streamlined hunters and sharks.']]},
+reef:{folder:'reef',file:'scenery.png',title:'Warm light over the coral reef.',description:'A natural rock arch, grouped coral and soft turquoise water give the shallow reef its own character.',notes:[['Reef landmark','A grounded painted arch sits behind the swimming corridor and foreground props.'],['Clear hierarchy','Bright fish sit over subdued background detail and smaller coral patches.'],['Habitat HUD','A compact habitat label joins depth and dash information.']]},
+abyss:{folder:'abyss',file:'scenery.png',title:'A cooler, quieter abyss.',description:'Violet-blue water, eroded stone fingers and cool drifting snow distinguish the deep sea.',notes:[['Abyss landmark','A grounded eroded outcrop reinforces the deep-sea habitat.'],['Continuous transition','Palette, light and ambient particles blend continuously as the camera changes depth.'],['Visibility retained','The existing darkness and local reef/player lights remain in the game.']]},
+surface:{folder:'surface',file:'scenery.png',title:'Soft light near the surface.',description:'The existing surface and caustics remain, with calmer scenery and a warmer underwater light response.',notes:[['Open water','Lower-contrast painted reefs leave room for the fish and surface light.'],['Painted volume','Rocks, vegetation and fish share the same subtle top-to-bottom shading.'],['Native scene','Both sides use the same native camera framing and fish placement.']]},
+menu:{folder:'menu',file:'interface.png',title:'A title screen with character.',description:'Painted fish, a clearer play action and readable control cards introduce the game.',notes:[['Hero artwork','The actual painted player, clownfish and tang form the title composition.'],['Clear first action','A large focused swim button supports the existing play callback.'],['Readable controls','Steering, dash and pause/mute hints are separated into three compact cards.']]},
+pause:{folder:'pause',file:'interface.png',title:'A calmer pause screen.',description:'A consistent ocean card, clear resume action and keyboard hint simplify the pause state.',notes:[['Consistent cards','Pause uses the same palette, typography and button treatment as the title screen.'],['Keyboard focus','The primary action is selected and has a visible focus color.'],['Native button flow','Unity Submit events exercise play, pause, resume and retry callbacks.']]},
+over:{folder:'over',file:'interface.png',title:'Make the next swim inviting.',description:'A clearer results layout and retry action bring the game-over screen into the new visual family.',notes:[['Readable results','Score, tier, fish eaten and survival time sit in consistent result cards.'],['Clear retry','One more swim remains wired to the real game-start callback.'],['Honest review values','Both sides show the same fixed sample result, without writing player records.']]},
+turn:{folder:'turn',file:'turn.png',title:'Fish stay visible while turning.',description:'The old renderer narrowed fish through zero. Turns now preserve a broad silhouette and a small banking motion.',notes:[['Before','The native midpoint capture renders the player at just 6% of its full width.'],['After','The revised renderer preserves at least 84% width during direction changes.'],['Verified regression','A check that failed on the old code now passes for 12 species at 7 facing samples.']]},
+plants:{video:'habitat-motion.mp4',title:'A forest in gentle motion.',description:'Native player frames show rooted kelp sway, parallax reef layers and drifting forest particles.',notes:[['Rooted current','Kelp bends toward the crown while its buried footing stays stable.'],['Quieter layers','Painted reefs sit behind the swimming corridor with shared atmosphere.'],['Habitat particles','Algae-colored motes drift gently through the forest.']]},
+animation:{video:'fish-motion.mp4',title:'Species have their own rhythm.',description:'Native player frames show different swimming styles, direction changes, jaw anticipation and recovery.',notes:[['Motion profiles','Tail flex, fin flutter, swim rate and body drift vary across the fish family.'],['Readable turns','Fish bank and turn without collapsing into a thin line.'],['Feeding reaction','Aligned jaw keys gain stronger anticipation and a short recovery bounce.']]}
+};
+let current='kelp', slider=false;
+async function show(view){
+current=view;const v=views[view];document.getElementById('title').textContent=v.title;document.getElementById('description').textContent=v.description;
+document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));
+document.getElementById('details').innerHTML=v.notes.map(([title,text])=>'<div><b>'+title+'</b><p>'+text+'</p></div>').join('');
+const motion=Boolean(v.video);const video=document.querySelector('video');video.pause();if(motion&&video.getAttribute('src')!==v.video)video.src=v.video;document.getElementById('motion').classList.toggle('hidden',!motion);document.getElementById('mode').hidden=motion;
+document.getElementById('pair').classList.toggle('hidden',motion||slider);document.getElementById('slider').classList.toggle('hidden',motion||!slider);
+if(!motion){for(const id of ['before','after','wipe-before','wipe-after'])document.getElementById(id).src=(id.endsWith('before')?'before/':'after/')+v.folder+'/'+v.file;await Promise.all(['before','after'].map(id=>document.getElementById(id).decode()));}
+const u=new URL(location);u.searchParams.set('view',view);history.replaceState(null,'',u);
+}
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>show(b.dataset.view));
+document.getElementById('mode').onclick=()=>{slider=!slider;document.getElementById('mode').textContent=slider?'Use side-by-side view':'Use comparison slider';show(current)};
+document.getElementById('amount').oninput=e=>document.getElementById('wipe-after').style.clipPath='inset(0 0 0 '+e.target.value+'%)';
+show(views[new URL(location).searchParams.get('view')]?new URL(location).searchParams.get('view'):'kelp');
+</script>
+<script src="export-board.js"></script>
+</html>

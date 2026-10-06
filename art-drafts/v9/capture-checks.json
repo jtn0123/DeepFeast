@@ -1,0 +1,254 @@
+{
+  "nativeGroups": [
+    {
+      "group": "sharks",
+      "nativeFrames": 120,
+      "fps": 30,
+      "dimensions": [
+        1280,
+        960
+      ],
+      "finiteTimeline": true,
+      "all120FrameEdgesClear": true
+    },
+    {
+      "group": "atlantic-a",
+      "nativeFrames": 120,
+      "fps": 30,
+      "dimensions": [
+        1280,
+        960
+      ],
+      "finiteTimeline": true,
+      "all120FrameEdgesClear": true
+    },
+    {
+      "group": "atlantic-b",
+      "nativeFrames": 120,
+      "fps": 30,
+      "dimensions": [
+        1280,
+        960
+      ],
+      "finiteTimeline": true,
+      "all120FrameEdgesClear": true
+    },
+    {
+      "group": "extras",
+      "nativeFrames": 120,
+      "fps": 30,
+      "dimensions": [
+        1280,
+        960
+      ],
+      "finiteTimeline": true,
+      "all120FrameEdgesClear": true
+    },
+    {
+      "group": "legacy-a",
+      "nativeFrames": 120,
+      "fps": 30,
+      "dimensions": [
+        1280,
+        960
+      ],
+      "finiteTimeline": true,
+      "all120FrameEdgesClear": true
+    },
+    {
+      "group": "legacy-b",
+      "nativeFrames": 120,
+      "fps": 30,
+      "dimensions": [
+        1280,
+        960
+      ],
+      "finiteTimeline": true,
+      "all120FrameEdgesClear": true
+    },
+    {
+      "group": "legacy-c",
+      "nativeFrames": 120,
+      "fps": 30,
+      "dimensions": [
+        1280,
+        960
+      ],
+      "finiteTimeline": true,
+      "all120FrameEdgesClear": true
+    },
+    {
+      "group": "after-turn",
+      "nativeFrames": 120,
+      "fps": 30,
+      "dimensions": [
+        960,
+        720
+      ],
+      "finiteTimeline": true,
+      "all120FrameEdgesClear": true
+    }
+  ],
+  "comparison": {
+    "baseline": "v8 draft 3da41f7",
+    "baselineNativeVideoSha256": "9edacfb05e0dfd16eefd272a91ad53073504294818c1c0e73a3a52919232af31",
+    "baselineCopiedByteIdentical": true,
+    "all120InputsMatch": true
+  },
+  "gameplay": [
+    {
+      "run": "final-fry",
+      "sharkOrder": [
+        "shark",
+        "tiger_shark",
+        "mako_shark",
+        "shark",
+        "tiger_shark"
+      ],
+      "seconds": 62,
+      "timeScale": 3,
+      "completed": true
+    },
+    {
+      "run": "final-legend",
+      "sharkOrder": [
+        "shark",
+        "tiger_shark",
+        "mako_shark",
+        "shark"
+      ],
+      "seconds": 62,
+      "timeScale": 3,
+      "completed": true
+    }
+  ],
+  "catalogIdentities": 24,
+  "metalShaderErrors": 0,
+  "metalShaderWarnings": 0,
+  "media": [
+    {
+      "file": "atlantic-a.mp4",
+      "width": 1280,
+      "height": 960,
+      "fps": 30,
+      "frames": 120,
+      "seconds": 4,
+      "fullDecodePassed": true
+    },
+    {
+      "file": "atlantic-b.mp4",
+      "width": 1280,
+      "height": 960,
+      "fps": 30,
+      "frames": 120,
+      "seconds": 4,
+      "fullDecodePassed": true
+    },
+    {
+      "file": "extras.mp4",
+      "width": 1280,
+      "height": 960,
+      "fps": 30,
+      "frames": 120,
+      "seconds": 4,
+      "fullDecodePassed": true
+    },
+    {
+      "file": "legacy-a.mp4",
+      "width": 1280,
+      "height": 960,
+      "fps": 30,
+      "frames": 120,
+      "seconds": 4,
+      "fullDecodePassed": true
+    },
+    {
+      "file": "legacy-b.mp4",
+      "width": 1280,
+      "height": 960,
+      "fps": 30,
+      "frames": 120,
+      "seconds": 4,
+      "fullDecodePassed": true
+    },
+    {
+      "file": "legacy-c.mp4",
+      "width": 1280,
+      "height": 960,
+      "fps": 30,
+      "frames": 120,
+      "seconds": 4,
+      "fullDecodePassed": true
+    },
+    {
+      "file": "new-fish.mp4",
+      "width": 1280,
+      "height": 480,
+      "fps": 30,
+      "frames": 120,
+      "seconds": 4,
+      "fullDecodePassed": true
+    },
+    {
+      "file": "shark-before-after.mp4",
+      "width": 1280,
+      "height": 592,
+      "fps": 30,
+      "frames": 120,
+      "seconds": 4,
+      "fullDecodePassed": true
+    },
+    {
+      "file": "sharks.mp4",
+      "width": 1280,
+      "height": 960,
+      "fps": 30,
+      "frames": 120,
+      "seconds": 4,
+      "fullDecodePassed": true
+    },
+    {
+      "file": "new-fish.gif",
+      "fps": 20,
+      "frames": 80,
+      "seconds": 4,
+      "loop": true
+    },
+    {
+      "file": "shark-before-after.gif",
+      "fps": 20,
+      "frames": 80,
+      "seconds": 4,
+      "loop": true
+    },
+    {
+      "file": "sharks.gif",
+      "fps": 20,
+      "frames": 80,
+      "seconds": 4,
+      "loop": true
+    }
+  ],
+  "browser": {
+    "clipsDecoded": 8,
+    "durationSeconds": 4,
+    "selectionAndDownloadLinks": true,
+    "halfSpeed": 0.5,
+    "normalSpeed": 1,
+    "replayResetSeconds": 0,
+    "stillImagesDecoded": 4,
+    "desktopHorizontalOverflow": false,
+    "mp4ByteRangeHttpStatus": 206,
+    "verification": "Shared T3 browser DOM/media automation; native screen snapshots unavailable.",
+    "pauseButtonObservedPaused": true,
+    "playButtonObservedResumed": false,
+    "backgroundPreviewPlaybackIntermittent": true
+  },
+  "sourceSha256": {
+    "unity/Assets/Scripts/FishVolume.cs": "702cab69f1e90e2986a966ce9a1997ebfdfe0213dadcadf09bc0ad71a0da523f",
+    "unity/Assets/Scripts/SharkAnatomy.cs": "f69238a3a3142146ea2f39cf05f78d62d8f5f7822e1f2de16e180619b16a28e6",
+    "unity/Assets/Scripts/ExpandedFishAnatomy.cs": "9ea4f3bcde56faf0ca70b0c2b4f9eb5c9adb12612abd358ee00af0ec0145b998",
+    "unity/Assets/Resources/Shaders/FishVolume.shader": "605601a8a6980ddc34fd121c95d6a92d5eba48c7f9af2e715bd5ce03e0c726f1",
+    "unity/Assets/Scripts/SpeciesVisualReview.cs": "b1048a014b9dd2e096285c8bb78e18f80c20872375aa5a5429d9d94d34a8caca"
+  }
+}

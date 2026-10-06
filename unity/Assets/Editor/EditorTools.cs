@@ -56,6 +56,7 @@ namespace DeepFeast.EditorTools
         static void Run(BuildTarget target, string path)
         {
             Setup();
+            ArtValidation.Check();
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { ScenePath },
@@ -66,6 +67,27 @@ namespace DeepFeast.EditorTools
             var s = report.summary;
             Debug.Log($"[DeepFeast] build {target}: {s.result} errors={s.totalErrors} size={s.totalSize / 1048576f:0.0}MB time={s.totalTime}");
             if (Application.isBatchMode) EditorApplication.Exit(s.result == BuildResult.Succeeded ? 0 : 1);
+        }
+    }
+}
+
+namespace DeepFeast.EditorTools
+{
+    /// <summary>Import settings for the cut-out concept sprites (tools/cut_concepts.py).</summary>
+    public sealed class ConceptArtImport : AssetPostprocessor
+    {
+        void OnPreprocessTexture()
+        {
+            if (!assetPath.Contains("/Resources/Concept/") || assetPath.Contains("/Concept/atlas-")) return;
+            var ti = (TextureImporter)assetImporter;
+            ti.textureType = TextureImporterType.Default;
+            ti.alphaIsTransparency = true;
+            ti.mipmapEnabled = true;
+            ti.npotScale = TextureImporterNPOTScale.None;
+            ti.wrapMode = TextureWrapMode.Clamp;
+            ti.filterMode = FilterMode.Trilinear;
+            ti.anisoLevel = 2;
+            ti.textureCompression = TextureImporterCompression.CompressedHQ;
         }
     }
 }
