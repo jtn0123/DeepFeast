@@ -3,6 +3,7 @@
     "rootNamespace": "DeepFeast.Tests",
     "references": [
         "DeepFeast",
+        "DeepFeast.Editor",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],
