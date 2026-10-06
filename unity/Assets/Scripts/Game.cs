@@ -54,8 +54,6 @@ namespace DeepFeast
         Vector2 cam = new Vector2(7000, 1500);
         float zoom = 1, menuCamX = 7000, menuDir = 1;
         float pxPerRef = 1, refW = 1400, refH = 820;
-        // The tier bar's lower edge, with a little clearance, in reference pixels.
-        const float HudTop = 86;
 
         readonly Fish player = new Fish { sp = null };
         bool pActive, pAlive, pTired, pDashing;
@@ -1376,11 +1374,12 @@ namespace DeepFeast
             cam.x = Mathf.Clamp(cam.x, hw, World.W - hw);
             cam.y = Mathf.Clamp(cam.y, hh - Mathf.Min(170, hh * 0.28f), World.H - hh);
             // At the surface the view rises into the sky rather than letting the hero swim up under
-            // the tier bar; a climbing fish reaches further up than a level one.
+            // the tier bar, however tall the text size and any notch make it; a climbing fish reaches
+            // further up than a level one.
             if (pActive)
             {
                 float reach = player.r * Mathf.Lerp(0.8f, 1.45f, Mathf.Abs(Mathf.Sin(player.tilt)));
-                cam.y = Mathf.Min(cam.y, player.y - reach + hh - HudTop / zoom);
+                cam.y = Mathf.Min(cam.y, player.y - reach + hh - hud.TextTop / zoom);
             }
             shake *= Mathf.Exp(-dt * 7);
         }

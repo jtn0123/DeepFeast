@@ -449,6 +449,10 @@ namespace DeepFeast
             canvas.sortingOrder = 30000;
         }
         public Vector2 RefSize => rootRT.rect.size;
+        /// The bottom of the playing HUD's top row, below any notch, in reference units.
+        public float TextTop => textTop;
+        /// The text size that fits this screen, which can be less than the one chosen.
+        public int AppliedTextSize => Mathf.RoundToInt(uiScale * 100);
 
         public void ShowTouch(bool on) { if (dashBtn.activeSelf != on) dashBtn.SetActive(on); }
 

@@ -204,7 +204,9 @@ namespace DeepFeast
                 {
                     key = "textSize", label = "TEXT SIZE",
                     value = () => Opt.textSize + "%", step = dir => Opt.textSize = Step(GameSettings.TextSizes, Opt.textSize, dir),
-                    help = () => "Makes the HUD, banners and menus larger, as far as the screen has room.",
+                    help = () => AppliedTextSize < Opt.textSize
+                        ? $"Makes the HUD, banners and menus larger. This screen has room for {AppliedTextSize}%; a wider window fits more."
+                        : "Makes the HUD, banners and menus larger, as far as the screen has room.",
                 },
                 new Option
                 {
