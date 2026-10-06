@@ -31,10 +31,15 @@ namespace DeepFeast
         static string Arg(string k) { int i = Array.IndexOf(args, k); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; }
         static float ArgF(string k, float d) => float.TryParse(Arg(k), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : d;
 
+        /// Whether a run is a test run, which must never touch the player's saves: any headless run,
+        /// or any run with a harness flag.
+        internal static bool IsTestRun(string[] commandLine, bool batchMode) =>
+            batchMode || Array.Exists(HarnessFlags, flag => Array.IndexOf(commandLine, flag) >= 0);
+
         void ParseArgs()
         {
             args = Environment.GetCommandLineArgs();
-            persist = !Application.isBatchMode && !Array.Exists(HarnessFlags, Has);
+            persist = !IsTestRun(args, Application.isBatchMode);
             if (!persist) Debug.Log("[DeepFeast] test run: the best score, Fishdex, settings and mute switch start empty and are not saved");
             autoplay = Has("-autoplay");
             gallery = Has("-gallery");

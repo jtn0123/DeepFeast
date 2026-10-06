@@ -17,9 +17,12 @@ Headless build and checks (macOS; set `UNITY=/path/to/Unity` if the editor isn't
 
 ```sh
 tools/build.sh                     # build the macOS player; fails on errors, warnings or a failed art validation
-tools/verify.sh                    # build, then run the UI flow, gamepad flows, autoplay and menu captures; run before committing
+tools/test.sh                      # run the EditMode unit tests (close the editor first)
+tools/verify.sh                    # build, then run the unit tests, UI flow, gamepad flows, autoplay and menu captures; run before committing
 tools/run.sh <outdir> <name> ...   # one test run of the built player with any harness flags below
 ```
+
+The unit tests in `unity/Assets/Tests/EditMode` check the game's rules without playing it: growth and its cap past Legend, tiers, which species spawn at each size and depth, habitat blending, settings overrides and limits, blink rates with Reduce flashing, and which launches count as test runs. They also run from the editor's **Window → General → Test Runner**.
 
 `tools/run.sh` always runs the player with `-batchmode -mute` and adds `-quitafter 300` if the flags don't set a deadline. It prints the run's `[DeepFeast] exit` line and returns its exit code.
 

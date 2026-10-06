@@ -388,13 +388,7 @@ namespace DeepFeast
             ReleaseView(f);
             float pr = player.r;
             player.chomp = 0.22f;
-            // Young fish grow fast so the first tiers come quickly; the boost fades out by Hunter.
-            float growth = Data.GROW * Mathf.Lerp(3.4f, 1, Mathf.InverseLerp(Data.Tiers[0].r, Data.Tiers[2].r, pr));
-            // Past Legend growth tapers off and stops at twice the Legend's size, so the hero never
-            // outgrows the screen and the endless deep still has fish that fit the sea.
-            float legendR = Data.Tiers[Data.Tiers.Length - 1].r;
-            growth *= Mathf.Lerp(1, 0.15f, Mathf.InverseLerp(legendR, legendR * 1.5f, pr)) * Mathf.InverseLerp(legendR * 2, legendR * 1.5f, pr);
-            player.r = Mathf.Sqrt(pr * pr + f.r * f.r * growth);
+            player.r = Data.Grow(pr, f.r);
             combo = comboT > 0 ? Mathf.Min(combo + 1, 12) : 1;
             comboT = 1.8f;
             int pts = Mathf.RoundToInt((f.r * 1.5f + 5) * (f.shark ? 5 : 1)) * combo;

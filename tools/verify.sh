@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# The check to run before committing: build, then run the UI flow, the gamepad flow (held and
-# toggled dash), a short autoplay and the menu, settings and victory captures in parallel.
-# Fails if the build or any run fails, or if any run's log shows an error or exception.
+# The check to run before committing: build, then run the EditMode unit tests, the UI flow, the
+# gamepad flow (held and toggled dash), a short autoplay and the menu, settings and victory captures
+# in parallel. Fails if the build, the tests or any run fails, or if any run's log shows an error or
+# exception.
 #   usage: tools/verify.sh [outdir] [--no-build]     (default outdir: $TMPDIR/deepfeast-verify)
 set -uo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
@@ -28,6 +29,7 @@ if [ $build -eq 1 ]; then "$here/build.sh" "$out/build.log" || exit 1; fi
 
 run="$here/run.sh"
 pids=()
+"$here/test.sh" "$out" & pids+=($!)
 "$run" "$out" flow -interface flow -quitafter 90 & pids+=($!)
 "$run" "$out" pad -padtest -quitafter 90 & pids+=($!)
 "$run" "$out" pad-toggle -padtest -set dashToggle=true -quitafter 90 & pids+=($!)
@@ -38,7 +40,7 @@ pids=()
 for pid in "${pids[@]}"; do wait "$pid" || fail=1; done
 
 for log in "$out"/*.log; do
-    [ "$(basename "$log")" = build.log ] && continue
+    case $(basename "$log") in build.log|editmode.log) continue ;; esac
     if grep -qE "error CS|NullReferenceException|Exception:" "$log"; then
         echo "verify: errors in $log" >&2
         fail=1
