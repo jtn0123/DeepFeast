@@ -130,6 +130,7 @@ namespace DeepFeast
         static readonly Color PanelCol = new Color(0.02f, 0.11f, 0.2f, 0.6f);
         static readonly Color EdgeCol = new Color(0.63f, 0.94f, 1, 0.22f);
         static readonly Color TrackCol = new Color(0, 0.05f, 0.12f, 0.75f);
+        static readonly Color GrowthFlash = U.Hex("#fff3be");
 
         sealed class FloatText { public float x, y, life, max, size; public Text t; public Color col; }
         readonly List<FloatText> texts = new List<FloatText>();
@@ -808,7 +809,7 @@ namespace DeepFeast
             growthRT.sizeDelta = new Vector2(Mathf.Max(16, shownGrowth * BAR_W), 16);
             growthPulse = Mathf.Max(0, growthPulse - rdt);
             scorePulse = Mathf.Max(0, scorePulse - rdt);
-            var tint = Color.Lerp(Color.white, U.Hex("#fff3be"), Mathf.Clamp01(growthPulse * 1.4f));
+            var tint = Color.Lerp(Color.white, GrowthFlash, Mathf.Clamp01(growthPulse * 1.4f));
             if (growthGrad.tint != tint) { growthGrad.tint = tint; growth.SetVerticesDirty(); }
             score.rectTransform.localScale = Vector3.one * (1 + Mathf.Sin(scorePulse / 0.18f * Mathf.PI) * 0.07f);
 

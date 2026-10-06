@@ -66,6 +66,7 @@ namespace DeepFeast
         FishView playerView;
         SpriteRenderer playerGlow, shieldRing, shieldFill, shieldShine;
         readonly SpriteRenderer[] stunStars = new SpriteRenderer[3];
+        static readonly Color StunStar = U.Hex("#fff6a8");
 
         readonly List<Fish> fish = new List<Fish>();
         readonly List<School> schools = new List<School>();
@@ -1557,7 +1558,7 @@ namespace DeepFeast
                 float a = time * 6 + i * U.TAU / 3;
                 stunStars[i].transform.localPosition = U.V3(player.x + Mathf.Cos(a) * player.r * 0.9f, player.y - player.r * 1.3f + Mathf.Sin(a) * player.r * 0.25f);
                 stunStars[i].transform.localScale = Vector3.one * player.r * 0.24f;
-                stunStars[i].color = U.Hex("#fff6a8");
+                stunStars[i].color = StunStar;
             }
 
             // jellies

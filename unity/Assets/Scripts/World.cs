@@ -80,6 +80,7 @@ namespace DeepFeast
 
         // kelp palettes, [0] sea green and [1] olive
         static readonly Color KelpRim = new Color(0.03f, 0.13f, 0.12f, 0.92f);
+        static readonly Color GrassA = U.Hex("#2c6e3e"), GrassB = U.Hex("#6cc070");
         static readonly Color[] KELP_STEM_A = { U.Hex("#1d6a3e"), U.Hex("#2c6a26") }, KELP_STEM_B = { U.Hex("#52c98a"), U.Hex("#78c94a") };
         static readonly Color[] KELP_TOP_A = { U.Hex("#2fa36a"), U.Hex("#4fa83a") }, KELP_TOP_B = { U.Hex("#7ee3a8"), U.Hex("#a6e46a") };
         static readonly Color[] KELP_UNDER_A = { U.Hex("#155a3c"), U.Hex("#215f22") }, KELP_UNDER_B = { U.Hex("#2f9466"), U.Hex("#4f9a34") };
@@ -555,7 +556,6 @@ namespace DeepFeast
 
             // grass + anemones
             mb.Clear();
-            Color grassA = U.Hex("#2c6e3e"), grassB = U.Hex("#6cc070");
             foreach (var d in grasses)
             {
                 if (paintedGrass) break;
@@ -565,7 +565,7 @@ namespace DeepFeast
                     float bx = d.x + (i - d.n / 2f) * d.s * 0.12f;
                     float sw = Mathf.Sin(time * 1.3f + d.phase + i) * d.s * 0.25f;
                     var q = Draw.QuadPts(bx, d.y, bx + sw * 0.3f, d.y - d.s * 0.6f, bx + sw, d.y - d.s * (0.8f + (i % 3) * 0.15f), 7);
-                    Draw.Stroke(mb, q, d.s * 0.09f, d.s * 0.04f, grassA, grassB, true);
+                    Draw.Stroke(mb, q, d.s * 0.09f, d.s * 0.04f, GrassA, GrassB, true);
                 }
             }
             foreach (var d in anemones)

@@ -46,6 +46,8 @@ namespace DeepFeast
         bool schoolsPlaced;
 
         static readonly Color FarCol = new Color(2 / 255f, 26 / 255f, 50 / 255f);
+        static readonly Color SkyTop = U.Hex("#8fd6ff"), SkyBottom = U.Hex("#e6f8ff");
+        static readonly Color RaftRim = U.Hex("#3b2c0b"), RaftDark = U.Hex("#8c681b"), RaftMid = U.Hex("#b88a2a"), RaftLite = U.Hex("#ddb04a"), RaftBladder = U.Hex("#f2cf63");
 
         public SceneFx(Camera camera, Transform worldRoot)
         {
@@ -331,13 +333,12 @@ namespace DeepFeast
             {
                 const float step = 24;
                 float sx0 = Mathf.Floor((x0 - 40) / step) * step - step, sx1 = x1 + 40 + step;
-                Color skyTop = U.Hex("#8fd6ff"), skyBot = U.Hex("#e6f8ff");
                 int prev = -1;
                 for (float x = sx0; x <= sx1; x += step)
                 {
                     float wy = WaveY(x, time);
-                    int a = Draw.V(mb, x, yTop - 100, skyTop);
-                    int b = Draw.V(mb, x, wy, Color.Lerp(skyTop, skyBot, Mathf.Clamp01((wy - yTop) / Mathf.Max(1f, -yTop))));
+                    int a = Draw.V(mb, x, yTop - 100, SkyTop);
+                    int b = Draw.V(mb, x, wy, Color.Lerp(SkyTop, SkyBottom, Mathf.Clamp01((wy - yTop) / Mathf.Max(1f, -yTop))));
                     if (prev >= 0) mb.Quad(prev, a, b, prev + 1);
                     prev = a;
                 }
@@ -414,8 +415,8 @@ namespace DeepFeast
             if (yTop <= 260)
             {
                 var water = World.WaterAt(60);
-                Color Tint(string hex) => Color.Lerp(U.Hex(hex), water, 0.12f);
-                Color rim = Tint("#3b2c0b"), dark = Tint("#8c681b"), mid = Tint("#b88a2a"), lite = Tint("#ddb04a"), bladder = Tint("#f2cf63");
+                Color Tint(Color c) => Color.Lerp(c, water, 0.12f);
+                Color rim = Tint(RaftRim), dark = Tint(RaftDark), mid = Tint(RaftMid), lite = Tint(RaftLite), bladder = Tint(RaftBladder);
                 foreach (var r in rafts)
                 {
                     if (r.x + r.w < x0 - 160 || r.x - r.w > x1 + 160) continue;
