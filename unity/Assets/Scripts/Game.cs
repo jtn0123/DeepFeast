@@ -602,7 +602,7 @@ namespace DeepFeast
             fish.Add(s);
             Debug.Log($"[DeepFeast] shark encounter: key={identity.key}, name={identity.displayName}, aggressive={identity.aggressive}, chaseMultiplier={identity.chaseSpeedMultiplier:0.00}, edible={edible}, radius={r:0.0}, life={s.life:0.0}.");
             if (edible) Banner("SHARK!", "You are the Leviathan now — hunt it down!", new Color(1, 200 / 255f, 60 / 255f), true);
-            else Banner("SHARK!", (GameSettings.Data.dashToggle ? "Click" : "Hold click") + " / Space to dash away", new Color(1, 60 / 255f, 80 / 255f), true);
+            else Banner("SHARK!", hud.DashPrompt + " to dash away", new Color(1, 60 / 255f, 80 / 255f), true);
             sfx.Shark();
         }
 
@@ -846,6 +846,8 @@ namespace DeepFeast
             }
             if (Input.GetKeyDown(KeyCode.M)) ToggleMute();
             ReadPad();
+            hud.ShowControls(PromptDevice());
+            hud.ShowFocus = padMode || kbMode;
         }
 
         // Fish of a similar size slide apart as they pass: two big silhouettes stacked on each other

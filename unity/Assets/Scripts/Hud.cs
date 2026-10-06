@@ -114,8 +114,8 @@ namespace DeepFeast
         float targetGrowth, shownGrowth, growthPulse, scorePulse;
         bool growthInitialized;
         const float BAR_W = 440, DASH_W = 178, LIFE_STEP = 38;
-        // Control hints for keyboard and mouse, an Xbox-style pad or a PlayStation pad.
-        public enum Controls { KeyboardMouse, Xbox, PlayStation }
+        // Control hints for keyboard and mouse, touch, an Xbox-style pad or a PlayStation pad.
+        public enum Controls { KeyboardMouse, Touch, Xbox, PlayStation }
         Controls shownControls;
         Text guideSteer, guideDash, guideBreak, pauseHint;
         // A gold frame behind the selected button while steering by pad or keyboard.
@@ -726,16 +726,40 @@ namespace DeepFeast
             ApplyControls();
         }
 
+        /// How to dash on the device the player last used, as the menu guide and the shark warning say it.
+        public string DashPrompt
+        {
+            get
+            {
+                bool toggle = GameSettings.Data.dashToggle;
+                return shownControls switch
+                {
+                    Controls.Xbox => (toggle ? "Press" : "Hold") + " A or RT",
+                    Controls.PlayStation => (toggle ? "Press" : "Hold") + " Cross or R2",
+                    Controls.Touch => (toggle ? "Tap" : "Hold") + " the DASH button",
+                    _ => toggle ? "Click / Space" : "Hold click / Space",
+                };
+            }
+        }
+
+        /// What mutes the sound on the device the player last used.
+        public string MutePrompt => shownControls switch
+        {
+            Controls.Xbox => "View",
+            Controls.PlayStation => "Share",
+            Controls.Touch => "The corner button",
+            _ => "M",
+        };
+
         // Also called when settings change, so the dash guide follows hold or toggle.
         public void ApplyControls()
         {
-            bool pad = shownControls != Controls.KeyboardMouse, ps = shownControls == Controls.PlayStation, toggle = GameSettings.Data.dashToggle;
-            string press = toggle ? "Press" : "Hold";
-            guideSteer.text = pad ? "Left stick / d-pad" : "Mouse / touch / WASD";
-            guideDash.text = pad ? (ps ? press + " Cross or R2" : press + " A or RT") : toggle ? "Click / Space" : "Hold click / Space";
-            guideBreak.text = pad ? (ps ? "Options pauses  ·  Share mutes" : "Start pauses  ·  View mutes") : "P pauses  ·  M mutes";
-            pauseHint.text = pad ? (ps ? "OPTIONS / CIRCLE to resume" : "START / B to resume") : "P / ESC to resume";
-            settingsTabsHint.text = pad ? (ps ? "L1 / R1  CHANGE PAGE" : "LB / RB  CHANGE PAGE") : "TAB  CHANGE PAGE";
+            bool ps = shownControls == Controls.PlayStation, pad = ps || shownControls == Controls.Xbox, touch = shownControls == Controls.Touch;
+            guideSteer.text = pad ? "Left stick / d-pad" : touch ? "Touch and drag" : "Mouse / touch / WASD";
+            guideDash.text = DashPrompt;
+            guideBreak.text = pad ? (ps ? "Options pauses  ·  Share mutes" : "Start pauses  ·  View mutes") : touch ? "The corner button mutes" : "P pauses  ·  M mutes";
+            pauseHint.text = pad ? (ps ? "OPTIONS / CIRCLE to resume" : "START / B to resume") : touch ? "" : "P / ESC to resume";
+            settingsTabsHint.text = pad ? (ps ? "L1 / R1  CHANGE PAGE" : "LB / RB  CHANGE PAGE") : touch ? "" : "TAB  CHANGE PAGE";
         }
 
         public string Selected => EventSystem.current?.currentSelectedGameObject?.name;
