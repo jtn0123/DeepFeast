@@ -854,9 +854,13 @@ namespace DeepFeast
                 var s = toScreen(f.x, f.y);
                 float rise = (1 - a) * 46;
                 float k = a > 0.85f ? 1 + (a - 0.85f) * 3 : 1;
-                f.t.fontSize = Mathf.RoundToInt(f.size * k * uiScale);
+                // The pop scales the text rather than its font size: every new size would make the font
+                // render its glyphs again, during combos when many texts are alive.
+                int size = Mathf.RoundToInt(f.size * uiScale);
+                if (f.t.fontSize != size) f.t.fontSize = size;
+                f.t.rectTransform.localScale = new Vector3(k, k, 1);
                 f.t.color = U.WithA(f.col, Mathf.Min(1, a * 1.6f));
-                f.t.rectTransform.anchoredPosition = new Vector2(s.x, -Mathf.Max(s.y - rise, textTop + f.t.fontSize * 0.6f));
+                f.t.rectTransform.anchoredPosition = new Vector2(s.x, -Mathf.Max(s.y - rise, textTop + size * k * 0.6f));
             }
 
             // "!" alerts + off-screen arrows
