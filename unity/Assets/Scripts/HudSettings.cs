@@ -217,7 +217,7 @@ namespace DeepFeast
                 {
                     key = "dashToggle", label = "DASH",
                     value = () => Opt.dashToggle ? "Toggle" : "Hold", step = _ => Opt.dashToggle = !Opt.dashToggle,
-                    help = () => Opt.dashToggle ? "Press dash once to start, again to stop. Running out of breath stops it too." : "Dash for as long as you hold the button.",
+                    help = () => Opt.dashToggle ? "Press dash once to start, again to stop. Running out of breath or holding still stops it too." : "Dash for as long as you hold the button.",
                 },
             });
 

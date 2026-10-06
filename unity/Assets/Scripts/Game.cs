@@ -325,6 +325,7 @@ namespace DeepFeast
         {
             state = GState.Victory;
             pDashing = false;
+            dashOn = false;
             if (score > best) { best = score; SaveBest(); }
             sfx.Victory();
             hud.ShowVictory(score, eaten, playTime, best);
@@ -339,6 +340,7 @@ namespace DeepFeast
             state = GState.Play;
             endless = true;
             pInvuln = 2;
+            dashOn = false;
             hud.HideVictory();
             Banner("ENDLESS DEEP", "Your score is banked. Now see how many more fish you can eat", new Color(80 / 255f, 240 / 255f, 220 / 255f));
             Debug.Log("[DeepFeast] endless swim continues");
@@ -781,6 +783,7 @@ namespace DeepFeast
 
         // ------------------------------------------------------------------ input
         bool moveUp, moveDown, moveLeft, moveRight, dashKey, mouseDown, dashOn, dashWasPressed;
+        float dashStillT;
 
         void ReadInput()
         {
@@ -932,12 +935,14 @@ namespace DeepFeast
                     if (d > 6) { dx = ddx / d; dy = ddy / d; mag = Mathf.Clamp01((d - 6) / 110); }
                 }
                 bool pressed = dashKey || mouseDown || hud.DashHeld || padDash;
-                // With Dash set to toggle, a press starts a dash and the next press, or running out
-                // of breath, ends it.
+                // With Dash set to toggle, a press starts a dash and the next press, running out of
+                // breath, or holding still for a moment ends it, so a forgotten toggle can't fire
+                // the next time the hero moves.
                 if (GameSettings.Data.dashToggle)
                 {
-                    if (pressed && !dashWasPressed) dashOn = !dashOn;
-                    if (pTired) dashOn = false;
+                    if (pressed && !dashWasPressed) { dashOn = !dashOn; dashStillT = 0; }
+                    dashStillT = mag > 0.2f ? 0 : dashStillT + dt;
+                    if (pTired || dashStillT > 0.75f) dashOn = false;
                     wantDash = dashOn;
                 }
                 else wantDash = pressed;

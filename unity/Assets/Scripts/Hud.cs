@@ -103,6 +103,8 @@ namespace DeepFeast
         readonly Text toastTitle, toastSub;
         readonly Image toastAccent;
         float bannerT = 99, toastT = 99, bannerFit = 1;
+        Notice shownBanner;
+        bool shownUrgent;
         // The interface's scale for the player's text size, and the canvas width in its units.
         float uiScale = 1, canvasW = 1400;
         // How far below the top of the screen the banner sits.
@@ -425,6 +427,7 @@ namespace DeepFeast
             textTop = insets.w + (w < 960 ? 136 : 88) * s;
             // Banners sit a little over a fifth of the way down, and always clear of the top row of the HUD.
             bannerY = Mathf.Max(0.22f * h, textTop / s + 92);
+            FitBanner();
             // narrow screens: drop the lives below the tier panel so they don't collide
             livesRT.anchoredPosition = w < 960 ? new Vector2(-16, -86) : new Vector2(-16, -12);
             Fit(menuCard, w, h, 940, 600);
@@ -629,12 +632,20 @@ namespace DeepFeast
             growthPulse = tierUp ? 0.75f : 0.22f;
         }
 
-        // An urgent banner (a shark, the whale shark's last bite) cuts in at once; others queue.
+        // An urgent banner (a shark, the whale shark's last bite) cuts in at once; others queue. A
+        // queued banner it cuts off early goes back to the front of the queue to be shown in full.
         public void Banner(string title, string sub, Color glow, bool urgent = false)
         {
             var n = new Notice { title = title, sub = sub ?? "", glow = glow };
-            if (urgent) ShowBanner(n);
-            else banners.Enqueue(n);
+            if (!urgent) { banners.Enqueue(n); return; }
+            if (!shownUrgent && bannerT < BANNER_LEN * 0.6f)
+            {
+                var waiting = banners.ToArray();
+                banners.Clear();
+                banners.Enqueue(shownBanner);
+                foreach (var b in waiting) banners.Enqueue(b);
+            }
+            ShowBanner(n, true);
         }
 
         // A toast already waiting its turn (a second frenzy) isn't queued twice.
@@ -651,18 +662,23 @@ namespace DeepFeast
             bannerT = toastT = 99;
         }
 
-        void ShowBanner(Notice n)
+        void ShowBanner(Notice n, bool urgent = false)
         {
+            shownBanner = n;
+            shownUrgent = urgent;
             bannerTitle.text = n.title;
             bannerSub.text = n.sub;
             bannerGlow.color = U.WithA(n.glow, 0.18f);
             bannerGrad.b = Color.Lerp(Color.white, n.glow, 0.2f);
             bannerGrad.c = Color.Lerp(Color.white, n.glow, 0.65f);
             bannerTitle.SetVerticesDirty();
-            // A long title on a narrow or enlarged screen shrinks to fit across it.
-            bannerFit = Mathf.Min(1, (canvasW - 40) / Mathf.Max(1, Mathf.Max(bannerTitle.preferredWidth, bannerSub.preferredWidth)));
+            FitBanner();
             bannerT = 0;
         }
+
+        // A long title on a narrow or enlarged screen shrinks to fit across it.
+        void FitBanner() =>
+            bannerFit = Mathf.Min(1, (canvasW - 40) / Mathf.Max(1, Mathf.Max(bannerTitle.preferredWidth, bannerSub.preferredWidth)));
 
         void ShowToast(Notice n)
         {
@@ -781,8 +797,9 @@ namespace DeepFeast
                 }
             }
 
-            // banner (2.6 s) and toast (1.6 s) animations; they wait behind the pause card and never cover an overlay
-            if (!pause.activeSelf && !settings.activeSelf) { bannerT += rdt; toastT += rdt; }
+            // banner (2.6 s) and toast (1.6 s) animations; they wait behind every card and never cover one,
+            // so news earned at the end of a swim (a last tier, a new species) shows once play resumes
+            if (ActiveScreen == null) { bannerT += rdt; toastT += rdt; }
             if (bannerT >= BANNER_LEN + NOTICE_GAP && banners.Count > 0) ShowBanner(banners.Dequeue());
             if (toastT >= TOAST_LEN + NOTICE_GAP && toasts.Count > 0) ShowToast(toasts.Dequeue());
             float tt = toastT / TOAST_LEN, ta = tt >= 1 ? 0 : tt < 0.12f ? U.Smooth(tt / 0.12f) : tt < 0.82f ? 1 : 1 - U.Smooth((tt - 0.82f) / 0.18f);
