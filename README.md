@@ -24,6 +24,8 @@ tools/run.sh <outdir> <name> ...   # one test run of the built player with any h
 
 The unit tests in `unity/Assets/Tests/EditMode` check the game's rules without playing it: growth and its cap past Legend, tiers, which species spawn at each size and depth, habitat blending, settings overrides and limits, blink rates with Reduce flashing, and which launches count as test runs. They also run from the editor's **Window → General → Test Runner**.
 
+CI (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request. It lints `tools/` and, when the repository has a Unity licence in its secrets, runs the unit tests (which include the art validation) and a Linux player build through [GameCI](https://game.ci). Set `UNITY_EMAIL`, `UNITY_PASSWORD` and either `UNITY_LICENSE` (a Personal licence; see GameCI's [activation guide](https://game.ci/docs/github/activation)) or `UNITY_SERIAL` (a paid licence). Until then the Unity jobs are skipped with a notice. The player flows in `tools/verify.sh` need a Mac, so they run locally.
+
 `tools/run.sh` always runs the player with `-batchmode -mute` and adds `-quitafter 300` if the flags don't set a deadline. It prints the run's `[DeepFeast] exit` line and returns its exit code.
 
 ### Controls
