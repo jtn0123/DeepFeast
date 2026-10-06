@@ -795,6 +795,10 @@ namespace DeepFeast
                 kbMode = true; padMode = false;
             }
 
+            // Touches move the simulated mouse too, so the last mouse position follows every frame.
+            var mp = Input.mousePosition;
+            bool moved = (mp - lastMouse).sqrMagnitude > 0.5f;
+            lastMouse = mp;
             if (Input.touchCount > 0)
             {
                 touchMode = true;
@@ -811,10 +815,10 @@ namespace DeepFeast
             }
             else
             {
+                // A mouse that moves or clicks with no finger down takes control back, so one tap on a
+                // touchscreen laptop doesn't switch the mouse off for the rest of the session.
+                if (touchMode && (moved || Input.GetMouseButtonDown(0))) touchMode = false;
                 if (touchMode) pointerMode = false;
-                var mp = Input.mousePosition;
-                bool moved = (mp - lastMouse).sqrMagnitude > 0.5f;
-                lastMouse = mp;
                 if (!touchMode)
                 {
                     pointer = new Vector2(mp.x / pxPerRef, (Screen.height - mp.y) / pxPerRef);
