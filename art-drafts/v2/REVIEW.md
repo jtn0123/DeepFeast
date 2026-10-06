@@ -74,7 +74,6 @@ The new font and panels are installed and substantially more coherent than the o
 - `concepts/`: new AI-generated review proposals using those current Unity captures as references.
 - `comparisons/`: labeled current/proposal boards, assembled without replacing the current-side artwork.
 - `prompts.json`: exact v2 prompts used with the built-in image generation tool.
-- `logs/`: rebuild and native capture logs.
 - `index.html`: interactive comparison gallery.
 
 The screenshot crops intentionally enlarge the actual rendered game pixels. They are not high-resolution sprite exports and should not be used to judge source texture resolution in isolation.
