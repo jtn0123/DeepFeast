@@ -16,7 +16,7 @@ for a in "$@"; do
 done
 
 # Only ever clear a folder this script made.
-if [ -d "$out" ] && [ -n "$(ls -A "$out")" ] && [ ! -e "$out/.deepfeast-verify" ]; then
+if [[ -d "$out" ]] && [[ -n "$(ls -A "$out")" ]] && [[ ! -e "$out/.deepfeast-verify" ]]; then
     echo "verify: $out is not empty and was not made by verify.sh; pick another folder" >&2
     exit 2
 fi
@@ -25,7 +25,7 @@ mkdir -p "$out"
 touch "$out/.deepfeast-verify"
 
 fail=0
-if [ $build -eq 1 ]; then "$here/build.sh" "$out/build.log" || exit 1; fi
+if [[ $build -eq 1 ]]; then "$here/build.sh" "$out/build.log" || exit 1; fi
 
 run="$here/run.sh"
 pids=()
@@ -40,11 +40,16 @@ pids=()
 for pid in "${pids[@]}"; do wait "$pid" || fail=1; done
 
 for log in "$out"/*.log; do
-    case $(basename "$log") in build.log|editmode.log) continue ;; esac
-    if grep -qE "error CS|NullReferenceException|Exception:" "$log"; then
-        echo "verify: errors in $log" >&2
-        fail=1
-    fi
+    case $(basename "$log") in
+        # build.sh and test.sh judge their own logs.
+        build.log|editmode.log) ;;
+        *)
+            if grep -qE "error CS|NullReferenceException|Exception:" "$log"; then
+                echo "verify: errors in $log" >&2
+                fail=1
+            fi
+            ;;
+    esac
 done
-if [ $fail -eq 0 ]; then echo "verify: passed ($out)"; else echo "verify: FAILED ($out)" >&2; fi
+if [[ $fail -eq 0 ]]; then echo "verify: passed ($out)"; else echo "verify: FAILED ($out)" >&2; fi
 exit $fail

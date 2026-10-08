@@ -8,8 +8,8 @@
 set -uo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 player=${PLAYER:-"$root/unity/Builds/Mac/DeepFeast.app/Contents/MacOS/Deep Feast"}
-[ $# -ge 2 ] || { echo "usage: $0 <outdir> <name> [game flags...]" >&2; exit 2; }
-[ -x "$player" ] || { echo "run: no player at $player (run tools/build.sh first)" >&2; exit 2; }
+[[ $# -ge 2 ]] || { echo "usage: $0 <outdir> <name> [game flags...]" >&2; exit 2; }
+[[ -x "$player" ]] || { echo "run: no player at $player (run tools/build.sh first)" >&2; exit 2; }
 out=$1 name=$2
 shift 2
 args=("$@")
