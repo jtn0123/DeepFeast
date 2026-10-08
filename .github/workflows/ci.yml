@@ -6,6 +6,7 @@
 # either UNITY_LICENSE (the contents of a Personal licence's .ulf file) or UNITY_SERIAL (a paid
 # licence). Without them, and on pull requests from forks, those jobs are skipped with a notice.
 # Only the source each job needs is checked out, so the art drafts are never downloaded.
+# The GameCI actions receive the licence secrets, so they are pinned to a release's commit.
 name: CI
 
 on:
@@ -75,7 +76,7 @@ jobs:
           path: unity/Library
           key: library-editmode-${{ hashFiles('unity/Assets/**', 'unity/Packages/**', 'unity/ProjectSettings/**') }}
           restore-keys: library-editmode-
-      - uses: game-ci/unity-test-runner@v4
+      - uses: game-ci/unity-test-runner@fa6ced25861c16ef56187828c43f76d00df43a23 # v4.3.2
         id: tests
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -110,7 +111,7 @@ jobs:
           path: unity/Library
           key: library-linux-${{ hashFiles('unity/Assets/**', 'unity/Packages/**', 'unity/ProjectSettings/**') }}
           restore-keys: library-linux-
-      - uses: game-ci/unity-builder@v6
+      - uses: game-ci/unity-builder@eb1b9fba120c6e62c9fb7a7a81d6c107ce004c45 # v6.0.0
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
