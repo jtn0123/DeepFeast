@@ -9,7 +9,9 @@ version=$(sed -n 's/^m_EditorVersion: //p' "$root/unity/ProjectSettings/ProjectV
 unity=${UNITY:-/Applications/Unity/Hub/Editor/$version/Unity.app/Contents/MacOS/Unity}
 out=${1:-$root/unity/Logs}
 [[ -x "$unity" ]] || { echo "test: no Unity $version at $unity (set UNITY=...)" >&2; exit 2; }
-mkdir -p "$out"
+mkdir -p "$out" || exit 2
+# Unity resolves relative test-result paths against the project, not the caller's directory.
+out=$(cd "$out" && pwd -P) || exit 2
 results="$out/editmode-results.xml" log="$out/editmode.log"
 rm -f "$results"
 

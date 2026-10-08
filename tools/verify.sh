@@ -16,13 +16,18 @@ for a in "$@"; do
 done
 
 # Only ever clear a folder this script made.
+if [[ -e "$out" || -L "$out" ]] && [[ ! -d "$out" ]]; then
+    echo "verify: $out exists and is not a directory; pick another folder" >&2
+    exit 2
+fi
 if [[ -d "$out" ]] && [[ -n "$(ls -A "$out")" ]] && [[ ! -e "$out/.deepfeast-verify" ]]; then
     echo "verify: $out is not empty and was not made by verify.sh; pick another folder" >&2
     exit 2
 fi
-rm -rf "$out"
-mkdir -p "$out"
-touch "$out/.deepfeast-verify"
+rm -rf "$out" || exit 2
+mkdir -p "$out" || exit 2
+out=$(cd "$out" && pwd -P) || exit 2
+touch "$out/.deepfeast-verify" || exit 2
 
 fail=0
 if [[ $build -eq 1 ]]; then "$here/build.sh" "$out/build.log" || exit 1; fi
