@@ -108,7 +108,7 @@ This sequence is a proposed implementation path, not work already performed or a
 From the repository root:
 
 ```sh
-python3 -m http.server 4318
+python3 -m http.server 4318 --bind 127.0.0.1
 ```
 
 Open `http://localhost:4318/art-drafts/`. When using the transferred archive, extract it first and serve the directory containing `art-drafts/`.

@@ -8,3 +8,6 @@ __pycache__/
 
 # run logs: they hold local paths and Unity licensing machine IDs
 *.log
+
+# local Claude Code state and reports
+.claude/

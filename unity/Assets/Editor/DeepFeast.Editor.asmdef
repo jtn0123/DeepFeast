@@ -1,0 +1,18 @@
+{
+    "name": "DeepFeast.Editor",
+    "rootNamespace": "DeepFeast.EditorTools",
+    "references": [
+        "DeepFeast"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

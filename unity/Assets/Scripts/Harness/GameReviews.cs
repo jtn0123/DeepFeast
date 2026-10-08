@@ -105,7 +105,7 @@ namespace DeepFeast
                 float fy = Has("-nearfloor") ? world.FloorY(fx) - 40 - i * 45 : cam.y - 100 + (i % 2) * 90;
                 fish.Add(MakeFish(species[i], 17 + i * 2, fx, fy, i % 2 == 0 ? 1 : -1));
             }
-            Debug.Log($"[DeepFeast] scenery {scenery}: camera={cam}, zoom={zoom}, fixed seed=20261003.");
+            Debug.Log($"[DeepFeast] scenery {scenery}: camera={cam}, zoom={zoom}, seed={seed}.");
         }
 
         void Scenery(float rdt)
@@ -187,9 +187,12 @@ namespace DeepFeast
                 case 6 when realTime > 6.4f: GameOver(); Check(GState.Over, "over", "game over"); uiFlowStage++; break;
                 case 7 when realTime > 7: Shot("over"); uiFlowStage++; break;
                 case 8 when realTime > 7.4f: hud.SubmitPrimary(); Check(GState.Play, "none", "retry submit"); uiFlowStage++; break;
-                case 9 when realTime > 8: Victory(); Check(GState.Victory, "victory", "victory"); uiFlowStage++; break;
+                case 9 when realTime > 8: dashOn = true; Victory(); Check(GState.Victory, "victory", "victory"); uiFlowStage++; break;
                 case 10 when realTime > 8.6f: Shot("victory"); uiFlowStage++; break;
-                case 11 when realTime > 9: hud.SubmitPrimary(); Check(GState.Play, "none", "keep swimming submit"); uiFlowStage++; break;
+                case 11 when realTime > 9:
+                    hud.SubmitPrimary(); Check(GState.Play, "none", "keep swimming submit");
+                    CheckSetting(!dashOn, "a toggled dash ends at the victory");
+                    uiFlowStage++; break;
                 case 12 when realTime > 9.6f: GameOver(); Check(GState.Over, "over", "second game over"); uiFlowStage++; break;
                 case 13 when realTime > 10: hud.SubmitButton("FISHDEX"); Check(GState.Over, "fishdex", "fishdex submit"); uiFlowStage++; break;
                 case 14 when realTime > 10.6f: Shot("fishdex"); uiFlowStage++; break;

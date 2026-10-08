@@ -54,8 +54,6 @@ namespace DeepFeast
         Vector2 cam = new Vector2(7000, 1500);
         float zoom = 1, menuCamX = 7000, menuDir = 1;
         float pxPerRef = 1, refW = 1400, refH = 820;
-        // The tier bar's lower edge, with a little clearance, in reference pixels.
-        const float HudTop = 86;
 
         readonly Fish player = new Fish { sp = null };
         bool pActive, pAlive, pTired, pDashing;
@@ -68,6 +66,7 @@ namespace DeepFeast
         FishView playerView;
         SpriteRenderer playerGlow, shieldRing, shieldFill, shieldShine;
         readonly SpriteRenderer[] stunStars = new SpriteRenderer[3];
+        static readonly Color StunStar = U.Hex("#fff6a8");
 
         readonly List<Fish> fish = new List<Fish>();
         readonly List<School> schools = new List<School>();
@@ -149,8 +148,9 @@ namespace DeepFeast
             GameSettings.Changed += ApplySettings;
             ApplySettings();
 
-            best = PlayerPrefs.GetInt("deepfeast.best", 0);
-            deepBest = PlayerPrefs.GetInt("deepfeast.deep", 0);
+            // A test run starts from no records, so its results don't depend on this Mac's saves.
+            best = persist ? PlayerPrefs.GetInt("deepfeast.best", 0) : 0;
+            deepBest = persist ? PlayerPrefs.GetInt("deepfeast.deep", 0) : 0;
             Fishdex.Load(persist);
             hud.ShowMenu(best);
 
@@ -325,6 +325,7 @@ namespace DeepFeast
         {
             state = GState.Victory;
             pDashing = false;
+            dashOn = false;
             if (score > best) { best = score; SaveBest(); }
             sfx.Victory();
             hud.ShowVictory(score, eaten, playTime, best);
@@ -339,6 +340,7 @@ namespace DeepFeast
             state = GState.Play;
             endless = true;
             pInvuln = 2;
+            dashOn = false;
             hud.HideVictory();
             Banner("ENDLESS DEEP", "Your score is banked. Now see how many more fish you can eat", new Color(80 / 255f, 240 / 255f, 220 / 255f));
             Debug.Log("[DeepFeast] endless swim continues");
@@ -386,13 +388,7 @@ namespace DeepFeast
             ReleaseView(f);
             float pr = player.r;
             player.chomp = 0.22f;
-            // Young fish grow fast so the first tiers come quickly; the boost fades out by Hunter.
-            float growth = Data.GROW * Mathf.Lerp(3.4f, 1, Mathf.InverseLerp(Data.Tiers[0].r, Data.Tiers[2].r, pr));
-            // Past Legend growth tapers off and stops at twice the Legend's size, so the hero never
-            // outgrows the screen and the endless deep still has fish that fit the sea.
-            float legendR = Data.Tiers[Data.Tiers.Length - 1].r;
-            growth *= Mathf.Lerp(1, 0.15f, Mathf.InverseLerp(legendR, legendR * 1.5f, pr)) * Mathf.InverseLerp(legendR * 2, legendR * 1.5f, pr);
-            player.r = Mathf.Sqrt(pr * pr + f.r * f.r * growth);
+            player.r = Data.Grow(pr, f.r);
             combo = comboT > 0 ? Mathf.Min(combo + 1, 12) : 1;
             comboT = 1.8f;
             int pts = Mathf.RoundToInt((f.r * 1.5f + 5) * (f.shark ? 5 : 1)) * combo;
@@ -602,7 +598,7 @@ namespace DeepFeast
             fish.Add(s);
             Debug.Log($"[DeepFeast] shark encounter: key={identity.key}, name={identity.displayName}, aggressive={identity.aggressive}, chaseMultiplier={identity.chaseSpeedMultiplier:0.00}, edible={edible}, radius={r:0.0}, life={s.life:0.0}.");
             if (edible) Banner("SHARK!", "You are the Leviathan now — hunt it down!", new Color(1, 200 / 255f, 60 / 255f), true);
-            else Banner("SHARK!", (GameSettings.Data.dashToggle ? "Click" : "Hold click") + " / Space to dash away", new Color(1, 60 / 255f, 80 / 255f), true);
+            else Banner("SHARK!", hud.DashPrompt + " to dash away", new Color(1, 60 / 255f, 80 / 255f), true);
             sfx.Shark();
         }
 
@@ -781,6 +777,7 @@ namespace DeepFeast
 
         // ------------------------------------------------------------------ input
         bool moveUp, moveDown, moveLeft, moveRight, dashKey, mouseDown, dashOn, dashWasPressed;
+        float dashStillT;
 
         void ReadInput()
         {
@@ -795,6 +792,10 @@ namespace DeepFeast
                 kbMode = true; padMode = false;
             }
 
+            // Touches move the simulated mouse too, so the last mouse position follows every frame.
+            var mp = Input.mousePosition;
+            bool moved = (mp - lastMouse).sqrMagnitude > 0.5f;
+            lastMouse = mp;
             if (Input.touchCount > 0)
             {
                 touchMode = true;
@@ -811,10 +812,10 @@ namespace DeepFeast
             }
             else
             {
+                // A mouse that moves or clicks with no finger down takes control back, so one tap on a
+                // touchscreen laptop doesn't switch the mouse off for the rest of the session.
+                if (touchMode && (moved || Input.GetMouseButtonDown(0))) touchMode = false;
                 if (touchMode) pointerMode = false;
-                var mp = Input.mousePosition;
-                bool moved = (mp - lastMouse).sqrMagnitude > 0.5f;
-                lastMouse = mp;
                 if (!touchMode)
                 {
                     pointer = new Vector2(mp.x / pxPerRef, (Screen.height - mp.y) / pxPerRef);
@@ -841,6 +842,8 @@ namespace DeepFeast
             }
             if (Input.GetKeyDown(KeyCode.M)) ToggleMute();
             ReadPad();
+            hud.ShowControls(PromptDevice());
+            hud.ShowFocus = padMode || kbMode;
         }
 
         // Fish of a similar size slide apart as they pass: two big silhouettes stacked on each other
@@ -928,12 +931,14 @@ namespace DeepFeast
                     if (d > 6) { dx = ddx / d; dy = ddy / d; mag = Mathf.Clamp01((d - 6) / 110); }
                 }
                 bool pressed = dashKey || mouseDown || hud.DashHeld || padDash;
-                // With Dash set to toggle, a press starts a dash and the next press, or running out
-                // of breath, ends it.
+                // With Dash set to toggle, a press starts a dash and the next press, running out of
+                // breath, or holding still for a moment ends it, so a forgotten toggle can't fire
+                // the next time the hero moves.
                 if (GameSettings.Data.dashToggle)
                 {
-                    if (pressed && !dashWasPressed) dashOn = !dashOn;
-                    if (pTired) dashOn = false;
+                    if (pressed && !dashWasPressed) { dashOn = !dashOn; dashStillT = 0; }
+                    dashStillT = mag > 0.2f ? 0 : dashStillT + dt;
+                    if (pTired || dashStillT > 0.75f) dashOn = false;
                     wantDash = dashOn;
                 }
                 else wantDash = pressed;
@@ -1367,11 +1372,12 @@ namespace DeepFeast
             cam.x = Mathf.Clamp(cam.x, hw, World.W - hw);
             cam.y = Mathf.Clamp(cam.y, hh - Mathf.Min(170, hh * 0.28f), World.H - hh);
             // At the surface the view rises into the sky rather than letting the hero swim up under
-            // the tier bar; a climbing fish reaches further up than a level one.
+            // the tier bar, however tall the text size and any notch make it; a climbing fish reaches
+            // further up than a level one.
             if (pActive)
             {
                 float reach = player.r * Mathf.Lerp(0.8f, 1.45f, Mathf.Abs(Mathf.Sin(player.tilt)));
-                cam.y = Mathf.Min(cam.y, player.y - reach + hh - HudTop / zoom);
+                cam.y = Mathf.Min(cam.y, player.y - reach + hh - hud.TextTop / zoom);
             }
             shake *= Mathf.Exp(-dt * 7);
         }
@@ -1547,7 +1553,7 @@ namespace DeepFeast
                 float a = time * 6 + i * U.TAU / 3;
                 stunStars[i].transform.localPosition = U.V3(player.x + Mathf.Cos(a) * player.r * 0.9f, player.y - player.r * 1.3f + Mathf.Sin(a) * player.r * 0.25f);
                 stunStars[i].transform.localScale = Vector3.one * player.r * 0.24f;
-                stunStars[i].color = U.Hex("#fff6a8");
+                stunStars[i].color = StunStar;
             }
 
             // jellies

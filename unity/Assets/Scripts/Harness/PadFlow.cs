@@ -37,14 +37,17 @@ namespace DeepFeast
             switch (padStage)
             {
                 case 0: Press(GamepadButton.South); break;
-                case 1: Release(); break;
+                // Then the mouse moves, as it would when a player puts the pad down.
+                case 1: Release(); pointerMode = true; padMode = false; break;
                 case 2:
                     Check(state == GState.Play, "south starts the swim");
+                    Check(hud.DashPrompt.EndsWith("/ Space"), "mouse use shows mouse prompts");
                     pInvuln = 60; padStartX = player.x;
                     Set(new GamepadState { leftStick = new Vector2(1, 0) });
                     break;
                 case 6:
                     Check(padMode && player.x > padStartX + player.r * 3, "left stick steers");
+                    Check(hud.DashPrompt.EndsWith("A or RT"), "pad use shows pad prompts");
                     Set(new GamepadState { leftStick = new Vector2(1, 0) }.WithButton(GamepadButton.South));
                     break;
                 case 7: Check(pDashing, "south dashes"); Release(); break;

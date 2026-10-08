@@ -63,6 +63,18 @@ namespace DeepFeast
         public static float ZoomFor(float r) => (24f + (r - 12f) * 0.3f) / r;
         public static float SpeedFor(float r) => (235f + (r - 12f) * 0.25f) / ZoomFor(r);
 
+        /// The hero's radius after swallowing a fish of radius prey. Young fish grow fast so the first
+        /// tiers come quickly; the boost fades out by Hunter. Past Legend growth tapers off and stops at
+        /// twice the Legend's size, so the hero never outgrows the screen and the endless deep still has
+        /// fish that fit the sea.
+        public static float Grow(float r, float prey)
+        {
+            float growth = GROW * Mathf.Lerp(3.4f, 1, Mathf.InverseLerp(Tiers[0].r, Tiers[2].r, r));
+            float legendR = Tiers[Tiers.Length - 1].r;
+            growth *= Mathf.Lerp(1, 0.15f, Mathf.InverseLerp(legendR, legendR * 1.5f, r)) * Mathf.InverseLerp(legendR * 2, legendR * 1.5f, r);
+            return Mathf.Sqrt(r * r + prey * prey * growth);
+        }
+
         static Species S(string key, string shape, string a, string b, string c, string fin, float finA, string pat, float min, float max)
             => new Species { key = key, displayName = key, shape = shape, c0 = U.Hex(a), c1 = U.Hex(b), c2 = U.Hex(c), fin = U.Hex(fin, finA), tailCol = U.Hex(fin, finA), pat = pat, min = min, max = max };
 

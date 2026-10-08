@@ -2,7 +2,7 @@
 
 A "Feeding Frenzy"-style arcade game. You start as a tiny fish, eat anything smaller than you, run from anything bigger, and grow up the food chain.
 
-**Play:** open `index.html` in a browser (or `python3 -m http.server` in this folder, then visit `http://localhost:8000`).
+**Play:** open `index.html` in a browser (or `python3 -m http.server --bind 127.0.0.1` in this folder, then visit `http://localhost:8000`).
 It is one file with no dependencies, no build step and no image assets: every fish, coral and light ray is drawn in code.
 
 ## Controls

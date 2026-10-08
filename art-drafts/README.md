@@ -28,4 +28,4 @@ The concept sheets have opaque backgrounds and are not animation-ready sprite at
 
 ## Open locally
 
-From the repository root, run `python3 -m http.server 4318`, then open `http://localhost:4318/art-drafts/`.
+From the repository root, run `python3 -m http.server 4318 --bind 127.0.0.1`, then open `http://localhost:4318/art-drafts/`.

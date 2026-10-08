@@ -103,6 +103,8 @@ namespace DeepFeast
         readonly Text toastTitle, toastSub;
         readonly Image toastAccent;
         float bannerT = 99, toastT = 99, bannerFit = 1;
+        Notice shownBanner;
+        bool shownUrgent;
         // The interface's scale for the player's text size, and the canvas width in its units.
         float uiScale = 1, canvasW = 1400;
         // How far below the top of the screen the banner sits.
@@ -112,8 +114,8 @@ namespace DeepFeast
         float targetGrowth, shownGrowth, growthPulse, scorePulse;
         bool growthInitialized;
         const float BAR_W = 440, DASH_W = 178, LIFE_STEP = 38;
-        // Control hints for keyboard and mouse, an Xbox-style pad or a PlayStation pad.
-        public enum Controls { KeyboardMouse, Xbox, PlayStation }
+        // Control hints for keyboard and mouse, touch, an Xbox-style pad or a PlayStation pad.
+        public enum Controls { KeyboardMouse, Touch, Xbox, PlayStation }
         Controls shownControls;
         Text guideSteer, guideDash, guideBreak, pauseHint;
         // A gold frame behind the selected button while steering by pad or keyboard.
@@ -128,6 +130,7 @@ namespace DeepFeast
         static readonly Color PanelCol = new Color(0.02f, 0.11f, 0.2f, 0.6f);
         static readonly Color EdgeCol = new Color(0.63f, 0.94f, 1, 0.22f);
         static readonly Color TrackCol = new Color(0, 0.05f, 0.12f, 0.75f);
+        static readonly Color GrowthFlash = U.Hex("#fff3be");
 
         sealed class FloatText { public float x, y, life, max, size; public Text t; public Color col; }
         readonly List<FloatText> texts = new List<FloatText>();
@@ -425,6 +428,7 @@ namespace DeepFeast
             textTop = insets.w + (w < 960 ? 136 : 88) * s;
             // Banners sit a little over a fifth of the way down, and always clear of the top row of the HUD.
             bannerY = Mathf.Max(0.22f * h, textTop / s + 92);
+            FitBanner();
             // narrow screens: drop the lives below the tier panel so they don't collide
             livesRT.anchoredPosition = w < 960 ? new Vector2(-16, -86) : new Vector2(-16, -12);
             Fit(menuCard, w, h, 940, 600);
@@ -446,6 +450,10 @@ namespace DeepFeast
             canvas.sortingOrder = 30000;
         }
         public Vector2 RefSize => rootRT.rect.size;
+        /// The bottom of the playing HUD's top row, below any notch, in reference units.
+        public float TextTop => textTop;
+        /// The text size that fits this screen, which can be less than the one chosen.
+        public int AppliedTextSize => Mathf.RoundToInt(uiScale * 100);
 
         public void ShowTouch(bool on) { if (dashBtn.activeSelf != on) dashBtn.SetActive(on); }
 
@@ -629,12 +637,20 @@ namespace DeepFeast
             growthPulse = tierUp ? 0.75f : 0.22f;
         }
 
-        // An urgent banner (a shark, the whale shark's last bite) cuts in at once; others queue.
+        // An urgent banner (a shark, the whale shark's last bite) cuts in at once; others queue. A
+        // queued banner it cuts off early goes back to the front of the queue to be shown in full.
         public void Banner(string title, string sub, Color glow, bool urgent = false)
         {
             var n = new Notice { title = title, sub = sub ?? "", glow = glow };
-            if (urgent) ShowBanner(n);
-            else banners.Enqueue(n);
+            if (!urgent) { banners.Enqueue(n); return; }
+            if (!shownUrgent && bannerT < BANNER_LEN * 0.6f)
+            {
+                var waiting = banners.ToArray();
+                banners.Clear();
+                banners.Enqueue(shownBanner);
+                foreach (var b in waiting) banners.Enqueue(b);
+            }
+            ShowBanner(n, true);
         }
 
         // A toast already waiting its turn (a second frenzy) isn't queued twice.
@@ -651,18 +667,23 @@ namespace DeepFeast
             bannerT = toastT = 99;
         }
 
-        void ShowBanner(Notice n)
+        void ShowBanner(Notice n, bool urgent = false)
         {
+            shownBanner = n;
+            shownUrgent = urgent;
             bannerTitle.text = n.title;
             bannerSub.text = n.sub;
             bannerGlow.color = U.WithA(n.glow, 0.18f);
             bannerGrad.b = Color.Lerp(Color.white, n.glow, 0.2f);
             bannerGrad.c = Color.Lerp(Color.white, n.glow, 0.65f);
             bannerTitle.SetVerticesDirty();
-            // A long title on a narrow or enlarged screen shrinks to fit across it.
-            bannerFit = Mathf.Min(1, (canvasW - 40) / Mathf.Max(1, Mathf.Max(bannerTitle.preferredWidth, bannerSub.preferredWidth)));
+            FitBanner();
             bannerT = 0;
         }
+
+        // A long title on a narrow or enlarged screen shrinks to fit across it.
+        void FitBanner() =>
+            bannerFit = Mathf.Min(1, (canvasW - 40) / Mathf.Max(1, Mathf.Max(bannerTitle.preferredWidth, bannerSub.preferredWidth)));
 
         void ShowToast(Notice n)
         {
@@ -706,16 +727,40 @@ namespace DeepFeast
             ApplyControls();
         }
 
+        /// How to dash on the device the player last used, as the menu guide and the shark warning say it.
+        public string DashPrompt
+        {
+            get
+            {
+                bool toggle = GameSettings.Data.dashToggle;
+                return shownControls switch
+                {
+                    Controls.Xbox => (toggle ? "Press" : "Hold") + " A or RT",
+                    Controls.PlayStation => (toggle ? "Press" : "Hold") + " Cross or R2",
+                    Controls.Touch => (toggle ? "Tap" : "Hold") + " the DASH button",
+                    _ => toggle ? "Click / Space" : "Hold click / Space",
+                };
+            }
+        }
+
+        /// What mutes the sound on the device the player last used.
+        public string MutePrompt => shownControls switch
+        {
+            Controls.Xbox => "View",
+            Controls.PlayStation => "Share",
+            Controls.Touch => "The corner button",
+            _ => "M",
+        };
+
         // Also called when settings change, so the dash guide follows hold or toggle.
         public void ApplyControls()
         {
-            bool pad = shownControls != Controls.KeyboardMouse, ps = shownControls == Controls.PlayStation, toggle = GameSettings.Data.dashToggle;
-            string press = toggle ? "Press" : "Hold";
-            guideSteer.text = pad ? "Left stick / d-pad" : "Mouse / touch / WASD";
-            guideDash.text = pad ? (ps ? press + " Cross or R2" : press + " A or RT") : toggle ? "Click / Space" : "Hold click / Space";
-            guideBreak.text = pad ? (ps ? "Options pauses  ·  Share mutes" : "Start pauses  ·  View mutes") : "P pauses  ·  M mutes";
-            pauseHint.text = pad ? (ps ? "OPTIONS / CIRCLE to resume" : "START / B to resume") : "P / ESC to resume";
-            settingsTabsHint.text = pad ? (ps ? "L1 / R1  CHANGE PAGE" : "LB / RB  CHANGE PAGE") : "TAB  CHANGE PAGE";
+            bool ps = shownControls == Controls.PlayStation, pad = ps || shownControls == Controls.Xbox, touch = shownControls == Controls.Touch;
+            guideSteer.text = pad ? "Left stick / d-pad" : touch ? "Touch and drag" : "Mouse / touch / WASD";
+            guideDash.text = DashPrompt;
+            guideBreak.text = pad ? (ps ? "Options pauses  ·  Share mutes" : "Start pauses  ·  View mutes") : touch ? "The corner button mutes" : "P pauses  ·  M mutes";
+            pauseHint.text = pad ? (ps ? "OPTIONS / CIRCLE to resume" : "START / B to resume") : touch ? "" : "P / ESC to resume";
+            settingsTabsHint.text = pad ? (ps ? "L1 / R1  CHANGE PAGE" : "LB / RB  CHANGE PAGE") : touch ? "" : "TAB  CHANGE PAGE";
         }
 
         public string Selected => EventSystem.current?.currentSelectedGameObject?.name;
@@ -764,7 +809,7 @@ namespace DeepFeast
             growthRT.sizeDelta = new Vector2(Mathf.Max(16, shownGrowth * BAR_W), 16);
             growthPulse = Mathf.Max(0, growthPulse - rdt);
             scorePulse = Mathf.Max(0, scorePulse - rdt);
-            var tint = Color.Lerp(Color.white, U.Hex("#fff3be"), Mathf.Clamp01(growthPulse * 1.4f));
+            var tint = Color.Lerp(Color.white, GrowthFlash, Mathf.Clamp01(growthPulse * 1.4f));
             if (growthGrad.tint != tint) { growthGrad.tint = tint; growth.SetVerticesDirty(); }
             score.rectTransform.localScale = Vector3.one * (1 + Mathf.Sin(scorePulse / 0.18f * Mathf.PI) * 0.07f);
 
@@ -781,8 +826,9 @@ namespace DeepFeast
                 }
             }
 
-            // banner (2.6 s) and toast (1.6 s) animations; they wait behind the pause card and never cover an overlay
-            if (!pause.activeSelf && !settings.activeSelf) { bannerT += rdt; toastT += rdt; }
+            // banner (2.6 s) and toast (1.6 s) animations; they wait behind every card and never cover one,
+            // so news earned at the end of a swim (a last tier, a new species) shows once play resumes
+            if (ActiveScreen == null) { bannerT += rdt; toastT += rdt; }
             if (bannerT >= BANNER_LEN + NOTICE_GAP && banners.Count > 0) ShowBanner(banners.Dequeue());
             if (toastT >= TOAST_LEN + NOTICE_GAP && toasts.Count > 0) ShowToast(toasts.Dequeue());
             float tt = toastT / TOAST_LEN, ta = tt >= 1 ? 0 : tt < 0.12f ? U.Smooth(tt / 0.12f) : tt < 0.82f ? 1 : 1 - U.Smooth((tt - 0.82f) / 0.18f);
@@ -808,9 +854,13 @@ namespace DeepFeast
                 var s = toScreen(f.x, f.y);
                 float rise = (1 - a) * 46;
                 float k = a > 0.85f ? 1 + (a - 0.85f) * 3 : 1;
-                f.t.fontSize = Mathf.RoundToInt(f.size * k * uiScale);
+                // The pop scales the text rather than its font size: every new size would make the font
+                // render its glyphs again, during combos when many texts are alive.
+                int size = Mathf.RoundToInt(f.size * uiScale);
+                if (f.t.fontSize != size) f.t.fontSize = size;
+                f.t.rectTransform.localScale = new Vector3(k, k, 1);
                 f.t.color = U.WithA(f.col, Mathf.Min(1, a * 1.6f));
-                f.t.rectTransform.anchoredPosition = new Vector2(s.x, -Mathf.Max(s.y - rise, textTop + f.t.fontSize * 0.6f));
+                f.t.rectTransform.anchoredPosition = new Vector2(s.x, -Mathf.Max(s.y - rise, textTop + size * k * 0.6f));
             }
 
             // "!" alerts + off-screen arrows

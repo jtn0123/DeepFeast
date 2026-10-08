@@ -1,0 +1,123 @@
+# Checks every push to main and every pull request.
+#   scripts:  lints the shell and Python tools; always runs.
+#   tests:    the EditMode unit tests, including the production-art and fish-turn validations.
+#   build:    a Linux player build, which compiles the game as a player rather than in the editor.
+# The Unity jobs need a Unity licence in the repository secrets: UNITY_EMAIL, UNITY_PASSWORD and
+# either UNITY_LICENSE (the contents of a Personal licence's .ulf file) or UNITY_SERIAL (a paid
+# licence). Without them, and on pull requests from forks, those jobs are skipped with a notice.
+# Only the source each job needs is checked out, so the art drafts are never downloaded.
+# The GameCI actions receive the licence secrets, so they are pinned to a release's commit.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scripts:
+    name: Scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: tools
+          filter: blob:none
+          persist-credentials: false
+      - name: Lint the shell scripts
+        run: shellcheck tools/*.sh
+      - name: Compile the Python tools
+        run: python3 -m py_compile tools/*.py
+
+  licence:
+    name: Unity licence
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      available: ${{ steps.check.outputs.available }}
+    steps:
+      - id: check
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          if [ -n "$UNITY_EMAIL" ] && [ -n "$UNITY_PASSWORD" ] && { [ -n "$UNITY_LICENSE" ] || [ -n "$UNITY_SERIAL" ]; }; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Unity tests and build skipped: set UNITY_EMAIL, UNITY_PASSWORD and UNITY_LICENSE (or UNITY_SERIAL) as repository secrets to run them."
+          fi
+
+  tests:
+    name: EditMode tests
+    needs: licence
+    if: needs.licence.outputs.available == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: unity
+          filter: blob:none
+          persist-credentials: false
+      - uses: actions/cache@v6
+        with:
+          path: unity/Library
+          key: library-editmode-${{ hashFiles('unity/Assets/**', 'unity/Packages/**', 'unity/ProjectSettings/**') }}
+          restore-keys: library-editmode-
+      - uses: game-ci/unity-test-runner@fa6ced25861c16ef56187828c43f76d00df43a23 # v4.3.2
+        id: tests
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity
+          testMode: editmode
+          artifactsPath: editmode-results
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: editmode-results
+          path: ${{ steps.tests.outputs.artifactsPath }}
+          if-no-files-found: ignore
+
+  build:
+    name: Linux player build
+    needs: licence
+    if: needs.licence.outputs.available == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: unity
+          filter: blob:none
+          persist-credentials: false
+      - uses: actions/cache@v6
+        with:
+          path: unity/Library
+          key: library-linux-${{ hashFiles('unity/Assets/**', 'unity/Packages/**', 'unity/ProjectSettings/**') }}
+          restore-keys: library-linux-
+      - uses: game-ci/unity-builder@eb1b9fba120c6e62c9fb7a7a81d6c107ce004c45 # v6.0.0
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity
+          targetPlatform: StandaloneLinux64
+          versioning: None

@@ -17,15 +17,15 @@ namespace DeepFeast
         void ReadPad()
         {
             var pad = Gamepad.current;
-            hud.ShowControls(pad == null ? Hud.Controls.KeyboardMouse : pad is DualShockGamepad ? Hud.Controls.PlayStation : Hud.Controls.Xbox);
-            hud.ShowFocus = padMode || kbMode;
             padMove = Vector2.zero; padDash = false;
             if (pad == null) return;
 
             var stick = pad.leftStick.ReadValue();
             var dpad = pad.dpad.ReadValue();
             var move = dpad.sqrMagnitude > stick.sqrMagnitude ? dpad : stick;
-            if (move.magnitude > PadDeadZone) { padMode = true; kbMode = false; pointerMode = false; }
+            bool pressed = pad.buttonSouth.wasPressedThisFrame || pad.buttonEast.wasPressedThisFrame || pad.startButton.wasPressedThisFrame ||
+                pad.selectButton.wasPressedThisFrame || pad.rightTrigger.wasPressedThisFrame || pad.leftShoulder.wasPressedThisFrame || pad.rightShoulder.wasPressedThisFrame;
+            if (move.magnitude > PadDeadZone || pressed) { padMode = true; kbMode = false; pointerMode = false; }
             // The stick points up; the world's y runs down.
             padMove = new Vector2(move.x, -move.y);
             padDash = pad.buttonSouth.isPressed || pad.rightTrigger.isPressed || pad.rightShoulder.isPressed;
@@ -45,6 +45,17 @@ namespace DeepFeast
             if (hud.SettingsOpen && pad.leftShoulder.wasPressedThisFrame) hud.SettingsTab(-1);
             if (hud.SettingsOpen && pad.rightShoulder.wasPressedThisFrame) hud.SettingsTab(1);
             if (pad.selectButton.wasPressedThisFrame) ToggleMute();
+        }
+
+        // Prompts follow the device the player last used; before any input, a connected pad.
+        Hud.Controls PromptDevice()
+        {
+            var pad = Gamepad.current;
+            var padType = pad is DualShockGamepad ? Hud.Controls.PlayStation : Hud.Controls.Xbox;
+            if (padMode && pad != null) return padType;
+            if (touchMode) return Hud.Controls.Touch;
+            if (kbMode || pointerMode || pad == null) return Hud.Controls.KeyboardMouse;
+            return padType;
         }
 
         void PadSteer(out float dx, out float dy, out float mag)

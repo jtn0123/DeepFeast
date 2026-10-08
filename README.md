@@ -13,12 +13,20 @@ A Feeding Frenzy–style fish game: start as a tiny fry, eat anything smaller, d
 2. Open any scene (or `Assets/Scenes/Main.unity`) and press Play — `Bootstrap` builds the whole game from code.
 3. Menu **Deep Feast → Build macOS / Build WebGL** for players (output goes to `unity/Builds/`, git-ignored).
 
-Headless build:
+Headless build and checks (macOS; set `UNITY=/path/to/Unity` if the editor isn't in the default Hub folder):
 
 ```sh
-/Applications/Unity/Hub/Editor/6000.3.25f1/Unity.app/Contents/MacOS/Unity \
-  -batchmode -quit -projectPath unity -executeMethod DeepFeast.EditorTools.Build.Mac -logFile -
+tools/build.sh                     # build the macOS player; fails on errors, warnings or a failed art validation
+tools/test.sh                      # run the EditMode unit tests (close the editor first)
+tools/verify.sh                    # build, then run the unit tests, UI flow, gamepad flows, autoplay and menu captures; run before committing
+tools/run.sh <outdir> <name> ...   # one test run of the built player with any harness flags below
 ```
+
+The unit tests in `unity/Assets/Tests/EditMode` check the game's rules without playing it: growth and its cap past Legend, tiers, which species spawn at each size and depth, habitat blending, settings overrides and limits, blink rates with Reduce flashing, and which launches count as test runs. They also run from the editor's **Window → General → Test Runner**.
+
+CI (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request. It lints `tools/` and, when the repository has a Unity licence in its secrets, runs the unit tests (which include the art validation) and a Linux player build through [GameCI](https://game.ci). Set `UNITY_EMAIL`, `UNITY_PASSWORD` and either `UNITY_LICENSE` (a Personal licence; see GameCI's [activation guide](https://game.ci/docs/github/activation)) or `UNITY_SERIAL` (a paid licence). Until then the Unity jobs are skipped with a notice. The player flows in `tools/verify.sh` need a Mac, so they run locally.
+
+`tools/run.sh` always runs the player with `-batchmode -mute` and adds `-quitafter 300` if the flags don't set a deadline. It prints the run's `[DeepFeast] exit` line and returns its exit code.
 
 ### Controls
 
@@ -74,8 +82,9 @@ Sprite detail sets how finely the game paints its generated effects (pearls, bub
 | `-padtest` | A virtual gamepad plays through the menu, steering, dashing, pause, results card, Fishdex and settings, checking each step; with `-set dashToggle=true` it also checks that a toggled dash outlasts the press |
 | `-pearlevery <s>` | Drop a pearl every N seconds, cycling shield, magnet, burst and lantern |
 | `-timescale <x>` / `-mute` / `-nopause` | Speed up, silence, don't pause on focus loss |
+| `-seed <n>` | Seed the game's random numbers. Every test run logs its seed (`[DeepFeast] seed …`), so a run can be repeated with the same world, spawns and scenery; frame timing still varies, so a long autoplay drifts apart. Scenery reviews always use 20261003 |
 
-A run with any of these flags (other than `-mute`), or any `-batchmode` run, is a test run: it never saves the best score, Fishdex, settings or mute switch. Every harness run ends with an exit code: 0 when it ran cleanly, 1 when a check failed, anything logged an error or exception, or a flow stalled before `-quitafter`. The log's last `[DeepFeast] exit` line gives the reason. Headless `flow` and `-padtest` runs quit as soon as their flow passes.
+A run with any of these flags (other than `-mute`), or any `-batchmode` run, is a test run: it starts from no best score, Fishdex, settings or mute switch and never saves them. Every harness run ends with an exit code: 0 when it ran cleanly, 1 when a check failed, anything logged an error or exception, or a flow stalled before `-quitafter`. The log's last `[DeepFeast] exit` line gives the reason. Headless `flow` and `-padtest` runs quit as soon as their flow passes.
 
 ## Code map (`unity/Assets/Scripts`)
 

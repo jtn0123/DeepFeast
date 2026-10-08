@@ -30,6 +30,29 @@ namespace DeepFeast
         const int FitSamples = 32;
         static readonly int FitId = Shader.PropertyToID("_Fit"), FitCenterId = Shader.PropertyToID("_FitCenter"),
             FitScaleId = Shader.PropertyToID("_FitScale");
+        // Shader property IDs, looked up once instead of hashed by name for every part of every fish each frame.
+        static class Id
+        {
+            public static readonly int MainTex = Shader.PropertyToID("_MainTex"), Frame = Shader.PropertyToID("_Frame"),
+                SpriteBounds = Shader.PropertyToID("_SpriteBounds"), Eye = Shader.PropertyToID("_Eye"),
+                Base = Shader.PropertyToID("_Base"), Dark = Shader.PropertyToID("_Dark"), Belly = Shader.PropertyToID("_Belly"),
+                Accent = Shader.PropertyToID("_Accent"), Head = Shader.PropertyToID("_Head"), Profile = Shader.PropertyToID("_Profile"),
+                Snout = Shader.PropertyToID("_Snout"), MouthShape = Shader.PropertyToID("_MouthShape"),
+                SharkKind = Shader.PropertyToID("_SharkKind"), Pattern = Shader.PropertyToID("_Pattern"),
+                Style = Shader.PropertyToID("_Style"), Painterly = Shader.PropertyToID("_Painterly"),
+                FrontView = Shader.PropertyToID("_FrontView"), Facing = Shader.PropertyToID("_Facing"),
+                Part = Shader.PropertyToID("_Part"), Expression = Shader.PropertyToID("_Expression"),
+                Phase = Shader.PropertyToID("_Phase"), TailFlex = Shader.PropertyToID("_TailFlex"),
+                Energy = Shader.PropertyToID("_Energy"), TurnBend = Shader.PropertyToID("_TurnBend"),
+                Flutter = Shader.PropertyToID("_Flutter"), FinRoot = Shader.PropertyToID("_FinRoot"),
+                Mouth = Shader.PropertyToID("_Mouth"), Height = Shader.PropertyToID("_Height"), Fog = Shader.PropertyToID("_Fog"),
+                FogColor = Shader.PropertyToID("_FogColor"), WaterReflection = Shader.PropertyToID("_WaterReflection"),
+                GroundReflection = Shader.PropertyToID("_GroundReflection"),
+                ReflectionStrength = Shader.PropertyToID("_ReflectionStrength"), Visibility = Shader.PropertyToID("_Visibility"),
+                PaintedFins = Shader.PropertyToID("_PaintedFins"), PaintedPectoral = Shader.PropertyToID("_PaintedPectoral"),
+                PectoralMask = Shader.PropertyToID("_PectoralMask"), Glow = Shader.PropertyToID("_Glow"),
+                Growth = Shader.PropertyToID("_Growth"), Roll = Shader.PropertyToID("_Roll"), GlowColor = Shader.PropertyToID("_GlowColor");
+        }
         static readonly Dictionary<string, Model> cache = new Dictionary<string, Model>();
         static readonly Color reefReflection = U.Hex("#c5af8a"), kelpReflection = U.Hex("#648b65"), abyssReflection = U.Hex("#546581");
         static Material material;
@@ -40,6 +63,10 @@ namespace DeepFeast
         Model model;
         Species species;
         FishArt.Art art;
+        // A species' shader values that never change while it swims, worked out once in SetSpecies.
+        Vector4 frame, spriteBounds, eye;
+        float sharkKind, pattern, phaseScale, bankDegrees;
+        bool projected;
         float previousYaw, angularVelocity;
         bool initialized;
         public float Yaw { get; private set; }
@@ -64,6 +91,28 @@ namespace DeepFeast
             if (!cache.TryGetValue(sp.key, out model)) cache[sp.key] = model = Build(sp, artwork);
             var meshes = new[] { model.body, model.fins, model.nearFin, model.farFin, model.nearEye, model.farEye, model.mouth };
             for (int i = 0; i < parts.Length; i++) filters[i].sharedMesh = meshes[i];
+
+            // The mesh jaw supplies the open pose; keep skin coordinates stable throughout feeding.
+            var sprite = artwork.body;
+            var rect = sprite.rect;
+            var bounds = sprite.bounds;
+            frame = new Vector4(rect.x / sprite.texture.width, rect.y / sprite.texture.height, rect.width / sprite.texture.width, rect.height / sprite.texture.height);
+            spriteBounds = new Vector4(bounds.min.x, bounds.min.y, bounds.size.x, bounds.size.y);
+            // Only the legacy painted fish project their illustration. The painted shark's flat
+            // drawing smears around a rounded, snouted body, so sharks paint procedural skin.
+            // Generated fallback sprites smear on the rounded body too, so those species paint their
+            // procedural skin with the illustrations' cues instead.
+            projected = artwork.painted && !sp.IsShark;
+            // Painted art masks its baked eye; generated skins only need the sculpted eye's position.
+            eye = projected ? new Vector4(artwork.eyePos.x, artwork.eyePos.y, artwork.eyeSize.x * 1.18f, artwork.eyeSize.y * 1.18f)
+                : new Vector4(model.nearEyeCenter.x, model.nearEyeCenter.y, 0.1f, 0.1f);
+            sharkKind = sp.key switch { "tiger_shark" => 2, "mako_shark" => 3, "whale_shark" => 4, "great_hammerhead" => 5, _ => sp.IsShark ? 1 : 0 };
+            // Bluefish shares the minnow's line pattern but also needs a pelagic dark back.
+            pattern = sp.key == "bluefish" ? 20 : Pattern(sp.pat);
+            phaseScale = sp.key switch { "mako_shark" => 1.2f, "tiger_shark" => 0.88f, "whale_shark" => 0.6f, _ => 1 };
+            // Banked toward the viewer on either heading, level when head-on in a turn: the manta shows
+            // its back, the hammerhead the top of its cephalofoil.
+            bankDegrees = sp.key == Manta ? MantaBank : sp.key == "great_hammerhead" ? HammerBank : 0;
         }
 
         // Building a species takes tens of milliseconds; doing it when the species first swims on screen
@@ -109,78 +158,64 @@ namespace DeepFeast
 
         public void Pose(Fish f, Vector4 motion, FishView.EyeMode expression, Quaternion rotation)
         {
-            // The mesh jaw supplies the open pose; keep skin coordinates stable throughout feeding.
-            Sprite sprite = art.body;
-            var rect = sprite.rect;
-            var bounds = sprite.bounds;
             float sin = Mathf.Sin(Yaw * Mathf.Deg2Rad);
-            // Banked toward the viewer on either heading, level when head-on in a turn: the manta shows
-            // its back, the hammerhead the top of its cephalofoil.
-            float bank = species.key == Manta ? MantaBank : species.key == "great_hammerhead" ? HammerBank : 0;
-            float roll = -bank * Mathf.Deg2Rad * Mathf.Clamp(f.faceS, -1, 1);
-            // Only the legacy painted fish project their illustration. The painted shark's flat
-            // drawing smears around a rounded, snouted body, so sharks paint procedural skin.
-            bool projected = art.painted && !species.IsShark;
+            float roll = -bankDegrees * Mathf.Deg2Rad * Mathf.Clamp(f.faceS, -1, 1);
             var habitat = Habitat.At(f.y);
             var waterReflection = Color.Lerp(World.WaterAt(Mathf.Max(0, f.y - 700)), habitat.light, 0.45f);
             var groundReflection = Color.Lerp(Color.Lerp(reefReflection, kelpReflection, habitat.kelp), abyssReflection, habitat.abyss);
+            // Every part shares the fish's values; only a part's own few change between them.
+            block.Clear();
+            block.SetTexture(Id.MainTex, art.body.texture);
+            block.SetVector(Id.Frame, frame);
+            block.SetVector(Id.SpriteBounds, spriteBounds);
+            block.SetVector(Id.Eye, eye);
+            block.SetColor(Id.Base, species.c0); block.SetColor(Id.Dark, species.c1); block.SetColor(Id.Belly, species.c2);
+            block.SetColor(Id.Accent, species.fin);
+            block.SetVector(Id.Head, model.head);
+            block.SetVector(Id.Profile, model.profile);
+            block.SetFloat(Id.Snout, model.snout);
+            block.SetVector(FitId, new Vector4(model.fitEnd, model.fitScale != null ? 1 : 0, 0, 0));
+            if (model.fitScale != null) { block.SetFloatArray(FitCenterId, model.fitCenter); block.SetFloatArray(FitScaleId, model.fitScale); }
+            block.SetVector(Id.MouthShape, model.mouthParameters);
+            block.SetFloat(Id.SharkKind, sharkKind);
+            block.SetFloat(Id.Pattern, pattern);
+            block.SetFloat(Id.Style, Style == Look.Sculpted ? 1 : 0);
+            block.SetFloat(Id.Painterly, Style == Look.Painted && !projected ? 1 : 0);
+            block.SetFloat(Id.FrontView, Mathf.Pow(sin, 8));
+            block.SetFloat(Id.Facing, f.faceS);
+            block.SetFloat(Id.Expression, expression == FishView.EyeMode.Blink ? 1 : expression == FishView.EyeMode.Angry ? 2 : expression == FishView.EyeMode.Happy ? 3 : 0);
+            block.SetFloat(Id.Phase, f.wag * motion.x * phaseScale);
+            block.SetFloat(Id.TailFlex, motion.y * 1.5f);
+            block.SetFloat(Id.Energy, Mathf.Clamp(0.6f + new Vector2(f.vx, f.vy).magnitude / Mathf.Max(1, f.r) * 0.02f, 0.6f, 1.25f));
+            block.SetFloat(Id.TurnBend, angularVelocity / 240 * 0.22f);
+            // The anglerfish rests with its toothy jaws ajar.
+            block.SetFloat(Id.Mouth, species.key == "humpback_anglerfish" ? Mathf.Max(f.mouth, 0.42f) : f.mouth);
+            block.SetFloat(Id.Height, model.height);
+            block.SetFloat(Id.Fog, species == Data.Player ? 0.015f : 0.02f + Mathf.Clamp01((f.y - 900) / 3500) * 0.045f);
+            block.SetColor(Id.FogColor, World.WaterAt(f.y));
+            block.SetColor(Id.WaterReflection, waterReflection);
+            block.SetColor(Id.GroundReflection, groundReflection);
+            block.SetFloat(Id.ReflectionStrength, Mathf.Lerp(0.11f, 0.055f, habitat.abyss));
+            block.SetFloat(Id.PaintedFins, model.paintedFins ? 1 : 0);
+            block.SetVector(Id.PectoralMask, model.pectoralMask);
+            block.SetFloat(Id.Glow, species.glow);
+            block.SetFloat(Id.Growth, species == Data.Player ? f.stage / (Data.Tiers.Length - 1) : 0);
+            block.SetFloat(Id.Roll, roll);
+            block.SetColor(Id.GlowColor, species.glowColor);
             for (int i = 0; i < parts.Length; i++)
             {
-                block.Clear();
-                block.SetTexture("_MainTex", sprite.texture);
-                block.SetVector("_Frame", new Vector4(rect.x / sprite.texture.width, rect.y / sprite.texture.height, rect.width / sprite.texture.width, rect.height / sprite.texture.height));
-                block.SetVector("_SpriteBounds", new Vector4(bounds.min.x, bounds.min.y, bounds.size.x, bounds.size.y));
-                // Painted art masks its baked eye; generated skins only need the sculpted eye's position.
-                block.SetVector("_Eye", projected ? new Vector4(art.eyePos.x, art.eyePos.y, art.eyeSize.x * 1.18f, art.eyeSize.y * 1.18f)
-                    : new Vector4(model.nearEyeCenter.x, model.nearEyeCenter.y, 0.1f, 0.1f));
-                block.SetColor("_Base", species.c0); block.SetColor("_Dark", species.c1); block.SetColor("_Belly", species.c2);
-                block.SetColor("_Accent", species.fin);
-                block.SetVector("_Head", model.head);
-                block.SetVector("_Profile", model.profile);
-                block.SetFloat("_Snout", model.snout);
-                block.SetVector(FitId, new Vector4(model.fitEnd, model.fitScale != null ? 1 : 0, 0, 0));
-                if (model.fitScale != null) { block.SetFloatArray(FitCenterId, model.fitCenter); block.SetFloatArray(FitScaleId, model.fitScale); }
-                block.SetVector("_MouthShape", model.mouthParameters);
-                block.SetFloat("_SharkKind", species.key switch { "tiger_shark" => 2, "mako_shark" => 3, "whale_shark" => 4, "great_hammerhead" => 5, _ => species.IsShark ? 1 : 0 });
-                // Bluefish shares the minnow's line pattern but also needs a pelagic dark back.
-                block.SetFloat("_Pattern", species.key == "bluefish" ? 20 : Pattern(species.pat));
-                // Only real painted art is projected; generated fallback sprites smear on the rounded body,
-                // so those species paint their procedural skin with the illustrations' cues instead.
-                block.SetFloat("_Style", Style == Look.Sculpted ? 1 : 0);
-                block.SetFloat("_Painterly", Style == Look.Painted && !projected ? 1 : 0);
-                block.SetFloat("_FrontView", Mathf.Pow(sin, 8));
-                block.SetFloat("_Facing", f.faceS);
-                block.SetFloat("_Part", i == 0 ? 0 : i < 4 ? 1 : i < 6 ? 2 : 3);
-                block.SetFloat("_Expression", expression == FishView.EyeMode.Blink ? 1 : expression == FishView.EyeMode.Angry ? 2 : expression == FishView.EyeMode.Happy ? 3 : 0);
-                block.SetFloat("_Phase", f.wag * motion.x * species.key switch { "mako_shark" => 1.2f, "tiger_shark" => 0.88f, "whale_shark" => 0.6f, _ => 1 });
-                block.SetFloat("_TailFlex", motion.y * 1.5f);
-                block.SetFloat("_Energy", Mathf.Clamp(0.6f + new Vector2(f.vx, f.vy).magnitude / Mathf.Max(1, f.r) * 0.02f, 0.6f, 1.25f));
-                block.SetFloat("_TurnBend", angularVelocity / 240 * 0.22f);
-                block.SetFloat("_Flutter", i == 2 || i == 3 ? motion.z * 5 : 0.035f);
+                block.SetFloat(Id.Part, i == 0 ? 0 : i < 4 ? 1 : i < 6 ? 2 : 3);
+                block.SetFloat(Id.Flutter, i == 2 || i == 3 ? motion.z * 5 : 0.035f);
                 var finRoot = i == 2 ? model.nearFinRoot : model.farFinRoot;
-                block.SetVector("_FinRoot", new Vector4(finRoot.x, finRoot.y, finRoot.z, i == 2 || i == 3 ? 1 : 0));
-                // The anglerfish rests with its toothy jaws ajar.
-                block.SetFloat("_Mouth", species.key == "humpback_anglerfish" ? Mathf.Max(f.mouth, 0.42f) : f.mouth);
-                block.SetFloat("_Height", model.height);
-                block.SetFloat("_Fog", species == Data.Player ? 0.015f : 0.02f + Mathf.Clamp01((f.y - 900) / 3500) * 0.045f);
-                block.SetColor("_FogColor", World.WaterAt(f.y));
-                block.SetColor("_WaterReflection", waterReflection);
-                block.SetColor("_GroundReflection", groundReflection);
-                block.SetFloat("_ReflectionStrength", Mathf.Lerp(0.11f, 0.055f, habitat.abyss));
+                block.SetVector(Id.FinRoot, new Vector4(finRoot.x, finRoot.y, finRoot.z, i == 2 || i == 3 ? 1 : 0));
                 float visibility = 1;
                 if (i == 4 || i == 5)
                 {
                     var normal = rotation * (Quaternion.AngleAxis(roll * Mathf.Rad2Deg, Vector3.right) * (i == 4 ? model.nearNormal : model.farNormal));
                     visibility = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(-0.12f, 0.18f, Vector3.Dot(normal, Vector3.back)));
                 }
-                block.SetFloat("_Visibility", visibility);
-                block.SetFloat("_PaintedFins", model.paintedFins ? 1 : 0);
-                block.SetFloat("_PaintedPectoral", model.paintedPectoral && (i == 2 || i == 3) ? 1 : 0);
-                block.SetVector("_PectoralMask", model.pectoralMask);
-                block.SetFloat("_Glow", species.glow);
-                block.SetFloat("_Growth", species == Data.Player ? f.stage / (Data.Tiers.Length - 1) : 0);
-                block.SetFloat("_Roll", roll);
-                block.SetColor("_GlowColor", species.glowColor);
+                block.SetFloat(Id.Visibility, visibility);
+                block.SetFloat(Id.PaintedPectoral, model.paintedPectoral && (i == 2 || i == 3) ? 1 : 0);
                 parts[i].SetPropertyBlock(block);
             }
             parts[0].sortingOrder = 1; parts[1].sortingOrder = 0;
