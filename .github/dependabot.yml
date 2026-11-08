@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # The workflows' actions are all Dependabot can watch here: Unity's package
+  # manager (unity/Packages/manifest.json) is not an ecosystem it supports.
+  # That covers game-ci's builder and test runner (pinned to SHAs, which
+  # Dependabot updates by their version comments), checkout, cache and
+  # upload-artifact. One PR a week for the lot, since each costs a Unity build.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns:
+          - "*"
